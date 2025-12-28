@@ -1,0 +1,198 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:punit_label/features/dispatch/models/customerModel.dart';
+
+import '../../apis/connectHelper.dart';
+import '../../constants/enums.dart';
+import '../../constants/sizes.dart';
+import '../../constants/utility.dart';
+import '../../navigation/routesManagement.dart';
+import '../dashboard/dashboardController.dart';
+import 'models/dispatchBarcodes.dart';
+import 'models/dispatchModel.dart';
+
+class DispatchController extends GetxController {
+  var initLoading = false.obs;
+  TextEditingController manualBarcode = TextEditingController();
+  ConnectHelper connectHelper = ConnectHelper();
+  Rxn<DispatchModel> dispatchModel = Rxn<DispatchModel>();
+  Rxn<customerModel> dispatchCustomerModel = Rxn<customerModel>();
+  RxList<Customer> customerList = <Customer>[].obs;
+  var selectedCustomer = Rxn<Customer>();
+  final dashboardController = Get.find<DashboardController>();
+  RxList<Dispatchbarcodes> barcodeList = <Dispatchbarcodes>[].obs;
+  RxList<VerifiedBarcode> verifiedBarcodeList = <VerifiedBarcode>[].obs;
+  var enableAddButton = Rx<bool>(false);
+  @override
+  Future<void> onInit() async {
+    // TODO: implement onInit
+    super.onInit();
+    initLoading.value = true;
+    await _fetchBatchlist();
+    await _fetchCustomerlist();
+    initLoading.value = false;
+  }
+
+  void verifyAndAddBarcode(String scanned) {
+    final code = scanned.trim().toLowerCase();
+    if (code.isEmpty) return;
+
+    Barcodes? foundBarcode;
+    Data? parentProduct;
+    for (final product in dispatchModel.value?.data ?? []) {
+      Barcodes? barcode;
+      try {
+        barcode = product.barcodes?.firstWhere(
+              (b) => (b.barCodeString ?? '').toLowerCase() == code,
+        );
+
+      } catch (_) {
+        barcode = null;
+      }
+
+      if (barcode != null) {
+        foundBarcode = barcode;
+        parentProduct = product;
+        print(foundBarcode.barCodeString);
+        print(parentProduct?.variation?.length);
+        break;
+      }
+    }
+
+
+    if (foundBarcode == null || parentProduct == null) {
+      Utility.showToast(
+        text: 'Unverified Barcode',
+        toastColor: Colors.red,
+        icon: Icons.cancel,
+      );
+      return;
+    }
+
+    /// Duplicate check (ID based)
+    final alreadyAdded = verifiedBarcodeList.any(
+          (v) => v.barcodeId == foundBarcode!.id,
+    );
+
+    if (alreadyAdded) {
+      Utility.showToast(
+        text: 'Entry Already Exist',
+        toastColor: Colors.orange,
+        icon: Icons.do_not_disturb_alt,
+      );
+      return;
+    }
+
+
+    /// Add to UI list
+    barcodeList.insert(
+      0,
+      Dispatchbarcodes(
+        id: foundBarcode.id,
+        stockId: foundBarcode.stockId,
+        barCodeString: foundBarcode.barCodeString,
+        isTareWeight: foundBarcode.isTareWeight,
+        tareWeight: foundBarcode.tareWeight,
+        grossWeight: foundBarcode.grossWeight,
+        netWeight: foundBarcode.netWeight,
+        productName: parentProduct.productName,
+        variation: List<Variation>.from(parentProduct.variation ?? [])
+      ),
+    );
+    print("VARIATION COUNT = ${barcodeList.first.variation?.length}");
+    /// Add to verified payload list
+    verifiedBarcodeList.insert(
+      0,
+      VerifiedBarcode(
+        stockId: foundBarcode.stockId,
+        barcodeId: foundBarcode.id,
+      ),
+    );
+
+    manualBarcode.clear();
+
+    Utility.showToast(
+      text: 'Entry Added',
+      toastColor: Colors.green,
+      icon: Icons.check_circle,
+    );
+  }
+
+
+  Future<void> _fetchBatchlist() async {
+    var response = await dashboardController.callApi(
+      apiCall: () => connectHelper.getDispatchList(),
+    );
+    if (!response.hasError) {
+      dispatchModel.value = DispatchModel.fromJson(
+        jsonDecode(response.data),
+      );
+      print(
+        "---------------------------fetched Dispatch list--------------------",
+      );
+    } else if (response.hasError) {
+      Utility.showApiErrorSnackbar(response);
+    }
+  }
+
+  Future<void> _fetchCustomerlist() async {
+    var response = await dashboardController.callApi(
+      apiCall: () => connectHelper.getCustomerList(),
+    );
+    dispatchCustomerModel.value = customerModel.fromJson(
+      jsonDecode(response.data),
+    );
+    print(
+      "---------------------------fetched customer list--------------------",
+    );
+
+    customerList.value = dispatchCustomerModel.value?.data ?? [];
+
+    if (customerList.isNotEmpty) {
+      selectedCustomer.value = customerList.first;
+    } else {
+      selectedCustomer.value = null;
+    }
+  }
+
+  Future<void> changeSelectedCustomerId(int id) async {
+    // find the product by id
+    var product = customerList.firstWhere(
+      (p) => p.id == id,
+      orElse: () => Customer(),
+    );
+
+    if (product == null || product.id == null) return;
+
+    selectedCustomer.value = product;
+    //await _fetchBatchDetail();
+  }
+
+  Future<void> saveAndSubmitScannedBarcodes() async {
+    var data = DispatchBarcode(data: verifiedBarcodeList, customerId: selectedCustomer.value?.id);
+    print('Body of Dispatch == ${jsonEncode(data)}');
+    var response = await dashboardController.callApi(
+      apiCall: () =>
+          connectHelper.dispatchBarcodesVerify(dispatch_barcode: data),
+    );
+    if (!response.hasError) {
+      Get.snackbar(
+        "Successful",
+        "Products Dispatched Successfully",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        animationDuration: Duration(seconds: 3),
+      );
+      barcodeList.clear();
+      verifiedBarcodeList.clear();
+      //Get.back();
+      await _fetchBatchlist();
+    } else if (response.hasError) {
+      Utility.showApiErrorSnackbar(response);
+    }
+  }
+}

@@ -35,10 +35,21 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+dependencies {
+    // Add this line for your JAR file
+    implementation(files("libs/LabelPrinterJavaSDK.jar"))
+    //  implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 }

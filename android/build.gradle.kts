@@ -2,6 +2,14 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        flatDir {
+            dirs("libs")
+        }
+    }
+    configurations.all {
+        resolutionStrategy {
+            force("net.bytebuddy:byte-buddy:1.12.22")
+        }
     }
 }
 
