@@ -187,6 +187,9 @@ class Barcodes {
   String? netWeight;
   String? units;
   bool? unitConversion;
+  DateTime? time;
+  int? serialNo;
+
   Barcodes(
       {this.batchProductId,
         this.batchProductName,
@@ -196,7 +199,7 @@ class Barcodes {
         this.grossWeight,
         this.units,
         this.unitConversion,
-        this.netWeight});
+        this.netWeight,this.time,this.serialNo});
 
   Barcodes.fromJson(Map<String, dynamic> json) {
     batchProductId = json['batch_product_id'];
@@ -206,6 +209,10 @@ class Barcodes {
     tareWeight = json['tare_weight'];
     grossWeight = json['gross_weight'];
     netWeight = json['net_weight'];
+    time = json['time'] != null
+        ? DateTime.parse(json['time'])
+        : null;
+    serialNo = json['serial_no'];
   }
 
   Map<String, dynamic> toJson() {
@@ -217,6 +224,8 @@ class Barcodes {
     data['tare_weight'] = this.tareWeight;
     data['gross_weight'] = this.grossWeight;
     data['net_weight'] = this.netWeight;
+    data['time'] = time?.toIso8601String(); // 🕒
+    data['serial_no'] = serialNo.toString();
     return data;
   }
 }

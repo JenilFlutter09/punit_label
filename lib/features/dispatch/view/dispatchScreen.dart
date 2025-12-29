@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:punit_label/constants/colors.dart';
 import 'package:punit_label/constants/styles.dart';
-import 'package:punit_label/features/dashboard/dashboardController.dart';
 import 'package:punit_label/features/dispatch/dispatchController.dart';
 import 'package:get/get.dart';
 
@@ -12,8 +10,6 @@ import '../../../widgets/customAppBar.dart';
 import '../../../widgets/customButton.dart';
 import '../../../widgets/customDrawer.dart';
 import '../../../widgets/miscellenous.dart';
-import '../../../widgets/pdfExcel.dart';
-import '../../../widgets/searchableDropdown.dart';
 import '../../scanner/scannerDailog.dart';
 import '../models/customerModel.dart';
 import '../models/dispatchBarcodes.dart';
@@ -73,61 +69,10 @@ class DispatchScreen extends StatelessWidget {
                                   final result = await showBarcodeScannerDialog(
                                     context,
                                   );
-                                  /*if (result != null) {
-                                    print(
-                                      'Scanned Value ===== ${result.trim()}',
-                                    );
-                                    final scanned = result.trim();
-                                    if (controller
-                                            .dispatchBarcodeModel
-                                            .value
-                                            ?.data
-                                            ?.any(
-                                              (b) =>
-                                                  b.barCodeString?.trim() ==
-                                                  scanned,
-                                            ) ??
-                                        false) {
-                                      controller.selectedBarcode.value =
-                                          controller
-                                              .dispatchBarcodeModel
-                                              .value
-                                              ?.data
-                                              ?.firstWhere(
-                                                (b) =>
-                                                    b.barCodeString?.trim() ==
-                                                    scanned,
-                                              );
-                                      Get.snackbar(
-                                        '',
-                                        '',
-                                        titleText: Text('Verified'),
-                                        messageText: Icon(
-                                          Icons.check_circle,
-                                          size: Dimens.fifty,
-                                          color: Colors.green,
-                                        ),
-                                        snackStyle: SnackStyle.FLOATING,
-                                      );
+                                  if (result == null) {
+                                    Utility.showDialog('Re - Scan Please');
 
-                                      controller.enableAddButton.value = true;
-                                      controller.addVerifiedBarcode();
-                                    } else {
-                                      Get.snackbar(
-                                        '',
-                                        '',
-                                        titleText: Text('Unverified'),
-                                        messageText: Icon(
-                                          Icons.cancel,
-                                          size: Dimens.fifty,
-                                          color: Colors.red,
-                                        ),
-                                        snackStyle: SnackStyle.FLOATING,
-                                      );
-                                      controller.enableAddButton.value = false;
-                                    }
-                                  }*/
-                                  if (result != null) {
+                                  }else{
                                     controller.verifyAndAddBarcode(result);
                                   }
                                 },
@@ -163,7 +108,10 @@ class DispatchScreen extends StatelessWidget {
                                 backgroundColor: Colors.grey,
                               )
                             : CustomButton(
-                                onPressed: () {
+                              onPressed: (){
+                                controller.generatePdfForSpecificClient(context);
+                              },
+                               *//* onPressed: () {
                                   /// TODO :- PDF Logic
                                   ExportHelper.exportReport(
                                     context: context,
@@ -196,7 +144,7 @@ class DispatchScreen extends StatelessWidget {
                                       ];
                                     }).toList(),
                                   );
-                                },
+                                },*//*
                                 icon: Icons.picture_as_pdf,
                                 iconSize: Dimens.thirty,
                                 height: Dimens.sixty,

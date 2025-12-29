@@ -45,6 +45,23 @@ class BatchInwardScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Utility.styledInputField(
+                label: 'Serial Number',
+                icon: Icons.numbers,
+                keyboard: TextInputType.number,
+                isTablet: isTablet,
+                controller: controller.serialNumberTextController,
+                onChanged: controller.validateSerial,
+                suffix: Obx(() => Icon(
+                  controller.isSerialVerified.value
+                      ? Icons.check_circle
+                      : Icons.cancel,
+                  color: controller.isSerialVerified.value
+                      ? Colors.green
+                      : Colors.red,
+                )),
+              ),
+              Dimens.boxHeight8,
               Card(
                 color: Colors.white,
                 margin: EdgeInsets.only(bottom: 20),

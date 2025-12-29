@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:excel/excel.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+
+import '../features/dispatch/models/dispatchBarcodes.dart';
 
 class ExportHelper {
   static List<String> calculateTotals(List<List<String>> data) {
@@ -96,60 +99,30 @@ class ExportHelper {
       },
     );
   }
-  static Future<void> exportHorizontalClientPDF({
+  /*static Future<void> exportHorizontalClientPDF({
     required BuildContext context,
     required String title,
     required Map<String, String> metaData,
-    required List<dynamic> items, // barcodeList
+    required List<Dispatchbarcodes> items,
   }) async {
-
     final pdf = pw.Document();
-
     double totalWeight = 0;
+
+    // 🔹 Group barcodes product-wise
+    final Map<String, List<Dispatchbarcodes>> groupedItems = {};
+    for (final item in items) {
+      final key = item.productName ?? 'Unknown Product';
+      groupedItems.putIfAbsent(key, () => []).add(item);
+    }
 
     pdf.addPage(
       pw.MultiPage(
         margin: const pw.EdgeInsets.all(24),
         build: (context) {
+          final content = <pw.Widget>[];
 
-          final horizontalWidgets = <pw.Widget>[];
-
-          for (int i = 0; i < items.length; i++) {
-            final item = items[i];
-            final weight = double.tryParse(item.netWeight.toString()) ?? 0;
-            totalWeight += weight;
-
-            horizontalWidgets.add(
-              pw.Container(
-                width: 180,
-                padding: const pw.EdgeInsets.all(8),
-                margin: const pw.EdgeInsets.only(right: 8, bottom: 8),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(width: 0.8),
-                  borderRadius: pw.BorderRadius.circular(6),
-                ),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text("Sr: ${i + 1}",
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 4),
-                    pw.Text("Item: ${item.productName}",
-                        maxLines: 2,
-                        overflow: pw.TextOverflow.clip),
-                    pw.SizedBox(height: 4),
-                    pw.Text("Weight: ${item.netWeight} kg",
-                        style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                        )),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          return [
-            /// 🏷 Title
+          /// 🏷 Title
+          content.add(
             pw.Center(
               child: pw.Text(
                 title,
@@ -159,33 +132,88 @@ class ExportHelper {
                 ),
               ),
             ),
+          );
 
-            pw.SizedBox(height: 10),
+          content.add(pw.SizedBox(height: 10));
 
-            /// 🧾 Meta Data
+          /// 🧾 Meta Data
+          content.add(
             pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: metaData.entries.map((e) {
-                return pw.Text(
+              children: metaData.entries
+                  .map(
+                    (e) => pw.Text(
                   "${e.key}: ${e.value}",
                   style: pw.TextStyle(
                     fontSize: 13,
                     color: PdfColors.grey700,
                   ),
-                );
-              }).toList(),
+                ),
+              )
+                  .toList(),
             ),
+          );
 
-            pw.SizedBox(height: 20),
+          content.add(pw.SizedBox(height: 20));
 
-            /// 🔁 Horizontal Flow Layout
-            pw.Wrap(
-              children: horizontalWidgets,
-            ),
+          /// 🔁 PRODUCT-WISE SECTIONS
+          groupedItems.forEach((productName, productItems) {
+            // 🟦 Product Heading
+            content.add(
+              pw.Text(
+                productName,
+                style: pw.TextStyle(
+                  fontSize: 16,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
 
-            pw.SizedBox(height: 30),
+            content.add(pw.SizedBox(height: 8));
 
-            /// 🔻 Totals Section (Separate)
+            int sr = 1;
+            final productWidgets = <pw.Widget>[];
+
+            for (final item in productItems) {
+              final weight = item.netWeight ?? 0;
+              totalWeight += weight;
+
+              productWidgets.add(
+                pw.Container(
+                  width: 160,
+                  padding: const pw.EdgeInsets.all(8),
+                  margin: const pw.EdgeInsets.only(right: 8, bottom: 8),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(width: 0.8),
+                    borderRadius: pw.BorderRadius.circular(6),
+                  ),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        "Sr: ${sr++}",
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Text(
+                        "${weight.toStringAsFixed(2)} kg",
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            // 🔁 Horizontal flow for this product
+            content.add(
+              pw.Wrap(children: productWidgets),
+            );
+
+            content.add(pw.SizedBox(height: 20));
+          });
+
+          /// 🔻 TOTALS
+          content.add(
             pw.Container(
               width: double.infinity,
               padding: const pw.EdgeInsets.all(12),
@@ -213,7 +241,9 @@ class ExportHelper {
                 ],
               ),
             ),
-          ];
+          );
+
+          return content;
         },
       ),
     );
@@ -224,6 +254,303 @@ class ExportHelper {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Horizontal PDF saved successfully")),
+    );
+  }*/
+
+  static List<List<Dispatchbarcodes>> chunk(List<Dispatchbarcodes> list, int size) {
+    final chunks = <List<Dispatchbarcodes>>[];
+    for (var i = 0; i < list.length; i += size) {
+      chunks.add(
+        list.sublist(i, i + size > list.length ? list.length : i + size),
+      );
+    }
+    return chunks;
+  }
+  static Future<void> exportHorizontalClientPDF({
+    required BuildContext context,
+    required String title,
+    required Map<String, String> metaData,
+    required List<Dispatchbarcodes> items,
+  }) async {
+    final pdf = pw.Document();
+    final logo = await rootBundle.load('assets/images/splash.jpeg');
+    final logoImage = pw.MemoryImage(logo.buffer.asUint8List());
+
+    // 🔹 Group product-wise
+    final Map<String, List<Dispatchbarcodes>> grouped = {};
+    for (final item in items) {
+      final key = item.productName ?? 'Unknown Product';
+      grouped.putIfAbsent(key, () => []).add(item);
+    }
+
+
+    pdf.addPage(
+      pw.MultiPage(
+        margin: const pw.EdgeInsets.all(20),
+        build: (context) {
+          final widgets = <pw.Widget>[];
+          final now = DateTime.now();
+
+          widgets.add(
+            buildCompanyHeader(
+              logo: logoImage, // or null if not using image
+              slipNo: "720725",
+              invoiceNo: "INV-${now.microsecondsSinceEpoch}",
+              date: now,
+            ),
+          );
+
+          widgets.add(pw.SizedBox(height: 12));
+
+          // /// 🏷 HEADER
+          // widgets.add(
+          //   pw.Center(
+          //     child: pw.Text(
+          //       title,
+          //       style: pw.TextStyle(
+          //         fontSize: 18,
+          //         fontWeight: pw.FontWeight.bold,
+          //       ),
+          //     ),
+          //   ),
+          // );
+          //
+          //
+          // widgets.add(pw.SizedBox(height: 8));
+          //
+          // widgets.add(
+          //   pw.Column(
+          //     crossAxisAlignment: pw.CrossAxisAlignment.start,
+          //     children: metaData.entries
+          //         .map(
+          //           (e) => pw.Text(
+          //         "${e.key} : ${e.value}",
+          //         style: const pw.TextStyle(fontSize: 10),
+          //       ),
+          //     )
+          //         .toList(),
+          //   ),
+          // );
+          //
+          // widgets.add(pw.SizedBox(height: 12));
+
+          /// 🔁 PRODUCT SECTIONS
+          grouped.forEach((productName, productItems) {
+            double productWeight = 0;
+
+            for (final e in productItems) {
+              productWeight += e.netWeight ?? 0;
+            }
+
+            /// 🔹 Product title row
+            widgets.add(
+              pw.Container(
+                padding: const pw.EdgeInsets.all(6),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      productName,
+                      style: pw.TextStyle(
+                        fontSize: 11,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      "Count : ${productItems.length}   KG : ${productWeight.toStringAsFixed(2)}",
+                      style: pw.TextStyle(
+                        fontSize: 11,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+
+            /// 🔹 Barcode grid
+            final rows = chunk(productItems, 5);
+            int sr = 1;
+
+            widgets.add(
+              pw.Table(
+                border: pw.TableBorder.all(),
+                columnWidths: {
+                  for (int i = 0; i < 10; i++)
+                    i: const pw.FlexColumnWidth(1),
+                },
+                children: rows.map((row) {
+                  final cells = <pw.Widget>[];
+
+                  for (final item in row) {
+                    cells.add(
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text(
+                          "${sr++}) ${item.barCodeString ?? ''}",
+                          style: const pw.TextStyle(fontSize: 9),
+                        ),
+                      ),
+                    );
+
+                    cells.add(
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text(
+                          "${(item.netWeight ?? 0).toStringAsFixed(2)} kg",
+                          style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+                        ),
+                      ),
+                    );
+                  }
+
+                  /// fill empty cells
+                  while (cells.length < 10) {
+                    cells.add(pw.Container());
+                  }
+
+                  return pw.TableRow(children: cells);
+                }).toList(),
+              ),
+            );
+
+            widgets.add(pw.SizedBox(height: 14));
+          });
+
+          /// 🔻 FOOTER
+          widgets.add(
+            pw.Center(
+              child: pw.Text(
+                "generated from weighing system by https://pinnacle.punitinstrument.com",
+                style: pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+              ),
+            ),
+          );
+
+          return widgets;
+        },
+      ),
+    );
+
+
+    final dir = Directory("/storage/emulated/0/Download");
+    final file = File("${dir.path}/$title.pdf");
+    await file.writeAsBytes(await pdf.save());
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Packing slip PDF saved")),
+    );
+  }
+
+  static pw.Widget buildCompanyHeader({
+    pw.ImageProvider? logo,
+    required String slipNo,
+    required String invoiceNo,
+    required DateTime date,
+  }) {
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(),
+      ),
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          /// 🔹 LEFT (Logo)
+          if (logo != null)
+            pw.Container(
+              width: 60,
+              height: 60,
+              child: pw.Image(logo),
+            ),
+
+          if (logo != null) pw.SizedBox(width: 8),
+
+          /// 🔹 CENTER (Company Details)
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text(
+                  "SURYA SALES CORPORATION",
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 3),
+                pw.Text(
+                  "Distributors For: AGARAWAL & SUKI PLUMBING SOLUTIONS",
+                  style: pw.TextStyle(fontSize: 9),
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  "D. No : 5-2-365, Hyderbasthi, Ranigunj, Secunderabad - 03",
+                  style: pw.TextStyle(fontSize: 9, ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  "Ph : 27541220, 66901225, 66901221",
+                  style: pw.TextStyle(fontSize: 9),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  "Email : accounts@sukindia.com",
+                  style: pw.TextStyle(fontSize: 9),
+                ),
+              ],
+            ),
+          ),
+
+          pw.SizedBox(width: 8),
+
+          /// 🔹 RIGHT (Slip Info Box)
+          pw.Container(
+            width: 140,
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(4),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide()),
+                  ),
+                  child: pw.Text(
+                    "Packing Slip",
+                    textAlign: pw.TextAlign.center,
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(4),
+                  child: pw.Text("Slip No : $slipNo", style: pw.TextStyle(fontSize: 9)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(4),
+                  child: pw.Text(
+                    "Date : ${DateFormat('dd/MM/yyyy  HH:mm:ss').format(date)}",
+                    style: pw.TextStyle(fontSize: 9),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(4),
+                  child:
+                  pw.Text("Invoice No : $invoiceNo", style: pw.TextStyle(fontSize: 9)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

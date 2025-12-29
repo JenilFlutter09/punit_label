@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:punit_label/constants/colors.dart';
+import 'package:punit_label/constants/sizes.dart';
+import 'package:punit_label/constants/utility.dart';
 import 'package:punit_label/features/inward/nonBatchWise/nonBatchController.dart';
 
 import 'models/nonBatchInwardModel.dart';
@@ -242,51 +245,46 @@ class _BarcodeCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                index,
-                style: TextStyle(
-                  fontSize: isTablet ? 18 : 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
 
               /// 🕒 Timestamp
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(
-                    Icons.access_time,
-                    size: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                  const SizedBox(width: 6),
                   Text(
-                    formatTimestamp(barcode.time),
+                    "No :- " + barcode.serialNo.toString(),
                     style: TextStyle(
-                      fontSize: isTablet ? 13 : 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade700,
+                      fontSize: isTablet ? 18 : 16,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        size: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                      Text(
+                        Utility.formatTimestamp(barcode.time),
+                        style: TextStyle(
+                          fontSize: isTablet ? 13 : 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+
+
                 ],
               ),
             ],
           ),
         ),
-
-        Icon(
-          Icons.qr_code,
-          color: Colors.grey.shade700,
-          size: 22,
-        ),
       ],
     );
   }
 
-  String formatTimestamp(DateTime? dt) {
-    if (dt == null) return '--';
-    return DateFormat('dd MMM yyyy • hh:mm a').format(dt);
-  }
 
 
   Widget _weights(bool hasTare) {

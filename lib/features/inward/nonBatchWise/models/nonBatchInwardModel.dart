@@ -113,7 +113,8 @@ class NonBatchBarcodes {
   double? tareWeight;
   double? grossWeight;
   double? netWeight;
-  DateTime? time; // 🕒 NEW
+  DateTime? time;
+  int? serialNo;
   NonBatchBarcodes({
     this.barCodeString,
     this.tareWeightEnable,
@@ -121,6 +122,7 @@ class NonBatchBarcodes {
     this.grossWeight,
     this.netWeight,
     this.time,
+    this.serialNo,
   });
 
   NonBatchBarcodes.fromJson(Map<String, dynamic> json) {
@@ -132,6 +134,7 @@ class NonBatchBarcodes {
     time = json['time'] != null
         ? DateTime.parse(json['time'])
         : null;
+    serialNo = json['serial_no'];
   }
 
   Map<String, dynamic> toJson() {
@@ -142,6 +145,7 @@ class NonBatchBarcodes {
     data['gross_weight'] = this.grossWeight;
     data['net_weight'] = this.netWeight;
     data['time'] = time?.toIso8601String(); // 🕒
+    data['serial_no'] = serialNo.toString();
     return data;
   }
 }

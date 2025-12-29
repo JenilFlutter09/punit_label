@@ -127,8 +127,8 @@ class LoginView extends StatelessWidget {
               Obx(() => GestureDetector(
                 onTap: controller.isLoading.value
                     ? null
-                    : () {
-                  controller.login();
+                    : () async {
+                  await controller.login();
                  // RouteManagement.goToDashboardScreen();
                 },
                 child: AnimatedContainer(

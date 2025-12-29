@@ -30,6 +30,7 @@ class BatchInwardController extends GetxController {
   RxBool isTareWeightOff = true.obs;
   var serialNumberTextController = TextEditingController();
   RxInt serialNumber = RxInt(1);
+  RxBool isSerialVerified = false.obs;
   var selectedModuleProduct = Rxn<module>();
   final String batchId;
   final manualCtrl = Get.find<ManualWeightController>(tag: 'batch');
@@ -103,6 +104,10 @@ class BatchInwardController extends GetxController {
     }
   }
 
+  void validateSerial(String value) {
+    isSerialVerified.value = RegExp(r'^\d+$').hasMatch(value);
+    serialNumber.value = int.tryParse(value) ?? 1;
+  }
   void changeSelectedProductId(int id) {
     // find the product by id
     var product = batchModel.value?.data?.products?.firstWhere(
@@ -308,7 +313,7 @@ class BatchInwardController extends GetxController {
 
   Future<void> addToList() async {
     final module product = selectedModuleProduct.value!;
-    var barcodeString = Utility.generateBarcode();
+    var barcodeString = Utility.generateBarcode(id: serialNumber.value);
     final selected = selectedModuleProduct.value;
 
     final fetchedProduct = batchModel.value?.data?.products?.firstWhere(
@@ -324,6 +329,11 @@ class BatchInwardController extends GetxController {
     }else{
       convertedUnits = 0;
     }
+    final int existingCount = productList
+        .where((b) => b.batchProductId == product.id)
+        .length;
+    final int nextSerial = serialNumber.value + existingCount;
+
     productList.insert(
       0,
       Barcodes(
@@ -338,7 +348,9 @@ class BatchInwardController extends GetxController {
             .toString(),
         barCodeString: barcodeString,
         unitConversion: product.unitConversion,
-        units: convertedUnits.toString()
+        units: convertedUnits.toString(),
+        time: Utility.nowWithoutSeconds(),
+        serialNo: nextSerial
       ),
     );
     Utility.showToast(text: 'Entry Added Successfully', toastColor: Colors.green);
@@ -389,6 +401,7 @@ class BatchInwardController extends GetxController {
       "✔ Auto weight added: ${product.name} , min weight = ${product.minWeight},min weight = ${product.maxWeight}, $netWeight KG",
     );
   }
+
 
   Future<void> configureAndPrintLabel({
     required String barcodeString,

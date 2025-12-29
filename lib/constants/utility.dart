@@ -3,8 +3,10 @@ import 'dart:math';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
+import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:punit_label/apis/connectHelper.dart';
 import 'package:punit_label/navigation/routesManagement.dart';
@@ -139,6 +141,14 @@ abstract class Utility {
     );
   }
 
+  static String formatTimestamp(DateTime? dt) {
+    if (dt == null) return '--';
+    return DateFormat('dd MMM yyyy • hh:mm a').format(dt);
+  }
+  static DateTime nowWithoutSeconds() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, now.hour, now.minute);
+  }
   static Widget styledInputField({
     required String label,
     required IconData icon,
@@ -164,6 +174,10 @@ abstract class Utility {
         keyboardType: keyboard,
         readOnly: readOnly,
         controller: controller,
+        // ✅ BLOCK NON-NUMERIC INPUT
+        inputFormatters: keyboard == TextInputType.number
+            ? [FilteringTextInputFormatter.digitsOnly]
+            : null,
         style: TextStyle(fontSize: isTablet ? 24 : 18),
         decoration: InputDecoration(
           hintText: label,
@@ -185,15 +199,15 @@ abstract class Utility {
     );
   }
 
-  static String generateBarcode() {
+  static String generateBarcode({required int id}) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final base36 = now.toRadixString(36); // convert timestamp to alphanumeric
     final rand = Random()
         .nextInt(36 * 36)
         .toRadixString(36)
         .padLeft(2, '0'); // 2 random chars
-
-    return (base36 + rand).substring(base36.length - 4);
+    final barcode = (base36 + rand).substring(base36.length - 4) + id.toString();
+    return barcode;
   }
 
   static Widget styledDropdown({required Widget child}) {

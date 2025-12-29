@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:punit_label/apis/connectHelper.dart';
 import 'package:punit_label/apis/sharedPreference.dart';
-import 'package:crypto/crypto.dart';
 import 'package:punit_label/features/dashboard/dashboardController.dart';
 import 'package:punit_label/features/tare/tareModel.dart';
 
@@ -17,7 +16,8 @@ class TareProductController extends GetxController {
   ConnectHelper connectHelper = ConnectHelper();
   // Currently selected product name
   final RxString selectedProductName = RxString('');
-
+  var serialNumberTextController = TextEditingController();
+  RxInt serialNumber = RxInt(1);
   // Live weight from scale (from DashboardController)
   final RxDouble currentWeight = 0.0.obs;
 
@@ -71,7 +71,7 @@ class TareProductController extends GetxController {
       );
       return;
     }
-    String barcodeString = Utility.generateBarcode();
+    String barcodeString = Utility.generateBarcode(id: serialNumber.value);
     print('Tare barcode String = $barcodeString');
     addedTareItems.insert(
       0,

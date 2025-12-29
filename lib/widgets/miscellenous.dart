@@ -1,16 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:punit_label/features/dashboard/dashboardController.dart';
-import 'package:punit_label/features/inward/batchWise/batchInwardController.dart';
-import 'package:punit_label/features/inward/batchWise/models/batchInwardModel.dart';
-import 'package:punit_label/features/inward/nonBatchWise/models/nonBatchInwardModel.dart';
-
-import '../constants/colors.dart';
-import '../constants/enums.dart';
 import '../constants/sizes.dart';
-import '../constants/styles.dart';
 import '../constants/utility.dart';
-import '../features/inward/controller/inwardController.dart';
 import '../features/inward/batchWise/models/batchDetails.dart';
 
 class CustomTitle extends StatelessWidget {
@@ -240,8 +231,20 @@ class InwardListItem extends StatelessWidget {
               children: [
                 // Product Name - Professional Typography
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
+                    Text(
+                      product.serialNo.toString() + " | ",
+                      style: TextStyle(
+                        fontSize: isTablet ? 19 : 17,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                        color: Colors.grey[850],
+                        height: 1.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     Text(
                       product.batchProductName ?? "Unknown Product",
                       style: TextStyle(
@@ -272,7 +275,25 @@ class InwardListItem extends StatelessWidget {
                   ],
                 ),
 
-                const SizedBox(height: 10),
+               Dimens.boxHeight10,
+                Row(
+                  children: [
+                    Icon(
+                      Icons.access_time,
+                      size: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                    Text(
+                      Utility.formatTimestamp(product.time),
+                      style: TextStyle(
+                        fontSize: isTablet ? 13 : 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+               Dimens.boxHeight10,
 
                 // Weight Chips - Elevated Design
                 Wrap(

@@ -24,6 +24,9 @@ class NonBatchInwardController extends GetxController {
   ConnectHelper connectHelper = ConnectHelper();
   Rx<InwardState> inwardState = InwardState.idle.obs;
   Rxn<NonBatchDetailModel> batchDetailModel = Rxn<NonBatchDetailModel>();
+  var serialNumberTextController = TextEditingController();
+  RxInt serialNumber = RxInt(1);
+  RxBool isSerialVerified = false.obs;
 
   Rxn<productListModel> product_list_model = Rxn<productListModel>();
 
@@ -91,6 +94,11 @@ class NonBatchInwardController extends GetxController {
         LabelFormat.ExtraLarge,
       ),
     ];
+  }
+
+  void validateSerial(String value) {
+    isSerialVerified.value = RegExp(r'^\d+$').hasMatch(value);
+    serialNumber.value = int.tryParse(value) ?? 1;
   }
 
   Future<void> _fetchTareProductsList() async {
@@ -307,10 +315,6 @@ class NonBatchInwardController extends GetxController {
     }
   }
 
-  DateTime nowWithoutSeconds() {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day, now.hour, now.minute);
-  }
 
   Future<void> addToList() async {
     if (!validateTransactionNameAndSerialNumber()) {
@@ -331,6 +335,7 @@ class NonBatchInwardController extends GetxController {
         ? 0.0
         : double.tryParse(manualCtrl.manualTare.value ?? "0") ?? 0;
     final double net = double.tryParse(manualCtrl.manualNet.value ?? "0") ?? 0;
+    final int baseSerial = serialNumber.value;
 
     // -----------------------------
     // 1. Build selected attributes
@@ -358,22 +363,22 @@ class NonBatchInwardController extends GetxController {
     // -----------------------------
     // 2. Generate Barcode
     // -----------------------------
-    final String barcode = Utility.generateBarcode();
+    final String barcode = Utility.generateBarcode(id: serialNumber.value);
 
-    final newBarcode = NonBatchBarcodes(
-      barCodeString: barcode,
-      tareWeightEnable: (dashboardController.tareState.value != TareState.off),
-      tareWeight: tare,
-      grossWeight: gross,
-      netWeight: net,
-      time: nowWithoutSeconds(), // 🕒
-    );
-
-    barcode_list.insert(0, newBarcode);
-    Utility.showToast(
-      text: 'Entry Added Successfully',
-      toastColor: Colors.green,
-    );
+    // final newBarcode = NonBatchBarcodes(
+    //   barCodeString: barcode,
+    //   tareWeightEnable: (dashboardController.tareState.value != TareState.off),
+    //   tareWeight: tare,
+    //   grossWeight: gross,
+    //   netWeight: net,
+    //   time: nowWithoutSeconds(), // 🕒
+    // );
+    //
+    // barcode_list.insert(0, newBarcode);
+    // Utility.showToast(
+    //   text: 'Entry Added Successfully',
+    //   toastColor: Colors.green,
+    // );
     // -----------------------------
     // 3. Check if SAME product+attributes exists
     // -----------------------------
@@ -394,6 +399,17 @@ class NonBatchInwardController extends GetxController {
     // 4. Insert barcode accordingly
     // -----------------------------
     if (existing != null) {
+      final int nextSerial =
+          baseSerial + (existing.barcodes?.length ?? 0);
+      final newBarcode = NonBatchBarcodes(
+        barCodeString: barcode,
+        tareWeightEnable: (dashboardController.tareState.value != TareState.off),
+        tareWeight: tare,
+        grossWeight: gross,
+        netWeight: net,
+        time: Utility.nowWithoutSeconds(),
+        serialNo: nextSerial, // ✅ SERIAL CONTINUES
+      );
       existing.barcodes?.insert(0, newBarcode);
       await configureAndPrintLabel(
         barcodeData: newBarcode,
@@ -401,6 +417,15 @@ class NonBatchInwardController extends GetxController {
       );
       print("🔄 Barcode added to existing group: ${product.name} | $barcode");
     } else {
+      final newBarcode = NonBatchBarcodes(
+        barCodeString: barcode,
+        tareWeightEnable: (dashboardController.tareState.value != TareState.off),
+        tareWeight: tare,
+        grossWeight: gross,
+        netWeight: net,
+        time: Utility.nowWithoutSeconds(),
+        serialNo: baseSerial, // 🔁 RESET HERE
+      );
       var configureProduct = NonBatchProducts(
         productId: product.id,
         productName: product.name,

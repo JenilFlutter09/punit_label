@@ -63,6 +63,23 @@ class NonBatchInwardScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Utility.styledInputField(
+                        label: 'Serial Number',
+                        icon: Icons.numbers,
+                        keyboard: TextInputType.number,
+                        isTablet: isTablet,
+                        controller: controller.serialNumberTextController,
+                        onChanged: controller.validateSerial,
+                        suffix: Obx(() => Icon(
+                          controller.isSerialVerified.value
+                              ? Icons.check_circle
+                              : Icons.cancel,
+                          color: controller.isSerialVerified.value
+                              ? Colors.green
+                              : Colors.red,
+                        )),
+                      ),
+                      Dimens.boxHeight12,
+                      Utility.styledInputField(
                         label: 'Transaction Name',
                         icon: Icons.label_outlined,
                         keyboard: TextInputType.text,
