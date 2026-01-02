@@ -31,7 +31,9 @@ class DashboardController extends GetxController {
   final Map<String, StreamSubscription<List<int>>> _charSubs = {};
   var scanResults = <ScanResult>[].obs;
   Rx<TareState> tareState = TareState.on.obs;
-
+  var isWhiteLabel = false.obs;
+  var printSerialNumberInLabel = false.obs;
+  var printTimeInLabel = false.obs;
   RxBool enableInward = false.obs;
   RxBool enableDispatch = false.obs;
   var connectedDevice = Rxn<BluetoothDevice>();
@@ -212,6 +214,31 @@ class DashboardController extends GetxController {
       );
     }
   }
+  List<String> buildCompanyInfoLines(CompanyData? data) {
+    if (data == null || data.labelFields == null) return [];
+
+    final Map<String, String?> valueMap = {
+      "name": data.name,
+      "email": data.email,
+      "contact_no": data.contactNo,
+      "gst_no": data.gstNo,
+      "address": data.address,
+      "website": data.labelFields?['website'], // if website stored elsewhere, adjust
+    };
+
+    final List<String> lines = [];
+
+    data.labelFields!.forEach((key, value) {
+      if (value == "on") {
+        final fieldValue = valueMap[key];
+        if (fieldValue != null && fieldValue.isNotEmpty) {
+          lines.add(fieldValue);
+        }
+      }
+    });
+
+    return lines;
+  }
 
 
   Future<void> printOneSticker({
@@ -226,13 +253,18 @@ class DashboardController extends GetxController {
   }) async {
     try {
       // COMPANY DETAILS SAFE HANDLING
-      final name = companyDetails.value?.data?.name ?? "";
-      final contact = companyDetails.value?.data?.contactNo ?? "";
-      final email = companyDetails.value?.data?.email ?? "";
 
-      final companyContact = (contact.isNotEmpty && email.isNotEmpty)
-          ? "$contact | $email"
-          : contact + email;
+      final companyData = companyDetails.value?.data;
+      final companyName = companyData?.name ?? "";
+      final List<String> companyInfoLines =
+      buildCompanyInfoLines(companyData);
+      // final name = companyDetails.value?.data?.name ?? "";
+      // final contact = companyDetails.value?.data?.contactNo ?? "";
+      // final email = companyDetails.value?.data?.email ?? "";
+      //
+      // final companyContact = (contact.isNotEmpty && email.isNotEmpty)
+      //     ? "$contact | $email"
+      //     : contact + email;
 
       // CONVERT labelFields → attribute list
       final List<Map<String, dynamic>> dynamicAttributes = [];
@@ -251,8 +283,9 @@ class DashboardController extends GetxController {
         "barcodeData": barcode,
         "productName": "Product Name :- $productName",
         "isGrid": isGrid,
-        "companyName": name,
-        "companyContact": companyContact,
+        "printTime": printTimeInLabel.value,
+        "companyName": companyName,
+        "companyContact": companyInfoLines,
         "attributes": dynamicAttributes,
       });
 
@@ -267,6 +300,7 @@ class DashboardController extends GetxController {
     required String productName,
     Map<String, dynamic>? labelFields,
   }) async {
+    if(printSerialNumberInLabel.value){
     await printOneSticker(
       stickerHeight: 375,
       stickerWidth: 600,
@@ -274,9 +308,21 @@ class DashboardController extends GetxController {
       thickness: 0,
       productName: productName,
       barcode: barcodeString,
-      isGrid: false,
+      isGrid: true,
       labelFields: labelFields,
     );
+    }else{
+      await printOneSticker(
+        stickerHeight: 375,
+        stickerWidth: 600,
+        margin: 0,
+        thickness: 0,
+        productName: productName,
+        barcode: barcodeString,
+        isGrid: false,
+        labelFields: labelFields,
+      );
+    }
   }
   /// Print 75 X 75 Sticker (3 Attribute)
   Future<void> printMediumSticker({

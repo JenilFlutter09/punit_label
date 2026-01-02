@@ -13,7 +13,9 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 class MainActivity : FlutterActivity() {
     init {
         System.loadLibrary("ConfigFileINI")
@@ -61,6 +63,7 @@ class MainActivity : FlutterActivity() {
                         val margin = (args["margin"] as? Number)?.toInt() ?: 20
                         val thickness = (args["thickness"] as? Number)?.toInt() ?: 8
                         val isGrid = args["isGrid"] as? Boolean ?: false
+                        val printTime = args["printTime"] as? Boolean ?: false
                         val companyName = args["companyName"]?.toString() ?: ""
                         val companyContact = args["companyContact"]?.toString() ?: ""
                         val barcodeData = args["barcodeData"]?.toString() ?: ""
@@ -74,6 +77,7 @@ class MainActivity : FlutterActivity() {
                             margin = margin,
                             thickness = thickness,
                             isGrid = isGrid,
+                            printTime = printTime,
                             companyName = companyName,
                             companyContact = companyContact,
                             barcodeData = barcodeData,
@@ -620,6 +624,7 @@ class MainActivity : FlutterActivity() {
         margin: Int = 30,
         thickness: Int = 8,
         isGrid: Boolean = false,
+        printTime: Boolean = false,
         attributes: List<Map<String, String>> = emptyList(),
         companyName: String = "NIVA GROUP INDIA",
         companyContact: String = "TEL: +91-7573830094  |  WWW.NIVAGROUPINDIA.COM",
@@ -628,7 +633,10 @@ class MainActivity : FlutterActivity() {
     )   {
         Thread {
             try {
-
+                val timeStamp = SimpleDateFormat(
+                    "dd-MM-yyyy HH:mm",
+                    Locale.getDefault()
+                ).format(Date())
                 val lp = printer ?: run {
                     mainHandler.post { result.error("NO_PRINTER", "Printer not connected", null) }
                     return@Thread
@@ -648,14 +656,42 @@ class MainActivity : FlutterActivity() {
                 val titleFont = 40
                 val contactFont = 26
 
-                val companyX = (width / 2) - (companyName.length * titleFont / 4)
+                //val companyX = (width / 2) - (companyName.length * titleFont / 4)
+                val companyX = left + 20
                 val companyY = top + 20
                 lp.PrintText(companyX, companyY, "0", companyName, 0, titleFont, titleFont, 0)
+                if (printTime) {
+                    val timeX = right - 220   // fixed safe width for timestamp
+                    val timeY = companyY
+                    val timeFont = 26
 
-                val contactX = (width / 2) - (companyContact.length * contactFont / 4)
+                    lp.PrintText(
+                        timeX,
+                        timeY,
+                        "0",
+                        "Time:",
+                        0,
+                        timeFont,
+                        timeFont,
+                        0
+                    )
+
+                    lp.PrintText(
+                        timeX,
+                        timeY + 30,
+                        "0",
+                        timeStamp,
+                        0,
+                        timeFont,
+                        timeFont,
+                        0
+                    )
+                }
+                //val contactX = (width / 2) - (companyContact.length * contactFont / 4)
+                val contactX = left + 20
                 lp.PrintText(
                     contactX,
-                    companyY + 55,
+                    companyY + 40,
                     "0",
                     companyContact,
                     0,
@@ -782,12 +818,12 @@ class MainActivity : FlutterActivity() {
                 }
 
 // center the barcode inside printable area (left + padding + half remaining)
-                var barcodeX = left + 10 + ((availableWidth - estimatedBarcodeWidth) / 4)
-
-// safety clamps so the X is legal
-                if (barcodeX < left + 5) barcodeX = left + 5
-                if (barcodeX + estimatedBarcodeWidth > right - 5) barcodeX =
-                    right - estimatedBarcodeWidth - 5
+                var barcodeX = left + 20 // + ((availableWidth - estimatedBarcodeWidth) / 4)
+//
+//// safety clamps so the X is legal
+//                if (barcodeX < left + 5) barcodeX = left + 5
+//                if (barcodeX + estimatedBarcodeWidth > right - 5) barcodeX =
+//                    right - estimatedBarcodeWidth - 5
 
 // Use the same moduleWidth in the PrintBarcode1D call — this is crucial
                 val barcodeStatus = lp.PrintBarcode1D(

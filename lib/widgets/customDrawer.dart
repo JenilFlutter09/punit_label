@@ -7,131 +7,152 @@ import 'package:punit_label/features/dispatch/view/dispatchScreen.dart';
 import 'package:punit_label/features/inward/view/inwardScreen.dart';
 
 import '../constants/colors.dart';
+import '../constants/styles.dart';
 import '../constants/utility.dart';
 import '../features/tare/tareView.dart';
-
 class CustomDrawer extends StatelessWidget {
   CustomDrawer({super.key});
-  final dashController = Get.find<DashboardController>();
+
+  final DashboardController dashController = Get.find();
+
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final bool isTablet = width > 600;
+    final bool isTablet = MediaQuery.of(context).size.width > 600;
+
     return Drawer(
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
           topRight: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          DrawerHeader(
-            decoration: BoxDecoration(
-              color: ColorsValue.primaryColor,
-              borderRadius: BorderRadius.only(topRight: Radius.circular(24)),
-            ),
-            child: Column(
+          _header(dashboardController: dashController),
+
+          Expanded(
+            child: ListView(
+              padding: Dimens.edgeInsets8_0_8_0,
               children: [
-                CircleAvatar(
-                  radius: 34,
-                  backgroundColor: Colors.white,
-                  child: Icon(
-                    Icons.person,
-                    size: 40,
-                    color: ColorsValue.primaryColor,
+                _drawerItem(
+                  icon: Icons.archive,
+                  title: 'Inward',
+                  onTap: () {
+                    if (dashController.enableInward.value) {
+                      Get.to(() => InwardScreen());
+                    } else {
+                      Utility.showDialog('Access Denied');
+                    }
+                  },
+                ),
+
+                _drawerItem(
+                  icon: Icons.local_shipping,
+                  title: 'Dispatch',
+                  onTap: () {
+                    if (dashController.enableDispatch.value) {
+                      Get.to(() => DispatchScreen());
+                    } else {
+                      Utility.showDialog('Access Denied');
+                    }
+                  },
+                ),
+
+                _drawerItem(
+                  icon: Icons.line_weight,
+                  title: 'Tare Products',
+                  onTap: () => Get.to(() => AddTareProductsView()),
+                ),
+
+               Dimens.boxHeight12,
+                Divider(),
+                _sectionTitle("Tare Weight"),
+                Dimens.boxHeight12,
+                Obx(
+                      () => ThreeLevelSelector(
+                    value: dashController.tareState.value,
+                    isTablet: isTablet,
+                    onChanged: (state) {
+                      dashController.tareState.value = state;
+                      if (state == TareState.off) {
+                        dashController.manualBatchWeights.manualTare.value = '0';
+                        dashController.manualBatchWeights.tareCtrl.text = '0';
+                        dashController.manualNonBatchWeights.manualTare.value = '0';
+                        dashController.manualNonBatchWeights.tareCtrl.text = '0';
+                      }
+                    },
                   ),
                 ),
-                Dimens.boxHeight12,
 
-                Text(
-                  "Welcome User",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                Dimens.boxHeight24,
+                Divider(),
+                _sectionTitle("Label Configuration"),
+
+                _switchTile(
+                  icon: Icons.numbers,
+                  title: "Serial Number",
+                  value: dashController.printSerialNumberInLabel,
+                ),
+
+                _switchTile(
+                  icon: Icons.timer_rounded,
+                  title: "Time Stamp",
+                  value: dashController.printTimeInLabel,
+                ),
+
+                Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout),
+                  title: const Text(
+                    "Logout",
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
+                  onTap: () => Get.offAllNamed('/login'),
                 ),
               ],
             ),
           ),
-
-          // MENU ITEMS
-          // _drawerItem(
-          //   icon: Icons.dashboard,
-          //   title: 'Dashboard',
-          //   onTap: () => Get.toNamed('/dashboard'),
-          // ),
-          // _drawerItem(
-          //   icon: Icons.inventory,
-          //   title: 'Inventory',
-          //   onTap: () => Get.toNamed('/inventory'),
-          // ),
-          _drawerItem(
-            icon: Icons.input,
-            title: 'Inward',
-            onTap: () {
-              if (dashController.enableInward.value) {
-                Get.to(() => InwardScreen());
-              } else {
-                Utility.showDialog('Access Denied');
-              }
-            },
-          ),
-          _drawerItem(
-            icon: Icons.local_shipping_outlined,
-            title: 'Dispatch',
-            onTap: () {
-              if (dashController.enableDispatch.value) {
-                Get.to(() => DispatchScreen());
-              } else {
-                Utility.showDialog('Access Denied');
-              }
-            },
-          ),
-          _drawerItem(
-            icon: Icons.line_weight,
-            title: 'Tare Products',
-            onTap: () => Get.to(() => AddTareProductsView()),
-          ),
-          Obx(
-            () => ThreeLevelSelector(
-              value: dashController.tareState.value,
-              onChanged: (newLevel) {
-                dashController.tareState.value = newLevel;
-                if (dashController.tareState.value == TareState.off) {
-                  dashController.manualBatchWeights.manualTare.value = '0';
-                  dashController.manualBatchWeights.tareCtrl.text = '0';
-                  dashController.manualNonBatchWeights.tareCtrl.text = '0';
-                  dashController.manualNonBatchWeights.manualTare.value = '0';
-
-                }
-              },
-              isTablet: isTablet,
-            ),
-          ),
-          // LOGOUT
-          ListTile(
-            leading: Icon(Icons.logout, color: ColorsValue.primaryColor),
-            title: Text(
-              "Logout",
-              style: TextStyle(
-                color: ColorsValue.primaryColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            onTap: () {
-              Get.offAllNamed('/login');
-            },
-          ),
-
-          SizedBox(height: 16),
         ],
       ),
     );
   }
 
+  /// 🔹 Header
+  Widget _header({ required DashboardController dashboardController}) {
+    return Container(
+      height: 225,
+      width: Get.width,
+      padding: Dimens.edgeInsets0_0_0_30,
+      alignment: Alignment.bottomCenter,
+      decoration: BoxDecoration(
+        color: ColorsValue.primaryColor,
+        borderRadius: const BorderRadius.only(
+          topRight: Radius.circular(24),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+           CircleAvatar(
+            radius: 36,
+            backgroundColor: Colors.white,
+            child: Icon(Icons.person, size: 42, color: ColorsValue.primaryColor,),
+          ),
+          Dimens.boxHeight12,
+          Text(
+            "Welcome ${dashboardController.userDetails.value?.name ?? 'User'}",
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🔹 Drawer item
   Widget _drawerItem({
     required IconData icon,
     required String title,
@@ -139,14 +160,38 @@ class CustomDrawer extends StatelessWidget {
   }) {
     return ListTile(
       leading: Icon(icon, color: ColorsValue.primaryColor),
-      title: Text(
-        title,
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
       onTap: () {
         Get.back();
         onTap();
       },
+    );
+  }
+
+  /// 🔹 Section title
+  Widget _sectionTitle(String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Text(
+        text.toUpperCase(),
+        style: Styles.primaryBold14,
+      ),
+    );
+  }
+
+  /// 🔹 Switch row (professional pattern)
+  Widget _switchTile({
+    required IconData icon,
+    required String title,
+    required RxBool value,
+  }) {
+    return Obx(
+          () => SwitchListTile(
+        secondary: Icon(icon, color: ColorsValue.primaryColor),
+        title: Text(title),
+        value: value.value,
+        onChanged: (v) => value.value = v,
+      ),
     );
   }
 }

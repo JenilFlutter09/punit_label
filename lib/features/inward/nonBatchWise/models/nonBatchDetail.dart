@@ -121,10 +121,10 @@ class Products {
 
 class Combinations {
   int? id;
-  String? attributeId;
+  int? attributeId;
   String? attributeName;
   String? optionValue;
-  String? optionId;
+  int? optionId;
 
   Combinations(
       {this.id,

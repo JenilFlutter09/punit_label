@@ -119,9 +119,9 @@ class NonBatchInwardController extends GetxController {
       productName: apiModel.productName,
       attributes: apiModel.combinations?.map((combo) {
         return NonBatchAttributes(
-          attributeId: int.tryParse(combo.attributeId ?? '0'),
+          attributeId: combo.attributeId,
           attributeName: combo.attributeName,
-          optionId: int.tryParse(combo.optionId ?? '0'),
+          optionId: combo.optionId,
           optionName: combo.optionValue,
         );
       }).toList(),
@@ -315,7 +315,6 @@ class NonBatchInwardController extends GetxController {
     }
   }
 
-
   Future<void> addToList() async {
     if (!validateTransactionNameAndSerialNumber()) {
       return;
@@ -363,7 +362,7 @@ class NonBatchInwardController extends GetxController {
     // -----------------------------
     // 2. Generate Barcode
     // -----------------------------
-    final String barcode = Utility.generateBarcode(id: serialNumber.value);
+
 
     // final newBarcode = NonBatchBarcodes(
     //   barCodeString: barcode,
@@ -399,11 +398,12 @@ class NonBatchInwardController extends GetxController {
     // 4. Insert barcode accordingly
     // -----------------------------
     if (existing != null) {
-      final int nextSerial =
-          baseSerial + (existing.barcodes?.length ?? 0);
+      final int nextSerial = baseSerial + (existing.barcodes?.length ?? 0);
+      final String barcode = Utility.generateBarcode(id: nextSerial);
       final newBarcode = NonBatchBarcodes(
         barCodeString: barcode,
-        tareWeightEnable: (dashboardController.tareState.value != TareState.off),
+        tareWeightEnable:
+            (dashboardController.tareState.value != TareState.off),
         tareWeight: tare,
         grossWeight: gross,
         netWeight: net,
@@ -414,12 +414,15 @@ class NonBatchInwardController extends GetxController {
       await configureAndPrintLabel(
         barcodeData: newBarcode,
         productData: existing,
+        serialNumber: nextSerial,
       );
       print("🔄 Barcode added to existing group: ${product.name} | $barcode");
     } else {
+      final String barcode = Utility.generateBarcode(id: baseSerial);
       final newBarcode = NonBatchBarcodes(
         barCodeString: barcode,
-        tareWeightEnable: (dashboardController.tareState.value != TareState.off),
+        tareWeightEnable:
+            (dashboardController.tareState.value != TareState.off),
         tareWeight: tare,
         grossWeight: gross,
         netWeight: net,
@@ -436,6 +439,7 @@ class NonBatchInwardController extends GetxController {
       await configureAndPrintLabel(
         barcodeData: newBarcode,
         productData: configureProduct,
+        serialNumber: baseSerial,
       );
       print("🆕 New product group created: ${product.name} | $barcode");
     }
@@ -446,6 +450,7 @@ class NonBatchInwardController extends GetxController {
   Future<void> configureAndPrintLabel({
     required NonBatchBarcodes barcodeData,
     required NonBatchProducts productData,
+    required int serialNumber,
   }) async {
     final LabelFormat selected =
         selectedLabelFormatObj.value?.labelFormat ?? LabelFormat.Large;
@@ -461,19 +466,24 @@ class NonBatchInwardController extends GetxController {
     // -------------------------------------------------------------
     // 2️⃣ Add weight fields
     // -------------------------------------------------------------
-    final Map<String, dynamic> manualFields = {
-      "Gross Weight": barcodeData.grossWeight,
-      "Tare Weight": barcodeData.tareWeight,
-      "Net Weight": barcodeData.netWeight,
+    Map<String, String> manualGTNFields = {
+      "Gross Weight": manualCtrl.manualGross.value ?? '0',
+      "Tare Weight": manualCtrl.manualTare.value ?? '0',
+      "Net Weight": manualCtrl.manualNet.value ?? '0',
     };
 
+    Map<String, String> manualNFields = {
+      "Net Weight": manualCtrl.manualNet.value ?? '0',
+    };
     // -------------------------------------------------------------
     // 3️⃣ Merge all fields into one labelFields map
     // -------------------------------------------------------------
-    final Map<String, dynamic> labelFields = {
-      ...combinationFields,
-      ...manualFields,
-    };
+    Map<String, String> labelFields = isTareWeightOff.value
+        ? {...combinationFields, ...manualNFields}
+        : {...combinationFields, ...manualGTNFields};
+    if (dashboardController.printSerialNumberInLabel.value) {
+      labelFields = {"Sr No ": serialNumber.toString(), ...labelFields};
+    }
 
     final String barcodeString = barcodeData.barCodeString ?? "";
     final String productName = productData.productName ?? "Product";
@@ -487,6 +497,14 @@ class NonBatchInwardController extends GetxController {
     // -------------------------------------------------------------
     switch (selected) {
       case LabelFormat.Small:
+        if (dashboardController.printSerialNumberInLabel.value) {
+          labelFields = {
+            "Sr No ": serialNumber.toString(),
+            "Weight": manualCtrl.manualNet.value ?? '0',
+          };
+        } else {
+          labelFields = {"Weight": manualCtrl.manualNet.value ?? '0'};
+        }
         await dashboardController.printSmallSticker(
           barcodeString: barcodeString,
           productName: productName,
@@ -586,19 +604,21 @@ class NonBatchInwardController extends GetxController {
     print(body);
 
     // API CALL
-    await dashboardController.callApi(
+    var response = await dashboardController.callApi(
       apiCall: () =>
           connectHelper.nonBatchProductStore(non_batch_inward_model: data),
     );
-    // if (pauseOrStop == 'pause') {
-    //   Get.snackbar(
-    //     "Paused",
-    //     "Transaction Paused Successfully",
-    //     snackPosition: SnackPosition.BOTTOM,
-    //     backgroundColor: Colors.green,
-    //     colorText: Colors.white,
-    //     animationDuration: Duration(seconds: 3),
-    //   );
+    if (!response.hasError) {
+      generatePdf();
+      Get.snackbar(
+        "Paused",
+        "Transaction Paused Successfully",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        animationDuration: Duration(seconds: 3),
+      );
+    }
     // } else {
     //   Get.snackbar(
     //     "Success",
@@ -614,6 +634,26 @@ class NonBatchInwardController extends GetxController {
   String formatBarcodeTime(DateTime? dt) {
     if (dt == null) return '--';
     return DateFormat('dd-MM-yyyy hh:mm a').format(dt);
+  }
+
+  void generatePdf() {
+    final now = DateTime.now();
+
+    final uniqueSuffix =
+        "${DateFormat('ddMMyyyy_HHmmss').format(now)}_${now.microsecondsSinceEpoch}";
+
+    final title = "Transaction_$uniqueSuffix";
+
+    ExportHelper.generatePDF(
+      title: title,
+      metaData: {
+        "Transaction Name": transactionName.text ?? "Product Name",
+        "Generated By": "punitinstrument.com",
+        "Date": DateFormat('dd-MM-yyyy').format(DateTime.now()),
+      },
+      headers: ["Sr No", "Item", "Gross", "Tare", "Net", "Created_at"],
+      data: _flattenBarcodesForExport(),
+    );
   }
 
   void onTapPdf(BuildContext context) {

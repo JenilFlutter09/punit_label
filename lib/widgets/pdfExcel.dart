@@ -65,7 +65,7 @@ class ExportHelper {
                 title: const Text("Export as PDF"),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  await _generatePDF(
+                  await generatePDF(
                     title: titlePdf,
                     metaData: metaData,
                     headers: headers,
@@ -82,7 +82,7 @@ class ExportHelper {
                 title: const Text("Export as Excel"),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  await _generateExcel(
+                  await generateExcel(
                     title: titleExcel,
                     metaData: metaData,
                     headers: headers,
@@ -99,163 +99,6 @@ class ExportHelper {
       },
     );
   }
-  /*static Future<void> exportHorizontalClientPDF({
-    required BuildContext context,
-    required String title,
-    required Map<String, String> metaData,
-    required List<Dispatchbarcodes> items,
-  }) async {
-    final pdf = pw.Document();
-    double totalWeight = 0;
-
-    // 🔹 Group barcodes product-wise
-    final Map<String, List<Dispatchbarcodes>> groupedItems = {};
-    for (final item in items) {
-      final key = item.productName ?? 'Unknown Product';
-      groupedItems.putIfAbsent(key, () => []).add(item);
-    }
-
-    pdf.addPage(
-      pw.MultiPage(
-        margin: const pw.EdgeInsets.all(24),
-        build: (context) {
-          final content = <pw.Widget>[];
-
-          /// 🏷 Title
-          content.add(
-            pw.Center(
-              child: pw.Text(
-                title,
-                style: pw.TextStyle(
-                  fontSize: 22,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-            ),
-          );
-
-          content.add(pw.SizedBox(height: 10));
-
-          /// 🧾 Meta Data
-          content.add(
-            pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: metaData.entries
-                  .map(
-                    (e) => pw.Text(
-                  "${e.key}: ${e.value}",
-                  style: pw.TextStyle(
-                    fontSize: 13,
-                    color: PdfColors.grey700,
-                  ),
-                ),
-              )
-                  .toList(),
-            ),
-          );
-
-          content.add(pw.SizedBox(height: 20));
-
-          /// 🔁 PRODUCT-WISE SECTIONS
-          groupedItems.forEach((productName, productItems) {
-            // 🟦 Product Heading
-            content.add(
-              pw.Text(
-                productName,
-                style: pw.TextStyle(
-                  fontSize: 16,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-            );
-
-            content.add(pw.SizedBox(height: 8));
-
-            int sr = 1;
-            final productWidgets = <pw.Widget>[];
-
-            for (final item in productItems) {
-              final weight = item.netWeight ?? 0;
-              totalWeight += weight;
-
-              productWidgets.add(
-                pw.Container(
-                  width: 160,
-                  padding: const pw.EdgeInsets.all(8),
-                  margin: const pw.EdgeInsets.only(right: 8, bottom: 8),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(width: 0.8),
-                    borderRadius: pw.BorderRadius.circular(6),
-                  ),
-                  child: pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text(
-                        "Sr: ${sr++}",
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
-                      pw.Text(
-                        "${weight.toStringAsFixed(2)} kg",
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            // 🔁 Horizontal flow for this product
-            content.add(
-              pw.Wrap(children: productWidgets),
-            );
-
-            content.add(pw.SizedBox(height: 20));
-          });
-
-          /// 🔻 TOTALS
-          content.add(
-            pw.Container(
-              width: double.infinity,
-              padding: const pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(width: 1),
-                color: PdfColors.grey200,
-              ),
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(
-                    "Total Items: ${items.length}",
-                    style: pw.TextStyle(
-                      fontSize: 14,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                  pw.Text(
-                    "Total Weight: ${totalWeight.toStringAsFixed(2)} kg",
-                    style: pw.TextStyle(
-                      fontSize: 14,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-
-          return content;
-        },
-      ),
-    );
-
-    final outputDir = Directory("/storage/emulated/0/Download");
-    final file = File("${outputDir.path}/$title-horizontal.pdf");
-    await file.writeAsBytes(await pdf.save());
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Horizontal PDF saved successfully")),
-    );
-  }*/
 
   static List<List<Dispatchbarcodes>> chunk(List<Dispatchbarcodes> list, int size) {
     final chunks = <List<Dispatchbarcodes>>[];
@@ -555,7 +398,7 @@ class ExportHelper {
   }
 
   /// 🔹 Generate Dynamic PDF
-  static Future<void> _generatePDF({
+  static Future<void> generatePDF({
     required String title,
     required Map<String, String> metaData,
     required List<String> headers,
@@ -622,7 +465,7 @@ class ExportHelper {
   }
 
   /// 🔹 Generate Dynamic Excel
-  static Future<void> _generateExcel({
+  static Future<void> generateExcel({
     required String title,
     required Map<String, String> metaData,
     required List<String> headers,
