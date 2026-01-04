@@ -104,78 +104,7 @@ class BluetoothWeightSection extends StatelessWidget {
     });
   }
 
-/*@override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header Labels - Only show Tare label if not off
-        Obx(() {
-          final showTare = dashboardController.tareState.value != TareState.off;
-          return Row(
-            children: [
-              Expanded(
-                child: Text("Gross Weight", style: Styles.blackBold12),
-              ),
-              if (showTare) ...[
-                Dimens.boxWidth10,
-                Expanded(
-                  child: Text("Tare Weight", style: Styles.blackBold12),
-                ),
-              ],
-            ],
-          );
-        }),
 
-        Dimens.boxHeight8,
-
-        // Main Weight Input Area
-        Obx(() {
-          final isBluetoothConnected = dashboardController.isWeightScaleConnected.value &&
-              dashboardController.connectedDevice.value != null;
-
-          final tareState = dashboardController.tareState.value;
-
-          return Column(
-            children: [
-              // Gross + Tare Row (Conditional)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Gross Weight Field (Always visible)
-                  Expanded(
-                    child: isBluetoothConnected
-                        ? _LiveGrossField(manualCtrl: controller.manualCtrl, isTablet: isTablet)
-                        : _ManualGrossField(manualCtrl: controller.manualCtrl, isTablet: isTablet),
-                  ),
-
-                  // Conditional Tare Field
-                  if (tareState != TareState.off) ...[
-                    Dimens.boxWidth5,
-                    Expanded(
-                      child: tareState == TareState.on
-                          ? _ManualTareField(manualCtrl: controller.manualCtrl, isTablet: isTablet)
-                          : _BarcodeTareField(manualCtrl: controller.manualCtrl, isTablet: isTablet, controller: controller,),
-                    ),
-                  ],
-                ],
-              ),
-
-              Dimens.boxHeight10,
-
-              // Net Weight Card (Always shown)
-              NetWeightDisplayCard(
-                isTablet: isTablet,
-                netWeight: controller.manualCtrl.manualNet,
-                isUnitConversion: controller.selectedModuleProduct.value?.unitConversion ?? false,
-                unitValue: controller.selectedModuleProduct.value?.unitValue ?? 1,
-              ),
-            ],
-          );
-        }),
-      ],
-    );
-  }*/
 }
 
 // Reusable Live Gross (Bluetooth)
@@ -304,8 +233,8 @@ class _BarcodeTareField extends StatelessWidget {
         );
         var data = controller.selectedBarcode.value;
         manualCtrl.manualTare.value =
-            data?.weight;
-        manualCtrl.tareCtrl.text = data?.weight ?? '0';
+            data?.weight.toString();
+        manualCtrl.tareCtrl.text = data?.weight.toString() ?? '0';
         manualCtrl.calculateManualNet();
       } else {
         Get.snackbar(
@@ -622,3 +551,75 @@ class NetWeightDisplayCard extends StatelessWidget {
   }
 }
 */
+/*@override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header Labels - Only show Tare label if not off
+        Obx(() {
+          final showTare = dashboardController.tareState.value != TareState.off;
+          return Row(
+            children: [
+              Expanded(
+                child: Text("Gross Weight", style: Styles.blackBold12),
+              ),
+              if (showTare) ...[
+                Dimens.boxWidth10,
+                Expanded(
+                  child: Text("Tare Weight", style: Styles.blackBold12),
+                ),
+              ],
+            ],
+          );
+        }),
+
+        Dimens.boxHeight8,
+
+        // Main Weight Input Area
+        Obx(() {
+          final isBluetoothConnected = dashboardController.isWeightScaleConnected.value &&
+              dashboardController.connectedDevice.value != null;
+
+          final tareState = dashboardController.tareState.value;
+
+          return Column(
+            children: [
+              // Gross + Tare Row (Conditional)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Gross Weight Field (Always visible)
+                  Expanded(
+                    child: isBluetoothConnected
+                        ? _LiveGrossField(manualCtrl: controller.manualCtrl, isTablet: isTablet)
+                        : _ManualGrossField(manualCtrl: controller.manualCtrl, isTablet: isTablet),
+                  ),
+
+                  // Conditional Tare Field
+                  if (tareState != TareState.off) ...[
+                    Dimens.boxWidth5,
+                    Expanded(
+                      child: tareState == TareState.on
+                          ? _ManualTareField(manualCtrl: controller.manualCtrl, isTablet: isTablet)
+                          : _BarcodeTareField(manualCtrl: controller.manualCtrl, isTablet: isTablet, controller: controller,),
+                    ),
+                  ],
+                ],
+              ),
+
+              Dimens.boxHeight10,
+
+              // Net Weight Card (Always shown)
+              NetWeightDisplayCard(
+                isTablet: isTablet,
+                netWeight: controller.manualCtrl.manualNet,
+                isUnitConversion: controller.selectedModuleProduct.value?.unitConversion ?? false,
+                unitValue: controller.selectedModuleProduct.value?.unitValue ?? 1,
+              ),
+            ],
+          );
+        }),
+      ],
+    );
+  }*/

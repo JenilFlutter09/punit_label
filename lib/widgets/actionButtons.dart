@@ -14,7 +14,8 @@ class InwardActionBar extends StatelessWidget {
   const InwardActionBar({
     super.key,
     required this.controller,
-    required this.isTablet, required this.context,
+    required this.isTablet,
+    required this.context,
   });
 
   // Define button config based on state
@@ -22,44 +23,38 @@ class InwardActionBar extends StatelessWidget {
     final bool isAutoEnabled = controller.isBatchAutoWeightEnabled.value;
 
     if (!isAutoEnabled) {
-      final IconData mainIcon = controller.inwardState.value == InwardState.running
+      final IconData mainIcon =
+          controller.inwardState.value == InwardState.running
           ? Icons.pause_circle_filled
           : Icons.play_circle_filled;
 
-      final Color mainColor = controller.inwardState.value == InwardState.running
+      final Color mainColor =
+          controller.inwardState.value == InwardState.running
           ? Colors.orange
           : Colors.green;
 
-      final String mainLabel = controller.inwardState.value == InwardState.running
+      final String mainLabel =
+          controller.inwardState.value == InwardState.running
           ? "Pause"
-          : (controller.inwardState.value == InwardState.paused ? "Resume" : "Start Auto");
+          : (controller.inwardState.value == InwardState.paused
+                ? "Resume"
+                : "Start Auto");
       return [
         _ActionButtonConfig(
           icon: Icons.add_circle,
           color: Colors.blueAccent,
           label: "Add Entry",
-            onTap:() async{
-              if (controller.inwardState.value == InwardState.idle) {
-                controller.inwardState.value = InwardState.running;
-                print("onTapMain pressed. State = ${controller.inwardState.value}");
-
-              } else if (controller.inwardState.value == InwardState.running) {
-                controller.inwardState.value = InwardState.paused;
-              } else if (controller.inwardState.value == InwardState.paused) {
-                controller.inwardState.value = InwardState.running;
-                print("onTapMain pressed. State = ${controller.inwardState.value}");
-
-              }
-              await controller.addToList();}
-        ),_ActionButtonConfig(
-            icon: mainIcon,
-            color: mainColor,
-            label: mainLabel,
-            onTap: () async {
-              if (controller.inwardState.value == InwardState.running) {
-                await controller.onPauseOrStop(pauseOrStop: 'pause');
-              }
+          onTap: () async => await controller.addToList(),
+        ),
+        _ActionButtonConfig(
+          icon: mainIcon,
+          color: mainColor,
+          label: mainLabel,
+          onTap: () async {
+            if (controller.inwardState.value == InwardState.running) {
+              await controller.onPauseOrStop(pauseOrStop: 'pause');
             }
+          },
         ),
         // _ActionButtonConfig(
         //   icon: Icons.picture_as_pdf,
@@ -77,7 +72,8 @@ class InwardActionBar extends StatelessWidget {
     }
 
     // Auto mode: Dynamic play/pause based on state
-    final IconData mainIcon = controller.inwardState.value == InwardState.running
+    final IconData mainIcon =
+        controller.inwardState.value == InwardState.running
         ? Icons.pause_circle_filled
         : Icons.play_circle_filled;
 
@@ -87,7 +83,9 @@ class InwardActionBar extends StatelessWidget {
 
     final String mainLabel = controller.inwardState.value == InwardState.running
         ? "Pause"
-        : (controller.inwardState.value == InwardState.paused ? "Resume" : "Start Auto");
+        : (controller.inwardState.value == InwardState.paused
+              ? "Resume"
+              : "Start Auto");
 
     return [
       _ActionButtonConfig(
@@ -95,7 +93,9 @@ class InwardActionBar extends StatelessWidget {
         color: mainColor,
         label: mainLabel,
         onTap: controller.onTapMain,
-        pulse: controller.inwardState.value == InwardState.running, // Pulse when running
+        pulse:
+            controller.inwardState.value ==
+            InwardState.running, // Pulse when running
       ),
       // _ActionButtonConfig(
       //   icon: Icons.picture_as_pdf,
@@ -150,6 +150,7 @@ class _ActionButtonConfig {
     this.pulse = false,
   });
 }
+
 class AnimatedScaleButton extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -182,19 +183,19 @@ class AnimatedScaleButton extends StatelessWidget {
           curve: Curves.easeInOut,
           child: pulse
               ? _PulsingButton(
-            size: size,
-            iconSize: iconSize,
-            icon: icon,
-            color: color,
-            onTap: onTap,
-          )
+                  size: size,
+                  iconSize: iconSize,
+                  icon: icon,
+                  color: color,
+                  onTap: onTap,
+                )
               : _StaticButton(
-            size: size,
-            iconSize: iconSize,
-            icon: icon,
-            color: color,
-            onTap: onTap,
-          ),
+                  size: size,
+                  iconSize: iconSize,
+                  icon: icon,
+                  color: color,
+                  onTap: onTap,
+                ),
         ),
         const SizedBox(height: 8),
         Text(
@@ -243,9 +244,10 @@ class _PulsingButtonState extends State<_PulsingButton>
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
 
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.18).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.18,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override

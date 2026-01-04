@@ -228,8 +228,8 @@ class _BarcodeTareField extends StatelessWidget {
             );
             var data = controller.selectedBarcode.value;
             manualCtrl.manualTare.value =
-                data?.weight;
-            manualCtrl.tareCtrl.text = data?.weight ?? '0';
+                data?.weight.toString();
+            manualCtrl.tareCtrl.text = data?.weight.toString() ?? '0';
             manualCtrl.calculateManualNet();
           } else {
             Get.snackbar(
@@ -277,114 +277,115 @@ class NetWeightDisplayCard extends StatelessWidget {
     required this.manualCtrl,
   }) : super(key: key);
 
-  double get _netWeightValue =>
-      double.tryParse(netWeight.value ?? '0') ?? 0;
-
-  double get _convertedValue => _netWeightValue * unitValue;
+  // double get _netWeightValue =>
+  //     double.tryParse(netWeight.value ?? '0') ?? 0;
+  //
+  // double get _convertedValue => _netWeightValue * unitValue;
 
   @override
   Widget build(BuildContext context) {
-    return Obx(
-      () {
-          return IntrinsicHeight(
+   return IntrinsicHeight(
 
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Card(
-                    margin: Dimens.edgeInsets10_0_0_0,
-                    color: Colors.white,
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: Dimens.edgeInsets10,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            "Net Weight (Kg)",
-                            style: TextStyle(
-                              fontSize: isTablet ? 22 : 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+     child: Obx((){
+       final net = double.tryParse(netWeight.value ?? '0') ?? 0;
+       final converted = net * unitValue;
 
-                          /// 🟢 EDITABLE MODE
-                          if (isEditable && !isBluetoothConnected)
-                            TextField(
-                              controller: manualCtrl.grossCtrl,
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: isTablet ? 34 : 28,
-                                fontWeight: FontWeight.w900,
-                                color: ColorsValue.primaryColor,
-                              ),
-                              decoration: const InputDecoration(
-                                border: InputBorder.none,
-                                hintText: "0",
-                                // helperText: "0"
-                              ),
-                              onChanged: (v) {
-                                manualCtrl.manualGross.value = v;
-                                manualCtrl.manualNet.value = v;
-                              },
-                            )
+       return  Row(
+         crossAxisAlignment: CrossAxisAlignment.stretch,
+         children: [
+           Expanded(
+             child: Card(
+               margin: Dimens.edgeInsets10_0_0_0,
+               color: Colors.white,
+               elevation: 4,
+               shape: RoundedRectangleBorder(
+                 borderRadius: BorderRadius.circular(16),
+               ),
+               child: Padding(
+                 padding: Dimens.edgeInsets10,
+                 child: Column(
+                   mainAxisAlignment: MainAxisAlignment.center,
+                   children: [
+                     Text(
+                       "Net Weight (Kg)",
+                       style: TextStyle(
+                         fontSize: isTablet ? 22 : 18,
+                         fontWeight: FontWeight.w600,
+                       ),
+                     ),
 
-                          /// 🔵 DISPLAY MODE
-                          else
-                            Text(
-                              _netWeightValue.toStringAsFixed(2),
-                              style: TextStyle(
-                                fontSize: isTablet ? 34 : 28,
-                                fontWeight: FontWeight.w900,
-                                color: ColorsValue.primaryColor,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                     /// 🟢 EDITABLE MODE
+                     if (isEditable && !isBluetoothConnected)
+                       TextField(
+                         controller: manualCtrl.grossCtrl,
+                         keyboardType: TextInputType.number,
+                         textAlign: TextAlign.center,
+                         style: TextStyle(
+                           fontSize: isTablet ? 34 : 28,
+                           fontWeight: FontWeight.w900,
+                           color: ColorsValue.primaryColor,
+                         ),
+                         decoration: const InputDecoration(
+                           border: InputBorder.none,
+                           hintText: "0",
+                           // helperText: "0"
+                         ),
+                         onChanged: (v) {
+                           manualCtrl.manualGross.value = v;
+                           manualCtrl.manualNet.value = v;
+                         },
+                       )
 
-                /// 🟩 Converted Unit
-                if (isUnitConversion)
-                  Expanded(
-                    child: Card(
-                      margin: Dimens.edgeInsets10_0_10_0,
-                      elevation: 4,
-                      color: Colors.white,
-                      child: Padding(
-                        padding: Dimens.edgeInsets10,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text("Converted Unit", style: TextStyle(
-                              fontSize: isTablet ? 22 : 18,
-                              fontWeight: FontWeight.w600,
-                            ),),
+                     /// 🔵 DISPLAY MODE
+                     else
+                       Text(
+                         net.toStringAsFixed(2),
+                         style: TextStyle(
+                           fontSize: isTablet ? 34 : 28,
+                           fontWeight: FontWeight.w900,
+                           color: ColorsValue.primaryColor,
+                         ),
+                       ),
+                   ],
+                 ),
+               ),
+             ),
+           ),
 
-                            Text(
-                              _convertedValue.toStringAsFixed(2),
-                              style: TextStyle(
-                                fontSize: isTablet ? 34 : 28,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        }
-    );
+           /// 🟩 Converted Unit
+           if (isUnitConversion)
+             Expanded(
+               child: Card(
+                 margin: Dimens.edgeInsets10_0_10_0,
+                 elevation: 4,
+                 color: Colors.white,
+                 child: Padding(
+                   padding: Dimens.edgeInsets10,
+                   child: Column(
+                     mainAxisAlignment: MainAxisAlignment.center,
+                     children: [
+                       Text("Converted Unit", style: TextStyle(
+                         fontSize: isTablet ? 22 : 18,
+                         fontWeight: FontWeight.w600,
+                       ),),
+
+                       Text(
+                         converted.toStringAsFixed(2),
+                         style: TextStyle(
+                           fontSize: isTablet ? 34 : 28,
+                           fontWeight: FontWeight.bold,
+                           color: Colors.green,
+                         ),
+                       ),
+                     ],
+                   ),
+                 ),
+               ),
+             ),
+         ],
+       );
+     })
+   );
   }
 }
 
@@ -422,17 +423,6 @@ class NonBatchInwardActionBar extends StatelessWidget {
           color: ColorsValue.primaryColor,
           label: "Add Entry",
           onTap:() async{
-            // if (controller.inwardState.value == InwardState.idle) {
-            //   controller.inwardState.value = InwardState.running;
-            //   print("onTapMain pressed. State = ${controller.inwardState.value}");
-            //
-            // } else if (controller.inwardState.value == InwardState.running) {
-            //   controller.inwardState.value = InwardState.paused;
-            // } else if (controller.inwardState.value == InwardState.paused) {
-            //   controller.inwardState.value = InwardState.running;
-            //   print("onTapMain pressed. State = ${controller.inwardState.value}");
-            //
-            // }
             await controller.addToList();}
         ), _ActionButtonConfig(
           icon: mainIcon,
@@ -440,12 +430,11 @@ class NonBatchInwardActionBar extends StatelessWidget {
           label: mainLabel,
           onTap: () async {
             if (controller.inwardState.value == InwardState.running) {
-              if(!controller.validateTransactionNameAndSerialNumber()) {
+              if(!controller.validateTransactionName()) {
                 return;
               }else{
                 await controller.onPauseOrStop(pauseOrStop: 'pause');
               }
-              // controller.inwardState.value = InwardState.paused;
             }
           }
         ),

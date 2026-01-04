@@ -233,8 +233,9 @@ class InwardListItem extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
+                    product.serialNo == null ? SizedBox.shrink() :
                     Text(
-                      product.serialNo.toString() + " | ",
+                       product.serialNo.toString() + " | ",
                       style: TextStyle(
                         fontSize: isTablet ? 19 : 17,
                         fontWeight: FontWeight.w800,
@@ -257,7 +258,7 @@ class InwardListItem extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-
+                    Spacer(),
                     product.unitConversion == true
                         ? Text(
                             "Units : ${product.units}" ?? "Total Units",
@@ -275,7 +276,8 @@ class InwardListItem extends StatelessWidget {
                   ],
                 ),
 
-               Dimens.boxHeight10,
+               Dimens.boxHeight5,
+                product.time == "" ? SizedBox.shrink() :
                 Row(
                   children: [
                     Icon(
@@ -283,8 +285,10 @@ class InwardListItem extends StatelessWidget {
                       size: 14,
                       color: Colors.grey.shade600,
                     ),
+                    Dimens.boxWidth5,
                     Text(
-                      Utility.formatTimestamp(product.time),
+                      // Utility.formatTimestamp(product.time),
+                      product.time ?? DateTime.now().toIso8601String(),
                       style: TextStyle(
                         fontSize: isTablet ? 13 : 12,
                         fontWeight: FontWeight.w600,
@@ -293,7 +297,7 @@ class InwardListItem extends StatelessWidget {
                     ),
                   ],
                 ),
-               Dimens.boxHeight10,
+               Dimens.boxHeight5,
 
                 // Weight Chips - Elevated Design
                 Wrap(

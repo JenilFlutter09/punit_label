@@ -62,7 +62,7 @@ class NonBatchInwardScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Utility.styledInputField(
+                      Utility.styledInputSerialNumberField(
                         label: 'Serial Number',
                         icon: Icons.numbers,
                         keyboard: TextInputType.number,

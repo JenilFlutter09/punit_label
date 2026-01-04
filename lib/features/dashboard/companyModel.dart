@@ -25,6 +25,7 @@ class CompanyData {
   String? contactNo;
   String? gstNo;
   String? address;
+  String? website;
   String? logo;
   Map<String, dynamic>? labelFields; // <-- DYNAMIC
 
@@ -34,6 +35,7 @@ class CompanyData {
     this.contactNo,
     this.gstNo,
     this.address,
+    this.website,
     this.logo,
     this.labelFields,
   });
@@ -44,6 +46,7 @@ class CompanyData {
     contactNo = json['contact_no'];
     gstNo = json['gst_no'];
     address = json['address'];
+    address = json['website'];
     logo = json['logo'];
 
     // Store full dynamic map
@@ -59,6 +62,7 @@ class CompanyData {
       'contact_no': contactNo,
       'gst_no': gstNo,
       'address': address,
+      'website': website,
       'logo': logo,
       'label_fields': labelFields,
     };

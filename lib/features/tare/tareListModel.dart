@@ -1,3 +1,5 @@
+import '../../constants/utility.dart';
+
 class TareProductListModel {
   bool? status;
   String? message;
@@ -29,14 +31,14 @@ class TareProductListModel {
 
 class TareBarcode {
   String? productName;
-  String? weight;
+  double? weight;
   String? barCodeString;
 
   TareBarcode({this.productName, this.weight, this.barCodeString});
 
   TareBarcode.fromJson(Map<String, dynamic> json) {
     productName = json['product_name'];
-    weight = json['weight'];
+    weight = Utility.toDouble(json['weight']);
     barCodeString = json['bar_code_string'];
   }
 

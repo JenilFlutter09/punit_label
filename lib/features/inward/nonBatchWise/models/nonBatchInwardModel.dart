@@ -1,3 +1,5 @@
+import '../../../../constants/utility.dart';
+
 class NonBatchInwardModel {
   int? transactionId;
   String? transactionName;
@@ -113,7 +115,7 @@ class NonBatchBarcodes {
   double? tareWeight;
   double? grossWeight;
   double? netWeight;
-  DateTime? time;
+  String? time;
   int? serialNo;
   NonBatchBarcodes({
     this.barCodeString,
@@ -128,13 +130,11 @@ class NonBatchBarcodes {
   NonBatchBarcodes.fromJson(Map<String, dynamic> json) {
     barCodeString = json['bar_code_string'];
     tareWeightEnable = json['tare_weight_enable'];
-    tareWeight = json['tare_weight'];
-    grossWeight = json['gross_weight'];
-    netWeight = json['net_weight'];
-    time = json['time'] != null
-        ? DateTime.parse(json['time'])
-        : null;
-    serialNo = json['serial_no'];
+    tareWeight =  Utility.toDouble(json['tare_weight']);
+    grossWeight =  Utility.toDouble(json['gross_weight']);
+    netWeight =  Utility.toDouble(json['net_weight']);
+    time = json['time'];
+    serialNo = Utility.toInteger(json['serial_no']);
   }
 
   Map<String, dynamic> toJson() {
@@ -144,8 +144,8 @@ class NonBatchBarcodes {
     data['tare_weight'] = this.tareWeight;
     data['gross_weight'] = this.grossWeight;
     data['net_weight'] = this.netWeight;
-    data['time'] = time?.toIso8601String(); // 🕒
-    data['serial_no'] = serialNo.toString();
+    data['time'] = this.time.toString(); // 🕒
+    data['serial_no'] = this.serialNo.toString();
     return data;
   }
 }

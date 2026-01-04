@@ -145,11 +145,84 @@ abstract class Utility {
     if (dt == null) return '--';
     return DateFormat('dd MMM yyyy • hh:mm a').format(dt);
   }
+
+  static double? toDouble(dynamic value) {
+    if (value == null) return null;
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    if (value is String) {
+      return double.tryParse(value);
+    }
+
+    return null;
+  }
+  static int? toInteger(dynamic value) {
+    if (value == null) return null;
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    if (value is String) {
+      return int.tryParse(value);
+    }
+
+    return null;
+  }
+
   static DateTime nowWithoutSeconds() {
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day, now.hour, now.minute);
   }
   static Widget styledInputField({
+    required String label,
+    required IconData icon,
+    required TextInputType keyboard,
+    required bool isTablet,
+    TextEditingController? controller,
+    Function(String)? onChanged,
+    bool enabled = true,
+    bool readOnly = false,
+    Widget? suffix,
+    VoidCallback? onTapPrefixIcon,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 4)),
+        ],
+      ),
+      child: TextField(
+        enabled: enabled,
+        keyboardType: keyboard,
+        readOnly: readOnly,
+        controller: controller,
+        style: TextStyle(fontSize: isTablet ? 24 : 18),
+        decoration: InputDecoration(
+          hintText: label,
+          prefixIcon: IconButton(
+            icon: Icon(icon, color: ColorsValue.primaryColor),
+            color: ColorsValue.primaryColor,
+            onPressed: onTapPrefixIcon,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          suffix: suffix,
+        ),
+        onChanged: onChanged,
+      ),
+    );
+  }
+  static Widget styledInputSerialNumberField({
     required String label,
     required IconData icon,
     required TextInputType keyboard,

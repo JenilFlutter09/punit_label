@@ -39,7 +39,6 @@ class MyApp extends StatelessWidget {
             brightness: Brightness.light,
             textTheme: Typography.blackMountainView,
             useMaterial3: true,
-
             colorScheme: ColorScheme.fromSeed(
               seedColor: ColorsValue.primaryColor,
              // brightness: Brightness.light,

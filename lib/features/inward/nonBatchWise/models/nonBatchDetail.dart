@@ -1,3 +1,5 @@
+import '../../../../constants/utility.dart';
+
 class NonBatchDetailModel {
   bool? status;
   String? message;
@@ -83,10 +85,10 @@ class Products {
     // minAutoWeight = json['min_auto_weight'];
     // maxAutoWeight = json['max_auto_weight'];
     // autoWeightSeconds = json['auto_weight_seconds'];
-    tareWeight = _toDouble(json['tare_weight']);
-    minAutoWeight = _toDouble(json['min_auto_weight']);
-    maxAutoWeight = _toDouble(json['max_auto_weight']);
-    autoWeightSeconds = _toDouble(json['auto_weight_seconds']);
+    tareWeight = Utility.toDouble(json['tare_weight']);
+    minAutoWeight =  Utility.toDouble(json['min_auto_weight']);
+    maxAutoWeight =  Utility.toDouble(json['max_auto_weight']);
+    autoWeightSeconds =  Utility.toDouble(json['auto_weight_seconds']);
     if (json['combinations'] != null) {
       combinations = <Combinations>[];
       json['combinations'].forEach((v) {
@@ -151,9 +153,7 @@ class Combinations {
     return data;
   }
 }
-double? _toDouble(dynamic value) {
-  return (value as num?)?.toDouble();
-}
+
 
 class Barcodes {
   int? productId;
@@ -163,7 +163,8 @@ class Barcodes {
   double? tareWeight;
   double? grossWeight;
   double? netWeight;
-
+  String? time;
+  int? serialNo;
   Barcodes(
       {this.productId,
         this.productName,
@@ -171,16 +172,22 @@ class Barcodes {
         this.isTareWeight,
         this.tareWeight,
         this.grossWeight,
-        this.netWeight});
+        this.netWeight,
+        this.time,
+        this.serialNo
+
+      });
 
   Barcodes.fromJson(Map<String, dynamic> json) {
     productId = json['product_id'];
     productName = json['product_name'];
     barCodeString = json['bar_code_string'];
     isTareWeight = json['is_tare_weight'];
-    tareWeight = _toDouble(json['tare_weight']);
-    grossWeight = _toDouble(json['gross_weight']);
-    netWeight = _toDouble(json['net_weight']);
+    tareWeight =  Utility.toDouble(json['tare_weight']);
+    grossWeight =  Utility.toDouble(json['gross_weight']);
+    netWeight =  Utility.toDouble(json['net_weight']);
+    time = json['time'];
+    serialNo = Utility.toInteger(json['serial_no']);
   }
 
   Map<String, dynamic> toJson() {
@@ -192,6 +199,8 @@ class Barcodes {
     data['tare_weight'] = this.tareWeight;
     data['gross_weight'] = this.grossWeight;
     data['net_weight'] = this.netWeight;
+    data['time'] = time.toString(); // 🕒
+    data['serial_no'] = serialNo.toString();
     return data;
   }
 }

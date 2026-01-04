@@ -23,7 +23,7 @@ class NonBatchInwardController extends GetxController {
   RxBool isTareWeightOff = true.obs;
   ConnectHelper connectHelper = ConnectHelper();
   Rx<InwardState> inwardState = InwardState.idle.obs;
-  Rxn<NonBatchDetailModel> batchDetailModel = Rxn<NonBatchDetailModel>();
+  Rxn<NonBatchDetailModel> nonBatchDetailModel = Rxn<NonBatchDetailModel>();
   var serialNumberTextController = TextEditingController();
   RxInt serialNumber = RxInt(1);
   RxBool isSerialVerified = false.obs;
@@ -74,6 +74,8 @@ class NonBatchInwardController extends GetxController {
     await fetchProductNames();
     await fetchAttributes();
     loadLabelFormats();
+    serialNumberTextController.text = serialNumber.value.toString();
+    validateSerial(serialNumberTextController.text);
     initLoading.value = false;
   }
 
@@ -132,6 +134,8 @@ class NonBatchInwardController extends GetxController {
           tareWeight: b.tareWeight ?? 0.0,
           grossWeight: b.grossWeight ?? 0.0,
           netWeight: b.netWeight ?? 0.0,
+          time: b.time,
+          serialNo: b.serialNo
         );
       }).toList(),
     );
@@ -141,21 +145,21 @@ class NonBatchInwardController extends GetxController {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getNonBatchDetails(batchId),
     );
-    batchDetailModel.value = NonBatchDetailModel.fromJson(
+    nonBatchDetailModel.value = NonBatchDetailModel.fromJson(
       jsonDecode(response.data),
     );
     print(
       "---------------------------fetched batch Details--------------------",
     );
-    print(batchDetailModel.value?.status);
-    if (batchDetailModel.value?.data?.isPaused == true) {
+    print(nonBatchDetailModel.value?.status);
+    if (nonBatchDetailModel.value?.data?.isPaused == true) {
       inwardState.value = InwardState.paused;
 
       transactionName.text =
-          batchDetailModel.value?.data?.transactionName ?? 'Transaction';
+          nonBatchDetailModel.value?.data?.transactionName ?? 'Transaction';
 
       /// TODO :- NEED TO ADD LOGIC OF ADDING OLD ENTRIES TO EXISITNG ONES
-      final apiProducts = batchDetailModel.value?.data?.products ?? [];
+      final apiProducts = nonBatchDetailModel.value?.data?.products ?? [];
 
       for (var p in apiProducts) {
         productList.add(convertApiProductToLocal(p));
@@ -274,7 +278,7 @@ class NonBatchInwardController extends GetxController {
     }
   }
 
-  bool validateTransactionNameAndSerialNumber() {
+  bool validateTransactionName() {
     if (transactionName.text.isEmpty) {
       Utility.showCustomApiErrorSnackBar(
         title: 'Empty',
@@ -282,13 +286,12 @@ class NonBatchInwardController extends GetxController {
       );
       return false;
     } else {
-      //  serialNo.value = int.parse(serialNumber.text);
       return true;
     }
   }
 
   Future<void> onTapMain() async {
-    if (!validateTransactionNameAndSerialNumber()) {
+    if (!validateTransactionName()) {
       return;
     }
     if (inwardState.value == InwardState.idle) {
@@ -299,7 +302,7 @@ class NonBatchInwardController extends GetxController {
       _startAutoWeightMonitor();
     } else if (inwardState.value == InwardState.running) {
       //inwardState.value = InwardState.paused;
-      if (!validateTransactionNameAndSerialNumber()) {
+      if (!validateTransactionName()) {
         return;
       }
 
@@ -316,14 +319,12 @@ class NonBatchInwardController extends GetxController {
   }
 
   Future<void> addToList() async {
-    if (!validateTransactionNameAndSerialNumber()) {
+    if (!validateTransactionName()) {
       return;
     }
-    if (inwardState.value == InwardState.idle) {
+    if (inwardState.value != InwardState.running) {
       inwardState.value = InwardState.running;
-    } else if (inwardState.value == InwardState.paused) {
-      inwardState.value = InwardState.running;
-    }
+    } 
     isTareWeightOff.value =
         dashboardController.tareState.value == TareState.off;
 
@@ -407,7 +408,7 @@ class NonBatchInwardController extends GetxController {
         tareWeight: tare,
         grossWeight: gross,
         netWeight: net,
-        time: Utility.nowWithoutSeconds(),
+        time: Utility.nowWithoutSeconds().toIso8601String(),
         serialNo: nextSerial, // ✅ SERIAL CONTINUES
       );
       existing.barcodes?.insert(0, newBarcode);
@@ -426,7 +427,7 @@ class NonBatchInwardController extends GetxController {
         tareWeight: tare,
         grossWeight: gross,
         netWeight: net,
-        time: Utility.nowWithoutSeconds(),
+        time: Utility.nowWithoutSeconds().toIso8601String(),
         serialNo: baseSerial, // 🔁 RESET HERE
       );
       var configureProduct = NonBatchProducts(
@@ -592,7 +593,7 @@ class NonBatchInwardController extends GetxController {
     }
     var data = NonBatchInwardModel(
       transactionId: nonInwardController.selectedTransaction.value != null
-          ? batchDetailModel.value?.data?.transactionId
+          ? nonBatchDetailModel.value?.data?.transactionId
           : null,
       transactionName: transactionName.text,
       status: pauseOrStop,
@@ -704,7 +705,7 @@ class NonBatchInwardController extends GetxController {
           "${b.grossWeight ?? 0} kg",
           "${b.tareWeight ?? 0} kg",
           "${b.netWeight ?? 0} kg",
-          formatBarcodeTime(b.time),
+          "${b.time}",
         ]);
         counter++;
       }
@@ -754,7 +755,7 @@ class NonBatchInwardController extends GetxController {
   }
 
   Future<void> onTapStop() async {
-    if (!validateTransactionNameAndSerialNumber()) {
+    if (!validateTransactionName()) {
       return;
     }
     inwardState.value = InwardState.idle;

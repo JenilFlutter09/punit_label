@@ -246,11 +246,11 @@ class _BarcodeCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
 
-              /// 🕒 Timestamp
+              /// Serial Number And Timestamp
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
+                  barcode.serialNo == null ? SizedBox.shrink() : Text(
                     "No :- " + barcode.serialNo.toString(),
                     style: TextStyle(
                       fontSize: isTablet ? 18 : 16,
@@ -265,7 +265,7 @@ class _BarcodeCard extends StatelessWidget {
                         color: Colors.grey.shade600,
                       ),
                       Text(
-                        Utility.formatTimestamp(barcode.time),
+                        barcode.time ?? '',
                         style: TextStyle(
                           fontSize: isTablet ? 13 : 12,
                           fontWeight: FontWeight.w600,

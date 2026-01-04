@@ -214,6 +214,7 @@ class DashboardController extends GetxController {
       );
     }
   }
+/*
   List<String> buildCompanyInfoLines(CompanyData? data) {
     if (data == null || data.labelFields == null) return [];
 
@@ -239,8 +240,107 @@ class DashboardController extends GetxController {
 
     return lines;
   }
+*/
+  List<String> buildCompanyInfoLines(CompanyData? data) {
+    if (data == null || data.labelFields == null) return [];
+
+    final valueMap = <String, String>{
+      "email": data.email ?? "",
+      "contact_no": data.contactNo ?? "",
+      "gst_no": data.gstNo ?? "",
+      "address": data.address ?? "",
+      "website": data.website ?? "",
+    };
+
+    final List<String> topLineParts = [];
+    String addressLine = "";
+
+    data.labelFields!.forEach((key, toggle) {
+      if (toggle == "on" && valueMap.containsKey(key)) {
+        final value = valueMap[key]!.trim();
+
+        if (value.isEmpty) return;
+
+        if (key == "address") {
+          addressLine = value;
+        } else {
+          topLineParts.add(value);
+        }
+      }
+    });
+
+    // Limit to max 2 fields in top line
+    final limitedTop = topLineParts.take(2).toList();
+
+    final List<String> lines = [];
+
+    if (limitedTop.isNotEmpty) {
+      lines.add(limitedTop.join(" | "));
+    }
+
+    if (addressLine.isNotEmpty) {
+      lines.add(addressLine);
+    }
+
+    return lines;
+  }
 
 
+
+  Future<void> printOneSticker({
+    required int stickerHeight,
+    required int stickerWidth,
+    required int margin,
+    required int thickness,
+    required String barcode,
+    required String productName,
+    required bool isGrid,
+    Map<String, dynamic>? labelFields,
+  }) async {
+    try {
+      // COMPANY DETAILS SAFE HANDLING
+
+      final companyData = companyDetails.value?.data;
+      final companyName = companyData?.name ?? "";
+      final List<String> companyInfoLines =
+      buildCompanyInfoLines(companyData);
+      // final name = companyDetails.value?.data?.name ?? "";
+      // final contact = companyDetails.value?.data?.contactNo ?? "";
+      // final email = companyDetails.value?.data?.email ?? "";
+      //
+      // final companyContact = (contact.isNotEmpty && email.isNotEmpty)
+      //     ? "$contact | $email"
+      //     : contact + email;
+
+      // CONVERT labelFields → attribute list
+      final List<Map<String, dynamic>> dynamicAttributes = [];
+      if (labelFields != null) {
+        labelFields.forEach((key, value) {
+          dynamicAttributes.add({"key": key, "value": value.toString()});
+        });
+      }
+
+      // CALLING PLATFORM
+      final result = await platform.invokeMethod("printTestSticker", {
+        "width": stickerWidth,
+        "height": stickerHeight,
+        "margin": margin,
+        "thickness": thickness,
+        "barcodeData": barcode,
+        "productName": "Product Name :- $productName",
+        "isGrid": isGrid,
+        "printTime": printTimeInLabel.value,
+        "companyName": companyName,
+        "companyContact": companyInfoLines.join("\n"),
+        "attributes": dynamicAttributes,
+      });
+
+      print(result);
+    } catch (e) {
+      print("Error printing sticker: $e");
+    }
+  }
+/*
   Future<void> printOneSticker({
     required int stickerHeight,
     required int stickerWidth,
@@ -293,7 +393,7 @@ class DashboardController extends GetxController {
     } catch (e) {
       print("Error printing sticker: $e");
     }
-  }
+  }*/
   /// Print 50 X 75 Sticker (2 Attribute)
   Future<void> printSmallSticker({
     required String barcodeString,

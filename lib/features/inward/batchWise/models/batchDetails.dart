@@ -1,4 +1,6 @@
 import 'package:get/get.dart';
+
+import '../../../../constants/utility.dart';
 class BatchDetails {
   bool? status;
   String? message;
@@ -139,12 +141,10 @@ class Products {
     productName = json['product_name'];
     labelId = json['label_id'];
     autoWeight = json['auto_weight'];
-
     tareWeight = (json['tare_weight'] as num?)?.toDouble();
     minAutoWeight = (json['min_auto_weight'] as num?)?.toDouble();
     maxAutoWeight = (json['max_auto_weight'] as num?)?.toDouble();
     autoWeightSeconds = (json['auto_weight_seconds'] as num?)?.toDouble();
-
     unitConversion = json['unit_conversion'];
     unit = json['unit'];
 
@@ -181,13 +181,13 @@ class Barcodes {
   int? batchProductId;
   String? batchProductName;
   String? barCodeString;
-  String? isTareWeight;
-  String? tareWeight;
-  String? grossWeight;
-  String? netWeight;
+  bool ? isTareWeight;
+  double? tareWeight;
+  double? grossWeight;
+  double? netWeight;
   String? units;
   bool? unitConversion;
-  DateTime? time;
+  String? time;
   int? serialNo;
 
   Barcodes(
@@ -205,14 +205,12 @@ class Barcodes {
     batchProductId = json['batch_product_id'];
     batchProductName = json['batch_product_name'];
     barCodeString = json['bar_code_string'];
-    isTareWeight = json['is_tare_weight'];
-    tareWeight = json['tare_weight'];
-    grossWeight = json['gross_weight'];
-    netWeight = json['net_weight'];
-    time = json['time'] != null
-        ? DateTime.parse(json['time'])
-        : null;
-    serialNo = json['serial_no'];
+    isTareWeight = json['is_tare_weight'] == 1;
+    tareWeight =  Utility.toDouble(json['tare_weight']);
+    grossWeight =  Utility.toDouble(json['gross_weight']);
+    netWeight =  Utility.toDouble(json['net_weight']);
+    time = json['time'];
+    serialNo = Utility.toInteger(json['serial_no']);
   }
 
   Map<String, dynamic> toJson() {
@@ -224,8 +222,8 @@ class Barcodes {
     data['tare_weight'] = this.tareWeight;
     data['gross_weight'] = this.grossWeight;
     data['net_weight'] = this.netWeight;
-    data['time'] = time?.toIso8601String(); // 🕒
-    data['serial_no'] = serialNo.toString();
+    data['time'] = this.time.toString(); // 🕒
+    data['serial_no'] = this.serialNo.toString();
     return data;
   }
 }
