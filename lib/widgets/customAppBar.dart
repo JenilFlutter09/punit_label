@@ -47,17 +47,19 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         style: Styles.whiteBold22.copyWith(fontSize: titleFont),
       ),
 
-      leading: showDrawer ?  Builder(
-        builder: (context) {
-          return IconButton(
-            icon: Icon(Icons.menu, color: Colors.white),
-            onPressed: () {
-              // This is the MOST RELIABLE way
-              Scaffold.of(context).openDrawer();
-            },
-          );
-        },
-      ) : null,
+      leading: showDrawer
+          ? Builder(
+              builder: (context) {
+                return IconButton(
+                  icon: Icon(Icons.menu, color: Colors.white),
+                  onPressed: () {
+                    // This is the MOST RELIABLE way
+                    Scaffold.of(context).openDrawer();
+                  },
+                );
+              },
+            )
+          : null,
 
       actions: [
         /// ---------------------------
@@ -108,8 +110,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         /// ---------------------------
         /// PRINTER BUTTON
         /// ---------------------------
-        if (showPrinter)
-          IconButton(
+        // if (showPrinter)
+          /*IconButton(
             iconSize: iconSize,
             onPressed: () {
               showBluetoothPrinterSheet(
@@ -139,7 +141,82 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ),
             ),
-          ),
+          ),*/
+        if (showPrinter)
+        dashboardController.isLabelPrinterMode
+            ? IconButton(
+                iconSize: iconSize,
+                onPressed: () {
+                  showBluetoothPrinterSheet(
+                    context,
+                    dashboardController,
+                    SStringConstants.role_printer,
+                  );
+                },
+                icon: Obx(
+                  () => Badge(
+                    alignment: Alignment.topRight,
+                    label: Icon(
+                      dashboardController.isPrinterConnected.value
+                          ? Icons.check_circle
+                          : Icons.dangerous,
+                      color: Colors.white,
+                      size: badgeIconSize,
+                    ),
+                    padding: EdgeInsets.zero,
+                    backgroundColor:
+                        dashboardController.isPrinterConnected.value
+                        ? Colors.green
+                        : Colors.red,
+                    child: CircleAvatar(
+                      radius: circleRadius,
+                      backgroundColor: Colors.white12,
+                      child: Icon(
+                        Icons.print,
+                        color: Colors.white,
+                        size: iconSize,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : IconButton(
+                iconSize: iconSize,
+                onPressed: () {
+                  // showBluetoothPrinterSheet(
+                  //   context,
+                  //   dashboardController,
+                  //   SStringConstants.role_printer,
+                  // );
+                  dashboardController.bluetoothController.openDeviceBottomSheet();
+                },
+                icon: Obx(
+                  () => Badge(
+                    alignment: Alignment.topRight,
+                    label: Icon(
+                      dashboardController.bluetoothController.isConnected.value
+                          ? Icons.check_circle
+                          : Icons.dangerous,
+                      color: Colors.white,
+                      size: badgeIconSize,
+                    ),
+                    padding: EdgeInsets.zero,
+                    backgroundColor:
+                    dashboardController.bluetoothController.isConnected.value
+                        ? Colors.green
+                        : Colors.red,
+                    child: CircleAvatar(
+                      radius: circleRadius,
+                      backgroundColor: Colors.white12,
+                      child: Icon(
+                        Icons.receipt_long,
+                        color: Colors.white,
+                        size: iconSize,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
 
         /// ---------------------------
         /// USER INFO BUTTON

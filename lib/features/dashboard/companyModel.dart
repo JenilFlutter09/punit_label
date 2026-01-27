@@ -46,7 +46,7 @@ class CompanyData {
     contactNo = json['contact_no'];
     gstNo = json['gst_no'];
     address = json['address'];
-    address = json['website'];
+    website = json['website'];
     logo = json['logo'];
 
     // Store full dynamic map

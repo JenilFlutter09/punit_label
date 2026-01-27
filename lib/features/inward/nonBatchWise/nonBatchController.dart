@@ -38,7 +38,7 @@ class NonBatchInwardController extends GetxController {
 
   RxMap<String, RxBool> attributeEnabled = <String, RxBool>{}.obs;
 
-  RxList<LabelFormatElement> labelFormats = <LabelFormatElement>[].obs;
+  //RxList<LabelFormatElement> labelFormats = <LabelFormatElement>[].obs;
   Rxn<LabelFormatElement> selectedLabelFormatObj = Rxn<LabelFormatElement>();
 
   RxString selectedLabelFormat = "".obs;
@@ -73,29 +73,9 @@ class NonBatchInwardController extends GetxController {
     }
     await fetchProductNames();
     await fetchAttributes();
-    loadLabelFormats();
     serialNumberTextController.text = serialNumber.value.toString();
     validateSerial(serialNumberTextController.text);
     initLoading.value = false;
-  }
-
-  void loadLabelFormats() {
-    labelFormats.value = [
-      LabelFormatElement(1, "Small Label Select Max (1)", 1, LabelFormat.Small),
-      LabelFormatElement(
-        2,
-        "Medium Label Select Max (4)",
-        4,
-        LabelFormat.Medium,
-      ),
-      LabelFormatElement(3, "Large Label Select Max (5)", 5, LabelFormat.Large),
-      LabelFormatElement(
-        3,
-        "Extra Large Label Select Max (7)",
-        7,
-        LabelFormat.ExtraLarge,
-      ),
-    ];
   }
 
   void validateSerial(String value) {
@@ -452,17 +432,30 @@ class NonBatchInwardController extends GetxController {
     required NonBatchBarcodes barcodeData,
     required NonBatchProducts productData,
     required int serialNumber,
-  }) async {
+  }) async
+  {
     final LabelFormat selected =
         selectedLabelFormatObj.value?.labelFormat ?? LabelFormat.Large;
 
     // -------------------------------------------------------------
     // 1️⃣ Convert selected attributes to Map<String, String>
     // -------------------------------------------------------------
-    final Map<String, dynamic> combinationFields = {
-      for (var attr in (productData.attributes ?? []))
-        attr.attributeName ?? "Attribute": attr.optionName ?? "",
-    };
+    // final Map<String, dynamic> combinationFields = {
+    //   for (var attr in (productData.attributes ?? []))
+    //     attr.attributeName ?? "Attribute": attr.optionName ?? "",
+    // };
+
+    final Map<String, String> combinationFields = {};
+
+    selectedAttributes.forEach((key, value) {
+      final isEnabled =
+          attributeEnabled[key]?.value ?? false;
+
+      if (isEnabled && value.value.isNotEmpty) {
+        combinationFields[key] = value.value;
+      }
+    });
+
 
     // -------------------------------------------------------------
     // 2️⃣ Add weight fields
@@ -610,7 +603,7 @@ class NonBatchInwardController extends GetxController {
           connectHelper.nonBatchProductStore(non_batch_inward_model: data),
     );
     if (!response.hasError) {
-      generatePdf();
+      await generatePdf();
       Get.snackbar(
         "Paused",
         "Transaction Paused Successfully",
@@ -637,7 +630,7 @@ class NonBatchInwardController extends GetxController {
     return DateFormat('dd-MM-yyyy hh:mm a').format(dt);
   }
 
-  void generatePdf() {
+  Future<void> generatePdf() async{
     final now = DateTime.now();
 
     final uniqueSuffix =
@@ -645,7 +638,7 @@ class NonBatchInwardController extends GetxController {
 
     final title = "Transaction_$uniqueSuffix";
 
-    ExportHelper.generatePDF(
+    await ExportHelper.generatePDF(
       title: title,
       metaData: {
         "Transaction Name": transactionName.text ?? "Product Name",

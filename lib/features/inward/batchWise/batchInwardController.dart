@@ -230,7 +230,7 @@ class BatchInwardController extends GetxController {
         animationDuration: Duration(seconds: 3),
       );
     } else {
-      generatePdf();
+      await generatePdf();
       Get.snackbar(
         "Success",
         "Products Inward Successfully",
@@ -242,7 +242,7 @@ class BatchInwardController extends GetxController {
     }
   }
 
-  void generatePdf() {
+  Future<void> generatePdf() async{
     final now = DateTime.now();
 
     final uniqueSuffix =
@@ -250,7 +250,7 @@ class BatchInwardController extends GetxController {
 
     final title = "Batch_Inward_$uniqueSuffix";
     var batchData = batchModel.value?.data?.batch;
-    ExportHelper.generatePDF(
+    await ExportHelper.generatePDF(
       title: title,
       metaData: {
         "Batch Name": batchData?.batchName ?? "Product Name",

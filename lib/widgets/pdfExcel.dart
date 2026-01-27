@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:excel/excel.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:punit_label/constants/utility.dart';
 
 import '../features/dispatch/models/dispatchBarcodes.dart';
 
@@ -114,9 +116,10 @@ class ExportHelper {
     required String title,
     required Map<String, String> metaData,
     required List<Dispatchbarcodes> items,
-  }) async {
+  }) async
+  {
     final pdf = pw.Document();
-    final logo = await rootBundle.load('assets/images/splash.jpeg');
+    final logo = await rootBundle.load('assets/images/sukiLogo.jpeg');
     final logoImage = pw.MemoryImage(logo.buffer.asUint8List());
 
     // 🔹 Group product-wise
@@ -280,12 +283,36 @@ class ExportHelper {
 
 
     final dir = Directory("/storage/emulated/0/Download");
+    //    final dir = await getDownloadDirectory();
     final file = File("${dir.path}/$title.pdf");
-    await file.writeAsBytes(await pdf.save());
+    //await file.writeAsBytes(await pdf.save());
+    try {
+      await file.writeAsBytes(await pdf.save());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("PDF saved at ${file.path}")),
+      );
+      Utility.sharePdfFile(file.path);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to save PDF: $e")),
+      );
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Packing slip PDF saved")),
-    );
+    // ScaffoldMessenger.of(context).showSnackBar(
+    //   const SnackBar(content: Text("Custom PDF saved")),
+    // );
+  }
+  static Future<Directory> getDownloadDirectory() async {
+    if (Platform.isAndroid) {
+      final dir = await getExternalStorageDirectory();
+      final downloadDir = Directory("${dir!.path}/Download");
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
+      return downloadDir;
+    } else {
+      return await getApplicationDocumentsDirectory();
+    }
   }
 
   static pw.Widget buildCompanyHeader({
@@ -462,6 +489,7 @@ class ExportHelper {
     final file = File(filePath);
     await file.writeAsBytes(await pdf.save());
     print("✅ PDF saved at: $filePath");
+    Utility.sharePdfFile(file.path);
   }
 
   /// 🔹 Generate Dynamic Excel

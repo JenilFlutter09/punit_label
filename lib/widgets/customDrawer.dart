@@ -87,7 +87,11 @@ class CustomDrawer extends StatelessWidget {
                 Dimens.boxHeight24,
                 Divider(),
                 _sectionTitle("Label Configuration"),
-
+                _switchTile(
+                  icon: Icons.label_off,
+                  title: "White Label",
+                  value: dashController.isWhiteLabel,
+                ),
                 _switchTile(
                   icon: Icons.numbers,
                   title: "Serial Number",

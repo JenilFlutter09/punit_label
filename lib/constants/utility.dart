@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:punit_label/apis/connectHelper.dart';
 import 'package:punit_label/navigation/routesManagement.dart';
+import 'package:share_plus/share_plus.dart';
 import '/constants/sizes.dart';
 import '/constants/strings.dart';
 import '/constants/styles.dart';
@@ -140,7 +141,10 @@ abstract class Utility {
       barrierDismissible: barrierDismissible,
     );
   }
-
+  static sharePdfFile(String pdfPath){
+    //SharePlus.instance.share([XFile(pdfPath)]);
+     Share.shareXFiles([XFile(pdfPath)]);
+  }
   static String formatTimestamp(DateTime? dt) {
     if (dt == null) return '--';
     return DateFormat('dd MMM yyyy • hh:mm a').format(dt);

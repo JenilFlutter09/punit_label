@@ -13,10 +13,12 @@ import '/features/bluetooth/bluetoothController.dart';
 import '/features/dashboard/dashboardController.dart';
 import '/navigation/appPages.dart';
 import '/widgets/bluetooth_bottomsheet.dart';
+import 'bluetoothController.dart';
 
 class DashBoardView extends StatelessWidget {
   DashBoardView({super.key});
   final dash = Get.put(DashboardController());
+
   @override
   Widget build(BuildContext context) {
 
@@ -38,7 +40,7 @@ class DashBoardView extends StatelessWidget {
       drawer: CustomDrawer(),
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: () async => await dash.getDashboardDetails(),
+          onRefresh: () async => await dash.refreshDashboard(),
           child: ListView(
             //crossAxisAlignment: CrossAxisAlignment.start,
             physics: const AlwaysScrollableScrollPhysics(), // ✅ important
@@ -181,6 +183,35 @@ class DashBoardView extends StatelessWidget {
           ),
         ),
       ),
+      // floatingActionButton: Column(
+      //   mainAxisAlignment: MainAxisAlignment.end,
+      //
+      //   children: [
+      //     FloatingActionButton(onPressed: () => controller.openDeviceBottomSheet(), child: Icon(Icons.bluetooth_connected),),
+      //     Dimens.boxHeight12,
+      //     FloatingActionButton(onPressed:()=> controller.printReceipt(
+      //       companyName: "Sketch & Lift Store",
+      //       companyContact: "Sketch & Lift Store",
+      //       address: "Gujarat, India",
+      //       items: [
+      //         {"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
+      //         {"name": "Sketch Book", "qty": 1, "value": 250},
+      //       ],
+      //
+      //       barcodeData: "ORD123456",
+      //     ), child: Icon(Icons.print),),
+      //   ],
+      // ),
     );
   }
 

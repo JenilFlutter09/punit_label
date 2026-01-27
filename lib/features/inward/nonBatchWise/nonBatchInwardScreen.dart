@@ -133,7 +133,7 @@ class NonBatchInwardScreen extends StatelessWidget {
 
                                   SearchableStringDropdown(
                                     label: "Select Label Format",
-                                    items: controller.labelFormats
+                                    items: controller.dashboardController.labelFormats
                                         .map((e) => e.nameOfLabel)
                                         .toList(),
                                     selectedValue:
@@ -144,7 +144,7 @@ class NonBatchInwardScreen extends StatelessWidget {
 
                                       /// Get the full object
                                       controller.selectedLabelFormatObj.value =
-                                          controller.labelFormats.firstWhere(
+                                          controller.dashboardController.labelFormats.firstWhere(
                                             (e) =>
                                                 e.nameOfLabel == selectedName,
                                           );

@@ -17,14 +17,16 @@ import '../../apis/responseModel.dart';
 import '../../apis/sharedPreference.dart';
 import '../../constants/strings.dart';
 import '../../navigation/routesManagement.dart';
+import '../../widgets/searchableDropdown.dart';
 import '../inward/models/singleProduct.dart';
+import 'bluetoothController.dart';
 import 'companyModel.dart';
 typedef ApiCall = Future<ResponseModel> Function();
 
 class DashboardController extends GetxController {
   static const platform = MethodChannel('label_printer');
   var selectedIndex = 0.obs;
-  //var isBlueToothMode = true.obs;
+  bool isLabelPrinterMode = false;
   var isWeightScaleConnected = false.obs;
   ConnectHelper connectHelper = ConnectHelper();
   var isPrinterConnected = false.obs;
@@ -47,6 +49,7 @@ class DashboardController extends GetxController {
   Rxn<UserProfile> userDetails = Rxn<UserProfile>();
   final manualBatchWeights = Get.put(ManualWeightController(), tag: 'batch');
   final manualTareWeights = Get.put(ManualWeightController(), tag: 'tare');
+  final bluetoothController = Get.put(BluetoothController());
   final manualNonBatchWeights = Get.put(
     ManualWeightController(),
     tag: 'nonbatch',
@@ -63,6 +66,8 @@ class DashboardController extends GetxController {
   RxList<TopProducts> topProducts = <TopProducts>[].obs;
   RxList<LowStockProducts> lowStockProducts = <LowStockProducts>[].obs;
 
+  RxList<LabelFormatElement> labelFormats = <LabelFormatElement>[].obs;
+
   @override
   Future<void> onInit() async {
     // TODO: implement onInit
@@ -71,6 +76,14 @@ class DashboardController extends GetxController {
     await getUserDetails();
     await getDashboardDetails();
     await getCompanyDetails();
+
+    // react to white label toggle
+    ever(isWhiteLabel, (_) {
+      loadLabelFormats();
+    });
+
+    // initial load
+    loadLabelFormats();
   }
 
   @override
@@ -142,6 +155,47 @@ class DashboardController extends GetxController {
     }
   }
 
+  void loadLabelFormats() {
+    if(isWhiteLabel.value) {
+      labelFormats.value = [
+        LabelFormatElement(
+            1, "Small Label Select Max (3)", 3, LabelFormat.Small),
+        LabelFormatElement(
+          2,
+          "Medium Label Select Max (6)",
+          6,
+          LabelFormat.Medium,
+        ),
+        LabelFormatElement(
+            3, "Large Label Select Max (8)", 8, LabelFormat.Large),
+        LabelFormatElement(
+          4,
+          "Extra Large Label Select Max (9)",
+          9,
+          LabelFormat.ExtraLarge,
+        ),
+      ];
+    }else{
+      labelFormats.value = [
+        LabelFormatElement(
+            1, "Small Label Select Max (1)", 1, LabelFormat.Small),
+        LabelFormatElement(
+          2,
+          "Medium Label Select Max (4)",
+          4,
+          LabelFormat.Medium,
+        ),
+        LabelFormatElement(
+            3, "Large Label Select Max (5)", 5, LabelFormat.Large),
+        LabelFormatElement(
+          4,
+          "Extra Large Label Select Max (7)",
+          7,
+          LabelFormat.ExtraLarge,
+        ),
+      ];
+    }
+  }
   void checkPrinterConnection() {
     if (isPrinterConnected.value) {
       checkPrinterStatus();
@@ -177,7 +231,10 @@ class DashboardController extends GetxController {
     }
   }
 
-
+  Future<void> refreshDashboard() async {
+    await getDashboardDetails();
+    await getCompanyDetails();
+  }
 
   Future<void> getDashboardDetails() async {
     try {
@@ -241,6 +298,50 @@ class DashboardController extends GetxController {
     return lines;
   }
 */
+  // List<String> buildCompanyInfoLines(CompanyData? data) {
+  //   if (data == null || data.labelFields == null) return [];
+  //
+  //   final valueMap = <String, String>{
+  //     "email": data.email ?? "",
+  //     "contact_no": data.contactNo ?? "",
+  //     "gst_no": data.gstNo ?? "",
+  //     "address": data.address ?? "",
+  //     "website": data.website ?? "",
+  //   };
+  //
+  //   final List<String> topLineParts = [];
+  //   String addressLine = "";
+  //
+  //   data.labelFields!.forEach((key, toggle) {
+  //     if (toggle == "on" && valueMap.containsKey(key)) {
+  //       final value = valueMap[key]!.trim();
+  //
+  //       if (value.isEmpty) return;
+  //
+  //       if (key == "address") {
+  //         addressLine = value;
+  //       } else {
+  //         topLineParts.add(value);
+  //       }
+  //     }
+  //   });
+  //
+  //   // Limit to max 2 fields in top line
+  //   final limitedTop = topLineParts.take(2).toList();
+  //
+  //   final List<String> lines = [];
+  //
+  //   if (limitedTop.isNotEmpty) {
+  //     lines.add(limitedTop.join(" | "));
+  //   }
+  //
+  //   if (addressLine.isNotEmpty) {
+  //     lines.add(addressLine);
+  //   }
+  //
+  //   return lines;
+  // }
+
   List<String> buildCompanyInfoLines(CompanyData? data) {
     if (data == null || data.labelFields == null) return [];
 
@@ -248,34 +349,33 @@ class DashboardController extends GetxController {
       "email": data.email ?? "",
       "contact_no": data.contactNo ?? "",
       "gst_no": data.gstNo ?? "",
-      "address": data.address ?? "",
       "website": data.website ?? "",
     };
 
     final List<String> topLineParts = [];
     String addressLine = "";
 
-    data.labelFields!.forEach((key, toggle) {
-      if (toggle == "on" && valueMap.containsKey(key)) {
-        final value = valueMap[key]!.trim();
+    // Preferred order for top line
+    final preferredOrder = ["email", "contact_no", "gst_no", "website"];
 
-        if (value.isEmpty) return;
-
-        if (key == "address") {
-          addressLine = value;
-        } else {
+    for (final key in preferredOrder) {
+      if (data.labelFields?[key] == "on") {
+        final value = valueMap[key]?.trim() ?? "";
+        if (value.isNotEmpty) {
           topLineParts.add(value);
         }
       }
-    });
+    }
 
-    // Limit to max 2 fields in top line
-    final limitedTop = topLineParts.take(2).toList();
+    // Address handled separately
+    if (data.labelFields?["address"] == "on") {
+      addressLine = data.address?.trim() ?? "";
+    }
 
     final List<String> lines = [];
 
-    if (limitedTop.isNotEmpty) {
-      lines.add(limitedTop.join(" | "));
+    if (topLineParts.isNotEmpty) {
+      lines.add(topLineParts.take(2).join(" | "));
     }
 
     if (addressLine.isNotEmpty) {
@@ -284,7 +384,6 @@ class DashboardController extends GetxController {
 
     return lines;
   }
-
 
 
   Future<void> printOneSticker({
@@ -296,7 +395,8 @@ class DashboardController extends GetxController {
     required String productName,
     required bool isGrid,
     Map<String, dynamic>? labelFields,
-  }) async {
+  }) async
+  {
     try {
       // COMPANY DETAILS SAFE HANDLING
 
@@ -304,13 +404,6 @@ class DashboardController extends GetxController {
       final companyName = companyData?.name ?? "";
       final List<String> companyInfoLines =
       buildCompanyInfoLines(companyData);
-      // final name = companyDetails.value?.data?.name ?? "";
-      // final contact = companyDetails.value?.data?.contactNo ?? "";
-      // final email = companyDetails.value?.data?.email ?? "";
-      //
-      // final companyContact = (contact.isNotEmpty && email.isNotEmpty)
-      //     ? "$contact | $email"
-      //     : contact + email;
 
       // CONVERT labelFields → attribute list
       final List<Map<String, dynamic>> dynamicAttributes = [];
@@ -320,22 +413,28 @@ class DashboardController extends GetxController {
         });
       }
 
-      // CALLING PLATFORM
-      final result = await platform.invokeMethod("printTestSticker", {
-        "width": stickerWidth,
-        "height": stickerHeight,
-        "margin": margin,
-        "thickness": thickness,
-        "barcodeData": barcode,
-        "productName": "Product Name :- $productName",
-        "isGrid": isGrid,
-        "printTime": printTimeInLabel.value,
-        "companyName": companyName,
-        "companyContact": companyInfoLines.join("\n"),
-        "attributes": dynamicAttributes,
-      });
+      if(isLabelPrinterMode == false){
+        bluetoothController.printReceipt(companyName: companyName, companyContact: companyInfoLines, items: dynamicAttributes, barcodeData: barcode);
+      }else {
+        // CALLING PLATFORM
+        final result = await platform.invokeMethod("printTestSticker", {
+          "width": stickerWidth,
+          "height": stickerHeight,
+          "margin": margin,
+          "thickness": thickness,
+          "barcodeData": barcode,
+          "productName": "Product Name :- $productName",
+          "isGrid": isGrid,
+          "isWhiteLabel": isWhiteLabel.value,
+          "printTime": printTimeInLabel.value,
+          "companyName": companyName,
+          "companyContact": companyInfoLines.join("\n"),
+          "attributes": dynamicAttributes,
+        });
 
-      print(result);
+        print(result);
+      }
+      //bluetoothController.printReceipt(companyName: companyName, companyContact: companyData?.email ?? '', address: companyData?.address ?? "", items: dynamicAttributes, barcodeData: barcode);
     } catch (e) {
       print("Error printing sticker: $e");
     }
@@ -431,7 +530,7 @@ class DashboardController extends GetxController {
     required int noAttribute,
     Map<String, dynamic>? labelFields,
   }) async {
-    if(noAttribute > 4) {
+    if(noAttribute > 5) {
       await printOneSticker(
         stickerHeight: 600,
         stickerWidth: 600,
@@ -462,7 +561,7 @@ class DashboardController extends GetxController {
     Map<String, dynamic>? labelFields,
     required int noAttribute
   }) async {
-    if(noAttribute > 4)
+    if(noAttribute > 5)
       {
         await printOneSticker(
           stickerHeight: 600,
@@ -611,6 +710,7 @@ class DashboardController extends GetxController {
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
       Permission.location,
+      Permission.storage
     ];
 
     for (final permission in permissions) {

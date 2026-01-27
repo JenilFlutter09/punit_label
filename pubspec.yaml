@@ -56,6 +56,8 @@ dependencies:
   printing: ^5.11.0
   excel: ^4.0.2
   collection: ^1.18.0
+  path_provider: ^2.1.2
+  share_plus:
 dev_dependencies:
   flutter_test:
     sdk: flutter

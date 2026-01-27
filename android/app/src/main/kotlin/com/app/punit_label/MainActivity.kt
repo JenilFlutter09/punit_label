@@ -52,7 +52,6 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "connectPrinter" -> connectPrinter(call, result)
                     "disconnectPrinter" -> disconnectPrinter(result)
-                    "printOneSticker" -> printOneSticker(result)
                     "getPrinterStatus" -> getPrinterStatus(result)
                     // New: Test sticker with custom size
                     "printTestSticker" -> {
@@ -63,6 +62,7 @@ class MainActivity : FlutterActivity() {
                         val margin = (args["margin"] as? Number)?.toInt() ?: 20
                         val thickness = (args["thickness"] as? Number)?.toInt() ?: 8
                         val isGrid = args["isGrid"] as? Boolean ?: false
+                        val isWhiteLabel = args["isWhiteLabel"] as? Boolean ?: false
                         val printTime = args["printTime"] as? Boolean ?: false
                         val companyName = args["companyName"]?.toString() ?: ""
                         val companyContact = args["companyContact"]?.toString() ?: ""
@@ -77,6 +77,7 @@ class MainActivity : FlutterActivity() {
                             margin = margin,
                             thickness = thickness,
                             isGrid = isGrid,
+                            isWhiteLabel = isWhiteLabel,
                             printTime = printTime,
                             companyName = companyName,
                             companyContact = companyContact,
@@ -84,31 +85,6 @@ class MainActivity : FlutterActivity() {
                             productName = productName,
                             attributes = attributes
                         )
-                    }
-                    "printNewSticker" -> {
-                        val args = call.arguments as? Map<String, String> ?: emptyMap()
-                        val date = args["date"] ?: ""
-                        val spoolno = args["spoolno"] ?: ""
-                        val dpcsize = args["dpcsize"] ?: ""
-                        val gross = args["gross"] ?: ""
-                        val tare = args["tare"] ?: ""
-                        val net = args["net"] ?: ""
-                        val barcode = args["barcode"] ?: ""
-                        printNewSticker(date,spoolno,dpcsize,gross,tare,net,barcode,result)
-                    }
-                    "printSticker" -> {
-                        val args = call.arguments as? Map<String, String> ?: emptyMap()
-                        val orderNo = args["orderNo"] ?: ""
-                        val productNo = args["productNo"] ?: ""
-                        val productType = args["productType"] ?: ""
-                        val barcodeData = args["barcodeData"] ?: ""
-                        val productQuality = args["productQuality"] ?: ""
-                        val gsm = args["gsm"] ?: ""
-                        val rollSize = args["rollSize"] ?: ""
-                        val color = args["color"] ?: ""
-                        val grossWeight = args["grossWeight"] ?: ""
-                        val netWeight = args["netWeight"] ?: ""
-                        printRollSticker(orderNo, productNo, productType, barcodeData,productQuality,gsm,rollSize,color,grossWeight,netWeight,result)
                     }
                     else -> result.notImplemented()
                 }
@@ -248,375 +224,12 @@ class MainActivity : FlutterActivity() {
         }.start()
     }
 
-    private fun printNewSticker(
-        date: String,
-        spoolNo: String,
-        dpcSize: String,
-        gross: String,
-        tare: String,
-        net: String,
-        barcode: String,
-        result: MethodChannel.Result
-    ) {
-        Thread {
-            try {
-                val lp = printer ?: run {
-                    mainHandler.post { result.error("NO_PRINTER", "Printer not connected", null) }
-                    return@Thread
-                }
-
-                // ===== LABEL SIZE =====
-                val labelWidth = 700
-                val labelHeight = 623
-                val setSize = lp.SetLabelSize(labelWidth, labelHeight)
-                if (setSize != 0) {
-                    mainHandler.post { result.error("SET_LABEL_ERROR", "Failed: $setSize", null) }
-                    return@Thread
-                }
-
-                lp.SetPrintDensity(15)
-
-                // ===== COMMON SPACING =====
-                var currentY = 40
-                val lineSpace = 55
-
-                // ===== 1️⃣ COMPANY NAME (CENTER) =====
-                val companyName = "Hi - Energy Wires"
-                val companyFont = 48
-                lp.PrintText(
-                    centerText(companyName, companyFont, labelWidth),
-                    currentY,
-                    "0", companyName, 0,
-                    companyFont, companyFont, 0
-                )
-                currentY += lineSpace + 10
-
-                // ===== 2️⃣ CONTACT LINE (CENTER) =====
-                val contact = "KIADB Industrial Area, Vemgal  Ph: 9448664666 / 7353018845"
-                val contactFont = 26
-                lp.PrintText(
-                    centerText(contact, contactFont, labelWidth),
-                    currentY,
-                    "0", contact, 0,
-                    contactFont, contactFont, 0
-                )
-                currentY += lineSpace
-
-                // ===== 3️⃣ DATE + SPOOL (CENTER) =====
-                val ds = "Date: $date    Spool No: $spoolNo"
-                val dsFont = 30
-                lp.PrintText(
-                    centerText(ds, dsFont, labelWidth),
-                    currentY,
-                    "0", ds, 0,
-                    dsFont, dsFont, 0
-                )
-                currentY += lineSpace
-
-                // ===== 4️⃣ DPC SIZE (CENTER) =====
-                val dpcLine = "DPC Size: $dpcSize"
-                val dpcFont = 34
-                lp.PrintText(
-                    centerText(dpcLine, dpcFont, labelWidth),
-                    currentY,
-                    "0", dpcLine, 0,
-                    dpcFont, dpcFont, 0
-                )
-                currentY += lineSpace
-
-                // ===== 5️⃣ GROSS WEIGHT (CENTER) =====
-                val grossLine = "Gross Weight: $gross KG"
-                lp.PrintText(
-                    centerText(grossLine, dpcFont, labelWidth),
-                    currentY,
-                    "0", grossLine, 0,
-                    dpcFont, dpcFont, 0
-                )
-                currentY += lineSpace
-
-                // ===== 6️⃣ TARE WEIGHT (CENTER) =====
-                val tareLine = "Tare Weight: $tare KG"
-                lp.PrintText(
-                    centerText(tareLine, dpcFont, labelWidth),
-                    currentY,
-                    "0", tareLine, 0,
-                    dpcFont, dpcFont, 0
-                )
-                currentY += lineSpace
-
-                // ===== 7️⃣ NET WEIGHT (CENTER) =====
-                val netLine = "Net Weight: $net KG"
-                lp.PrintText(
-                    centerText(netLine, dpcFont, labelWidth),
-                    currentY,
-                    "0", netLine, 0,
-                    dpcFont, dpcFont, 0
-                )
-                currentY += lineSpace + 10
-// ===== 🧾 BARCODE (CENTERED) =====
-                val barcodeHeight = 80
-                val barcodeData = barcode
-// Estimate barcode width for center alignment
-// (20px per char is a safe average for 1D Code128)
-                val rectBottom = labelHeight
-                val estimatedBarcodeWidth = barcodeData.length * 20
-
-                val barcodeX = (labelWidth - estimatedBarcodeWidth) / 4
-                val barcodeY = rectBottom - barcodeHeight - 80  // 40px above footer
-
-                val barcodeStatus = lp.PrintBarcode1D(
-                    barcodeX,
-                    barcodeY,
-                    1,              // Code128
-                    0,              // Rotate
-                    barcodeData,    // Data
-                    barcodeHeight,  // Height
-                    0,              // Human readable font
-                    4,              // Narrow bar width
-                    4               // Wide bar width
-                )
-
-                if (barcodeStatus != 0) {
-                    mainHandler.post { result.error("BARCODE_ERROR", "Failed: $barcodeStatus", null) }
-                    return@Thread
-                }
-
-// ===== 🦶 FOOTER (CENTERED) =====
-                val footerText = "Label generated from weighing erp by punitinstrument.com"
-                val footerFontSize = 22
-
-// estimate width
-                val estimatedFooterWidth = (footerText.length * footerFontSize) / 2.2
-                val footerX = ((labelWidth - estimatedFooterWidth) / 2).toInt()
-
-// Place footer 15px above bottom edge
-                val footerY = rectBottom - 45
-
-                lp.PrintText(
-                    footerX,
-                    footerY,
-                    "0",
-                    footerText,
-                    0,
-                    footerFontSize,
-                    footerFontSize,
-                    0
-                )
-
-                //===== PRINT =====
-                val execStatus = lp.PrintLabel(1, 2)
-                mainHandler.post {
-                    if (execStatus == 0) {
-                        result.success("✅ Sticker printed successfully!")
-                    } else {
-                        result.error("PRINT_EXEC_ERROR", "Failed to execute: $execStatus", null)
-                    }
-                }
-
-            } catch (e: Exception) {
-                mainHandler.post { result.error("PRINT_ERROR", e.message ?: "Unknown error", null) }
-            }
-        }.start()
-    }
-
     // ===== Center Helper =====
     private fun centerText(text: String, fontSize: Int, labelWidth: Int): Int {
         val estWidth = text.length * fontSize / 2.2
         return ((labelWidth - estWidth) / 2).toInt()
     }
 
-
-    private fun printRollSticker(
-        orderNo: String,
-        productNo: String,
-        productType: String,
-        barcodeData: String,
-        productQuality: String,
-        gsm: String,
-        rollSize: String,
-        color: String,
-        grossWeight: String,
-        netWeight: String,
-        result: MethodChannel.Result
-    ) {
-        Thread {
-            try {
-                val lp = printer ?: run {
-                    mainHandler.post { result.error("NO_PRINTER", "Printer not connected", null) }
-                    return@Thread
-                }
-
-                val labelWidth = 700
-                val labelHeight = 623
-                val setSize = lp.SetLabelSize(labelWidth, labelHeight)
-                if (setSize != 0) {
-                    mainHandler.post { result.error("SET_LABEL_ERROR", "Failed: $setSize", null) }
-                    return@Thread
-                }
-
-                lp.SetPrintDensity(15)
-
-                // ===== 📦 PRODUCT TABLE =====
-                val rectInset = 0
-                val rectTop = 20
-                val rectBottom = labelHeight - 50
-                val borderThickness = 5
-                lp.PrintRectangle(rectInset, rectTop, labelWidth - rectInset, rectBottom, borderThickness)
-
-
-                // ===== 🏢 COMPANY INFO (No Logo) =====
-                val companyName = "NIVA GROUP INDIA"
-                val companyFontSize = 44
-
-                // Center the title horizontally
-                //  val companyX = (labelWidth / 2) - (companyName.length * companyFontSize / 4) // Approx centering
-                val estimatedTextWidth = companyName.length * companyFontSize / 2.2
-                val companyX = (labelWidth - estimatedTextWidth) / 2
-                val companyY = rectTop + 30
-                lp.PrintText(companyX.toInt(), companyY, "0", companyName, 0, companyFontSize, companyFontSize, 0)
-
-                val contactText = "TEL: +91-7573830094  |  WWW.NIVAGROUPINDIA.COM"
-                val contactFontSize = 24
-                val contactX = (labelWidth / 2) - (contactText.length * contactFontSize / 4) // Center contact text
-                lp.PrintText(contactX, companyY + 55, "0", contactText, 0, contactFontSize, contactFontSize, 0)
-
-
-                val contentLeft = rectInset + 15
-                val contentRight = labelWidth - rectInset - 15
-                val contentTop = rectTop + 15
-                val contentBottom = rectBottom - 15
-
-                val tableTop = companyY + 55 + 25
-                val tableBottom = contentBottom - 100
-                val tableWidth = contentRight - contentLeft
-                val colDividerX = contentLeft + (tableWidth / 2)
-
-                val rowHeights = listOf(60, 75, 60, 60, 60)
-                var currentY = tableTop
-                val rowYPositions = mutableListOf<Int>()
-                for (height in rowHeights) {
-                    lp.PrintLine(contentLeft, currentY + 5, contentRight, currentY + 5, 2)
-                    rowYPositions.add(currentY + 5)
-                    currentY += height
-                }
-                val finalBottomY = currentY + 5
-                lp.PrintLine(contentLeft, finalBottomY, contentRight, finalBottomY, 2)
-                rowYPositions.add(finalBottomY)
-                for (i in listOf(0, 2, 3, 4)) {
-                    val top = rowYPositions[i] + 5
-                    val bottom = rowYPositions[i + 1] - 5
-                    lp.PrintLine(colDividerX, top, colDividerX, bottom, 2)
-                }
-
-                val titleFont = 30
-                val valueFont = 32
-                val bigFont = 38
-
-                lp.PrintText(contentLeft + 20, rowYPositions[0] + 35, "0", "Sr No:", 0, titleFont, titleFont, 0)
-                lp.PrintText(contentLeft + 150, rowYPositions[0] + 35, "0", productNo, 0, valueFont, valueFont, 0)
-
-                lp.PrintText(colDividerX + 20, rowYPositions[0] + 35, "0", "Order No:", 0, titleFont, titleFont, 0)
-                lp.PrintText(colDividerX + 190, rowYPositions[0] + 35, "0", orderNo, 0, valueFont, valueFont, 0)
-
-                lp.PrintText(contentLeft + 20, rowYPositions[1] + 40, "0", "Quality:", 0, titleFont, titleFont, 0)
-                lp.PrintText(contentLeft + 180, rowYPositions[1] + 40, "0", productQuality, 0, valueFont, valueFont, 0)
-
-                lp.PrintText(contentLeft + 20, rowYPositions[2] + 35, "0", "Color:", 0, titleFont, titleFont, 0)
-                lp.PrintText(contentLeft + 130, rowYPositions[2] + 35, "0", color, 0, valueFont, valueFont, 0)
-
-                lp.PrintText(colDividerX + 20, rowYPositions[2] + 35, "0", "GSM:", 0, titleFont, titleFont, 0)
-                lp.PrintText(colDividerX + 120, rowYPositions[2] + 35, "0", gsm, 0, valueFont, valueFont, 0)
-
-                lp.PrintText(contentLeft + 20, rowYPositions[3] + 35, "0", "Roll Size:", 0, titleFont, titleFont, 0)
-                lp.PrintText(contentLeft + 180, rowYPositions[3] + 35, "0", rollSize, 0, valueFont, valueFont, 0)
-
-                lp.PrintText(colDividerX + 20, rowYPositions[3] + 35, "0", "MTR:", 0, titleFont, titleFont, 0)
-                lp.PrintText(colDividerX + 130, rowYPositions[3] + 35, "0", productType, 0, valueFont, valueFont, 0)
-
-                lp.PrintText(contentLeft + 20, rowYPositions[4] + 35, "0", "Gross :", 0, titleFont, titleFont, 0)
-                lp.PrintText(contentLeft + 150, rowYPositions[4] + 35, "0", "$grossWeight KG", 0, valueFont, valueFont, 0)
-
-                lp.PrintText(colDividerX + 30, rowYPositions[4] + 35, "0", "Net :", 0, titleFont, titleFont, 0)
-                lp.PrintText(colDividerX + 120, rowYPositions[4] + 35, "0", "$netWeight KG", 0, valueFont, valueFont, 0)
-
-                //            lp.PrintText(contentLeft + 20, rowYPositions[4] + 40, "0", "Net Weight:", 0, titleFont, titleFont, 0)
-                //            lp.PrintText(contentLeft + 250, rowYPositions[4] + 40, "0", "$netWeight KG", 0, bigFont, bigFont, 0)
-
-                // ===== 🧾 BARCODE =====
-                val barcodeHeight = 80
-                val barcodeX = (labelWidth / 2) - 180
-                val barcodeY = rectBottom - barcodeHeight - 20
-                val barcodeStatus = lp.PrintBarcode1D(
-                    barcodeX,
-                    barcodeY,
-                    1, 0, barcodeData,
-                    barcodeHeight, 0, 4, 4
-                )
-                if (barcodeStatus != 0) {
-                    mainHandler.post { result.error("BARCODE_ERROR", "Failed: $barcodeStatus", null) }
-                    return@Thread
-                }
-                val footerText = "Label generated from weighing erp by punitinstrument.com"
-                val footerFontSize = 22
-                val footerY = rectBottom - 10  // slightly above bottom edge
-                val footerX = (labelWidth / 2) - (footerText.length * footerFontSize / 4)
-                lp.PrintText(footerX, footerY, "0", footerText, 0, footerFontSize, footerFontSize, 0)
-
-                val execStatus = lp.PrintLabel(1, 2)
-                mainHandler.post {
-                    if (execStatus == 0) {
-                        result.success("✅ Sticker printed successfully!")
-                    } else {
-                        result.error("PRINT_EXEC_ERROR", "Failed to execute: $execStatus", null)
-                    }
-                }
-
-            } catch (e: Exception) {
-                mainHandler.post { result.error("PRINT_ERROR", e.message ?: "Unknown error", null) }
-            }
-        }.start()
-    }
-
-    private fun printOneSticker(
-        result: MethodChannel.Result
-    ) {
-        Thread {
-            try {
-                val lp = printer ?: run {
-                    mainHandler.post { result.error("NO_PRINTER", "Printer not connected", null) }
-                    return@Thread
-                }
-
-                val labelWidth = 700
-                val labelHeight = 623
-                val setSize = lp.SetLabelSize(labelWidth, labelHeight)
-                if (setSize != 0) {
-                    mainHandler.post { result.error("SET_LABEL_ERROR", "Failed: $setSize", null) }
-                    return@Thread
-                }
-
-                lp.SetPrintDensity(15)
-
-                // ===== 📦 PRODUCT TABLE =====
-                val rectInset = 0
-                val rectTop = 20
-                val rectBottom = labelHeight - 50
-                val borderThickness = 5
-                lp.PrintRectangle(rectInset, rectTop, labelWidth - rectInset, rectBottom, borderThickness)
-                val execStatus = lp.PrintLabel(1, 2)
-                mainHandler.post {
-                    if (execStatus == 0) {
-                        result.success("✅ Sticker printed successfully!")
-                    } else {
-                        result.error("PRINT_EXEC_ERROR", "Failed to execute: $execStatus", null)
-                    }
-                }
-
-            } catch (e: Exception) {
-                mainHandler.post { result.error("PRINT_ERROR", e.message ?: "Unknown error", null) }
-            }
-        }.start()
-    }
     private fun printTrySticker(
         result: MethodChannel.Result,
         width: Int = 700,
@@ -624,6 +237,7 @@ class MainActivity : FlutterActivity() {
         margin: Int = 30,
         thickness: Int = 8,
         isGrid: Boolean = false,
+        isWhiteLabel: Boolean = false,
         printTime: Boolean = false,
         attributes: List<Map<String, String>> = emptyList(),
         companyName: String = "NIVA GROUP INDIA",
@@ -655,62 +269,138 @@ class MainActivity : FlutterActivity() {
                 val bottom = height - margin
                 val titleFont = 40
                 val contactFont = 26
-
+                /// If White Label is True then dont print the Company name and company details and if false print the company name and details
                 //val companyX = (width / 2) - (companyName.length * titleFont / 4)
-                val companyX = left + 20
-                val companyY = top + 20
-                lp.PrintText(companyX, companyY, "0", companyName, 0, titleFont, titleFont, 0)
-                if (printTime) {
-                    val timeX = right - 220   // fixed safe width for timestamp
-                    val timeY = companyY
-                    val timeFont = 26
+                var yPos = top + 20
+                var companyY = 0
 
-                    lp.PrintText(
-                        timeX,
-                        timeY,
-                        "0",
-                        "Time:",
-                        0,
-                        timeFont,
-                        timeFont,
-                        0
-                    )
 
-                    lp.PrintText(
-                        timeX,
-                        timeY + 30,
-                        "0",
-                        timeStamp,
-                        0,
-                        timeFont,
-                        timeFont,
-                        0
-                    )
+                if (!isWhiteLabel) {
+                    val companyX = left + 20
+                    companyY = yPos
+                    lp.PrintText(companyX, companyY, "0", companyName, 0, titleFont, titleFont, 0)
+
+                    val contactLines = companyContact.split("\n")
+                    val contactX = left + 20
+                    var contactY = companyY + 40
+                    for (line in contactLines) {
+                        if (line.isNotBlank()) {
+                            lp.PrintText(
+                                contactX,
+                                contactY,
+                                "0",
+                                line,
+                                0,
+                                contactFont,
+                                contactFont,
+                                0
+                            )
+                            contactY += 30   // line spacing (adjust if needed)
+                        }
+                    }
+
+                    yPos = contactY + 10
+
+//                    val contactX = left + 20
+//                    lp.PrintText(
+//                        contactX,
+//                        companyY + 40,
+//                        "0",
+//                        companyContact,
+//                        0,
+//                        contactFont,
+//                        contactFont,
+//                        0
+//                    )
+//                    yPos = companyY + 100
+                }else{
+                    yPos = top + 20
                 }
+                // ---------- DATE & TIME (SAFE FOR SMALL LABELS) ----------
+                if (printTime) {
+                    val dateTimeFont = 20          // smaller font
+                    val lineGap = 22               // tight spacing
+
+                    val dateFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
+                    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+                    val dateText = dateFormat.format(Date())
+                    val timeText = timeFormat.format(Date())
+
+                    val dateX = right - 150
+                    var dateY = companyY
+
+                    // Date (line 1)
+                    lp.PrintText(
+                        dateX,
+                        dateY,
+                        "0",
+                        dateText,
+                        0,
+                        dateTimeFont,
+                        dateTimeFont,
+                        0
+                    )
+
+                    // Time (line 2)
+                    lp.PrintText(
+                        dateX,
+                        dateY + lineGap,
+                        "0",
+                        timeText,
+                        0,
+                        dateTimeFont,
+                        dateTimeFont,
+                        0
+                    )
+
+                    // Move yPos BELOW date & time so nothing overlaps
+                   // yPos = dateY + (lineGap * 2) + 10
+                }
+
+//                if (printTime) {
+//                    val timeX = right - 220   // fixed safe width for timestamp
+//                    val timeY = companyY
+//                    val timeFont = 26
+//
+//                    lp.PrintText(
+//                        timeX,
+//                        timeY,
+//                        "0",
+//                        "Time:",
+//                        0,
+//                        timeFont,
+//                        timeFont,
+//                        0
+//                    )
+//
+//                    lp.PrintText(
+//                        timeX,
+//                        timeY + 30,
+//                        "0",
+//                        timeStamp,
+//                        0,
+//                        timeFont,
+//                        timeFont,
+//                        0
+//                    )
+//                }
                 //val contactX = (width / 2) - (companyContact.length * contactFont / 4)
-                val contactX = left + 20
-                lp.PrintText(
-                    contactX,
-                    companyY + 40,
-                    "0",
-                    companyContact,
-                    0,
-                    contactFont,
-                    contactFont,
-                    0
-                )
+//                val contactX = left + 20
+//                lp.PrintText(
+//                    contactX,
+//                    companyY + 40,
+//                    "0",
+//                    companyContact,
+//                    0,
+//                    contactFont,
+//                    contactFont,
+//                    0
+//                )
                 // --- after contact printing, define centers & bounds ---
                 val cx = width / 2
                 val cy = height / 2
-
-                var yPos = companyY + 100
                 val lineHeight = 60
-
-                // helper to estimate text pixel width (simple approximation)
-                fun estimateTextWidth(text: String, fontSize: Int): Int {
-                    // average char width ≈ 0.5 * fontSize (approximation; tweak if needed)
-                    return (text.length * fontSize * 0.5).toInt()
-                }
                 // --- PRODUCT NAME ---
                 val productFont = 34
 
@@ -721,7 +411,7 @@ class MainActivity : FlutterActivity() {
                 lp.PrintText(productX, productY, "0", productName, 0, productFont, productFont, 0)
 
 // update yPos to start attributes below product name
-                yPos = productY + 60
+                yPos = productY + 40
 
 
 // Print attributes (unchanged logic, but uses cx for better alignment)
@@ -869,9 +559,9 @@ class MainActivity : FlutterActivity() {
 //                    else -> (bottom - 10) // fallback inside bounds
 //                }
 
-
+                if (!isWhiteLabel) {
                 lp.PrintText(footerX, footerY, "0", footerText, 0, footerFont, footerFont, 0)
-
+                }
                 // ================================================
                 // 8️⃣ SEND PRINT JOB
                 // ================================================
@@ -909,30 +599,3 @@ class MainActivity : FlutterActivity() {
         }.start()
     }
 }
-/*// ================================================
-              // ATTRIBUTES
-              // ================================================
-              var yPos = companyY + 110
-              val lineHeight = 60
-
-              if (attributes.isNotEmpty()) {
-                  for (item in attributes) {
-
-                      if (yPos > bottom - 150) break
-
-                      val key = item["key"] ?: ""
-                      val value = item["value"] ?: ""
-
-                      lp.PrintText(cx - 240, yPos, "0", "$key:", 0, 30, 30, 0)
-                      lp.PrintText(cx - 20, yPos, "0", value, 0, 34, 34, 0)
-
-                      yPos += lineHeight
-                  }
-              } else {
-                  lp.PrintText((width / 2) - 180, 220, "0", "TEST STICKER", 0, 40, 40, 1)
-                  lp.PrintText((width / 2) - 200, 290, "0", "Size: ${width}×${height}", 0, 30, 30, 0)
-                  lp.PrintText((width / 2) - 200, 350, "0", "Printer Connected ✔", 0, 30, 30, 0)
-              }*/
-// ================================================
-// ATTRIBUTES (NORMAL or GRID)
-// ================================================
