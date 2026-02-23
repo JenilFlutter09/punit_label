@@ -18,84 +18,140 @@ class ApiWrapper {
   /// Live Url for Client purpose
   final String _baseUrl = "https://pinnacle.punitinstrument.com/api/";
 
-  Future<ResponseModel> makeRequest(String url,
-      Request request,
-      dynamic data,
-      bool isLoading,
-      Map<String, String> headers,) async {
-    /* if (!await Utility.isNetworkAvailable()) {
-      Utility.showInternetDialog(
-        "No internet, please enable mobile data or Wi-Fi in your phone settings and try again.",
-      );
-      return ResponseModel(
-        data:
-            '{"message":"No internet, please enable mobile data or Wi-Fi in your phone settings and try again"}',
-        hasError: true,
-      );
-    }
-*/
-    if (Get.isDialogOpen == true) Get.back<void>();
+  Future<ResponseModel> makeRequest({
+    required String url,
+    required Request request,
+    dynamic data,
+    Map<String, String>? headers,
+  }) async {
     final uri = request == Request.awsUpload ? url : _baseUrl + url;
 
     try {
-      if (isLoading) Utility.showLoader();
-
       http.Response response;
 
       switch (request) {
         case Request.get:
           response = await http
               .get(Uri.parse(uri), headers: headers)
-              .timeout(const Duration(seconds: 120));
+              .timeout(const Duration(seconds: 60));
           break;
 
         case Request.post:
           response = await http
               .post(Uri.parse(uri), body: data, headers: headers)
-              .timeout(const Duration(seconds: 120));
+              .timeout(const Duration(seconds: 60));
           break;
 
         case Request.put:
           response = await http
               .put(Uri.parse(uri), body: data, headers: headers)
-              .timeout(const Duration(seconds: 120));
+              .timeout(const Duration(seconds: 60));
           break;
 
         case Request.patch:
           response = await http
               .patch(Uri.parse(uri), body: jsonEncode(data), headers: headers)
-              .timeout(const Duration(seconds: 120));
+              .timeout(const Duration(seconds: 60));
           break;
 
         case Request.delete:
           response = await http
               .delete(Uri.parse(uri), body: jsonEncode(data), headers: headers)
-              .timeout(const Duration(seconds: 120));
+              .timeout(const Duration(seconds: 60));
           break;
 
         case Request.awsUpload:
           response = await http
               .put(Uri.parse(uri), body: data, headers: headers)
-              .timeout(const Duration(seconds: 120));
+              .timeout(const Duration(seconds: 60));
           break;
       }
 
-      if (isLoading) {
-        Utility.closeDialog();
-      }
-      _logRequest(uri, headers, response);
+      _logRequest(uri, headers ?? {}, response);
       return returnResponse(response);
+
     } on TimeoutException {
-      if (isLoading) Utility.closeDialog();
-      return _handleTimeout();
+      return ResponseModel(
+        data: '{"message":"Request timed out"}',
+        hasError: true,
+      );
     } catch (e) {
-      if (isLoading) Utility.closeDialog();
       return ResponseModel(
         data: '{"message":"Unexpected error: $e"}',
         hasError: true,
       );
     }
   }
+
+  //
+  // Future<ResponseModel> makeRequest(String url,
+  //     Request request,
+  //     dynamic data,
+  //     bool isLoading,
+  //     Map<String, String> headers,) async
+  // {
+  //   if (Get.isDialogOpen == true) Get.back<void>();
+  //   final uri = request == Request.awsUpload ? url : _baseUrl + url;
+  //
+  //   try {
+  //     if (isLoading) Utility.showLoader();
+  //
+  //     http.Response response;
+  //
+  //     switch (request) {
+  //       case Request.get:
+  //         response = await http
+  //             .get(Uri.parse(uri), headers: headers)
+  //             .timeout(const Duration(seconds: 120));
+  //         break;
+  //
+  //       case Request.post:
+  //         response = await http
+  //             .post(Uri.parse(uri), body: data, headers: headers)
+  //             .timeout(const Duration(seconds: 120));
+  //         break;
+  //
+  //       case Request.put:
+  //         response = await http
+  //             .put(Uri.parse(uri), body: data, headers: headers)
+  //             .timeout(const Duration(seconds: 120));
+  //         break;
+  //
+  //       case Request.patch:
+  //         response = await http
+  //             .patch(Uri.parse(uri), body: jsonEncode(data), headers: headers)
+  //             .timeout(const Duration(seconds: 120));
+  //         break;
+  //
+  //       case Request.delete:
+  //         response = await http
+  //             .delete(Uri.parse(uri), body: jsonEncode(data), headers: headers)
+  //             .timeout(const Duration(seconds: 120));
+  //         break;
+  //
+  //       case Request.awsUpload:
+  //         response = await http
+  //             .put(Uri.parse(uri), body: data, headers: headers)
+  //             .timeout(const Duration(seconds: 120));
+  //         break;
+  //     }
+  //
+  //     if (isLoading) {
+  //       Utility.closeDialog();
+  //     }
+  //     _logRequest(uri, headers, response);
+  //     return returnResponse(response);
+  //   } on TimeoutException {
+  //     if (isLoading) Utility.closeDialog();
+  //     return _handleTimeout();
+  //   } catch (e) {
+  //     if (isLoading) Utility.closeDialog();
+  //     return ResponseModel(
+  //       data: '{"message":"Unexpected error: $e"}',
+  //       hasError: true,
+  //     );
+  //   }
+  // }
 
   /// Handle timeout errors consistently
   ResponseModel _handleTimeout() {

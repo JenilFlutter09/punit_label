@@ -18,6 +18,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../apis/responseModel.dart';
 import 'colors.dart';
+import 'enums.dart';
 
 abstract class Utility {
   /// Print debug log.
@@ -326,24 +327,47 @@ abstract class Utility {
     );
   }
 
+  // static void showApiErrorSnackbar(ResponseModel response) {
+  //   var data = jsonDecode(response.data);
+  //   var title = response.data;
+  //   if (data['message'] != null) {
+  //     title = data['message'];
+  //   }
+  //   if (response.errorCode == 401) {
+  //     title = SStringConstants.tokenExpired;
+  //   }
+  //   Get.snackbar(
+  //     title,
+  //     "Status Code :- ${response.errorCode.toString()}",
+  //     snackPosition: SnackPosition.BOTTOM,
+  //     backgroundColor: Colors.red,
+  //     colorText: Colors.white,
+  //     animationDuration: Duration(seconds: 3),
+  //   );
+  // }
+
+
+
   static void showApiErrorSnackbar(ResponseModel response) {
-    var data = jsonDecode(response.data);
-    var title = response.data;
-    if (data['message'] != null) {
-      title = data['message'];
+    String message = "Something went wrong";
+
+    try {
+      final decoded = jsonDecode(response.data);
+      message = decoded['message']?.toString() ?? message;
+        } catch (e) {
+      // If response is not JSON
+      message = response.data.toString() ?? message;
     }
-    if (response.errorCode == 401) {
-      title = SStringConstants.tokenExpired;
-    }
+
     Get.snackbar(
-      title,
-      "Status Code :- ${response.errorCode.toString()}",
+      "Error",
+      message,
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: Colors.red,
       colorText: Colors.white,
-      animationDuration: Duration(seconds: 3),
     );
   }
+
 
   static void showCustomApiErrorSnackBar({
     required String title,

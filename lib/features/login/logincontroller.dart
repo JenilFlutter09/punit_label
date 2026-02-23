@@ -90,6 +90,7 @@ class LoginController extends GetxController {
         return;
       }
 
+
       final loginmodel = loginModel.fromJson(jsonDecode(response.data));
 
       await TokenStorage.saveToken(loginmodel.data?.accessToken ?? '');

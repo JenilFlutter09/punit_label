@@ -34,58 +34,42 @@ class CustomDrawer extends StatelessWidget {
             child: ListView(
               padding: Dimens.edgeInsets8_0_8_0,
               children: [
-                _drawerItem(
-                  icon: Icons.archive,
-                  title: 'Inward',
-                  onTap: () {
-                    if (dashController.enableInward.value) {
-                      Get.to(() => InwardScreen());
-                    } else {
-                      Utility.showDialog('Access Denied');
-                    }
-                  },
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  child: Obx(() => Row(
+                    children: [
+                      DrawerQuickAction(
+                        icon: Icons.archive,
+                        label: "Inward",
+                        enabled: dashController.enableInward.value,
+                        onTap: () {
+                          Get.back();
+                          Get.to(() => InwardScreen());
+                        },
+                      ),
+                      DrawerQuickAction(
+                        icon: Icons.local_shipping,
+                        label: "Dispatch",
+                        enabled: dashController.enableDispatch.value,
+                        onTap: () {
+                          Get.back();
+                          Get.to(() => DispatchScreen());
+                        },
+                      ),
+                      DrawerQuickAction(
+                        icon: Icons.line_weight,
+                        label: "Tare",
+                        onTap: () {
+                          Get.back();
+                          Get.to(() => AddTareProductsView());
+                        },
+                      ),
+                    ],
+                  )),
                 ),
 
-                _drawerItem(
-                  icon: Icons.local_shipping,
-                  title: 'Dispatch',
-                  onTap: () {
-                    if (dashController.enableDispatch.value) {
-                      Get.to(() => DispatchScreen());
-                    } else {
-                      Utility.showDialog('Access Denied');
-                    }
-                  },
-                ),
-
-                _drawerItem(
-                  icon: Icons.line_weight,
-                  title: 'Tare Products',
-                  onTap: () => Get.to(() => AddTareProductsView()),
-                ),
-
-               Dimens.boxHeight12,
                 Divider(),
-                _sectionTitle("Tare Weight"),
-                Dimens.boxHeight12,
-                Obx(
-                      () => ThreeLevelSelector(
-                    value: dashController.tareState.value,
-                    isTablet: isTablet,
-                    onChanged: (state) {
-                      dashController.tareState.value = state;
-                      if (state == TareState.off) {
-                        dashController.manualBatchWeights.manualTare.value = '0';
-                        dashController.manualBatchWeights.tareCtrl.text = '0';
-                        dashController.manualNonBatchWeights.manualTare.value = '0';
-                        dashController.manualNonBatchWeights.tareCtrl.text = '0';
-                      }
-                    },
-                  ),
-                ),
 
-                Dimens.boxHeight24,
-                Divider(),
                 _sectionTitle("Label Configuration"),
                 _switchTile(
                   icon: Icons.label_off,
@@ -103,7 +87,58 @@ class CustomDrawer extends StatelessWidget {
                   title: "Time Stamp",
                   value: dashController.printTimeInLabel,
                 ),
+                Divider(),
+                _sectionTitle("Tare Weight Configuration"),
+                //Dimens.boxHeight10,
+                Obx(
+                      () => ThreeLevelSelector(
+                    value: dashController.tareState.value,
+                    isTablet: isTablet,
+                    onChanged: (state) {
+                      dashController.tareState.value = state;
+                      if (state == TareState.off) {
+                        dashController.manualBatchWeights.manualTare.value = '0';
+                        dashController.manualBatchWeights.tareCtrl.text = '0';
+                        dashController.manualNonBatchWeights.manualTare.value = '0';
+                        dashController.manualNonBatchWeights.tareCtrl.text = '0';
+                      }
+                    },
+                  ),
+                ),
 
+                //Dimens.boxHeight10,
+                Divider(),
+                _sectionTitle("Printer Configuration"),
+                //Dimens.boxHeight10,
+                Obx(
+                      () => TwoLevelSelector(
+                    value: dashController.labelState.value,
+                    isTablet: isTablet,
+                    onChanged: (state) {
+                      dashController.labelState.value = state;
+                      if (state == LabelState.Receipt) {
+                        if(dashController.isPrinterConnected.value == true){
+                          dashController.disconnectPrinter();
+                        }
+                        dashController.isLabelPrinterMode.value = false;
+                      }else{
+                        dashController.isLabelPrinterMode.value = true;
+                      }
+                    },
+                  ),
+                ),
+                Divider(),
+                _sectionTitle("Tower Light Configuration"),
+                //Dimens.boxHeight10,
+                Obx(
+                      () => TowerLevelSelector(
+                    value: dashController.isTowerLight.value,
+                    isTablet: isTablet,
+                    onChanged: (state) {
+                      dashController.isTowerLight.value = state;
+                    },
+                  ),
+                ),
                 Divider(),
                 ListTile(
                   leading: const Icon(Icons.logout),
@@ -116,6 +151,7 @@ class CustomDrawer extends StatelessWidget {
               ],
             ),
           ),
+
         ],
       ),
     );
@@ -124,9 +160,9 @@ class CustomDrawer extends StatelessWidget {
   /// 🔹 Header
   Widget _header({ required DashboardController dashboardController}) {
     return Container(
-      height: 225,
+      height: Dimens.hundredSixtySeven,
       width: Get.width,
-      padding: Dimens.edgeInsets0_0_0_30,
+      padding: Dimens.edgeInsets0_0_0_20,
       alignment: Alignment.bottomCenter,
       decoration: BoxDecoration(
         color: ColorsValue.primaryColor,
@@ -279,6 +315,216 @@ class ThreeLevelSelector extends StatelessWidget {
             fontWeight: FontWeight.w600,
             color: selected ? ColorsValue.whiteColor : Colors.grey[700],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class TwoLevelSelector extends StatelessWidget {
+  final LabelState value;
+  final ValueChanged<LabelState> onChanged;
+  final bool isTablet;
+
+  const TwoLevelSelector({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.isTablet = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        vertical: isTablet ? 14 : 10,
+        horizontal: isTablet ? 18 : 12,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _option(
+            label: "Label",
+            level: LabelState.Label,
+            selected: value == LabelState.Label,
+          ),
+          _divider(),
+          _option(
+            label: "Receipt",
+            level: LabelState.Receipt,
+            selected: value == LabelState.Receipt,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider() {
+    return Container(height: 24, width: 1.5, color: Colors.grey.shade300);
+  }
+
+  Widget _option({
+    required String label,
+    required LabelState level,
+    required bool selected,
+  }) {
+    return GestureDetector(
+      onTap: () => onChanged(level),
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(
+          horizontal: isTablet ? 18 : 12,
+          vertical: isTablet ? 8 : 6,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? ColorsValue.primaryColor.withOpacity(0.8)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: isTablet ? 18 : 14,
+            fontWeight: FontWeight.w600,
+            color: selected ? ColorsValue.whiteColor : Colors.grey[700],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class TowerLevelSelector extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool isTablet;
+
+  const TowerLevelSelector({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.isTablet = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        vertical: isTablet ? 14 : 10,
+        horizontal: isTablet ? 18 : 12,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _option(
+            label: "ON",
+            level: true,
+            selected: value == true,
+          ),
+          _divider(),
+          _option(
+            label: "OFF",
+            level: false,
+            selected: value == false,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider() {
+    return Container(height: 24, width: 1.5, color: Colors.grey.shade300);
+  }
+
+  Widget _option({
+    required String label,
+    required bool level,
+    required bool selected,
+  }) {
+    return GestureDetector(
+      onTap: () => onChanged(level),
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(
+          horizontal: isTablet ? 18 : 12,
+          vertical: isTablet ? 8 : 6,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? ColorsValue.primaryColor.withOpacity(0.8)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: isTablet ? 18 : 14,
+            fontWeight: FontWeight.w600,
+            color: selected ? ColorsValue.whiteColor : Colors.grey[700],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DrawerQuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  const DrawerQuickAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: enabled
+                  ? ColorsValue.primaryColor.withOpacity(0.1)
+                  : Colors.grey.shade200,
+              child: Icon(
+                icon,
+                color: enabled
+                    ? ColorsValue.primaryColor
+                    : Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: enabled
+                    ? Colors.black87
+                    : Colors.grey,
+              ),
+            ),
+          ],
         ),
       ),
     );

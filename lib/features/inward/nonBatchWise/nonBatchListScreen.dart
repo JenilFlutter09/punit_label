@@ -40,21 +40,21 @@ class NonBatchListScreen extends StatelessWidget {
           horizontal: isTablet ? 24 : 16,
           vertical: isTablet ? 20 : 14,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _sectionHeader("Select Transaction", isTablet),
-            SizedBox(height: isTablet ? 14 : 10),
+        child: RefreshIndicator(
+          onRefresh: () => controller.refreshList(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sectionHeader("Select Transaction", isTablet),
+              SizedBox(height: isTablet ? 14 : 10),
 
-            Expanded(
-              child: Obx(() {
-                if (controller.initLoading.value) {
-                  return Center(child: CircularProgressIndicator());
-                }
+              Expanded(
+                child: Obx(() {
+                  if (controller.initLoading.value) {
+                    return Center(child: CircularProgressIndicator());
+                  }
 
-                return RefreshIndicator(
-                  onRefresh: () async =>await controller.fetchNonBatchlist(),  // <<< important
-                  child: controller.batchList.isEmpty
+                  return controller.batchList.isEmpty
                       ? ListView(
                     children: [
                       SizedBox(height: 200),
@@ -79,12 +79,12 @@ class NonBatchListScreen extends StatelessWidget {
                         child: _batchTile(index, isTablet, data),
                       );
                     },
-                  ),
-                );
-              }),
-            ),
+                  );
+                }),
+              ),
 
-          ],
+            ],
+          ),
         ),
       ),
 

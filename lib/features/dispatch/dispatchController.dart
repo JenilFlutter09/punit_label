@@ -33,12 +33,17 @@ class DispatchController extends GetxController {
   Future<void> onInit() async {
     // TODO: implement onInit
     super.onInit();
-    initLoading.value = true;
-    await _fetchBatchlist();
-    await _fetchCustomerlist();
-    initLoading.value = false;
   }
 
+
+  @override
+  Future<void> onReady() async {
+    // TODO: implement onReady
+    super.onReady();
+    initLoading.value = true;
+    await refresh();
+    initLoading.value = false;
+  }
   Future<void> refresh() async {
     await _fetchBatchlist();
     await _fetchCustomerlist();
@@ -178,12 +183,14 @@ class DispatchController extends GetxController {
       "Date": DateFormat(
         'dd-MM-yyyy',
       ).format(DateTime.now()),
-    }, items: barcodeList.toList(),);
+    }, items: barcodeList.toList(), email: dashboardController.companyDetails.value?.data?.email,);
   }
 
   Future<void> _fetchBatchlist() async {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getDispatchList(),
+      isLoading: initLoading,
+
     );
     if (!response.hasError) {
       dispatchModel.value = DispatchModel.fromJson(
@@ -200,6 +207,8 @@ class DispatchController extends GetxController {
   Future<void> _fetchCustomerlist() async {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getCustomerList(),
+      isLoading: initLoading,
+
     );
     dispatchCustomerModel.value = customerModel.fromJson(
       jsonDecode(response.data),
@@ -236,6 +245,8 @@ class DispatchController extends GetxController {
     var response = await dashboardController.callApi(
       apiCall: () =>
           connectHelper.dispatchBarcodesVerify(dispatch_barcode: data),
+      isLoading: initLoading,
+
     );
     if (!response.hasError) {
       Get.snackbar(

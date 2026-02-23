@@ -19,14 +19,27 @@ class InwardController extends GetxController {
   Future<void> onInit() async {
     // TODO: implement onInit
     super.onInit();
-    initLoading.value = true;
+    // initLoading.value = true;
+    // await _fetchBatchlist();
+    // initLoading.value = false;
+  }
+
+  @override
+  Future<void> onReady() async {
+    // TODO: implement onReady
+    super.onReady();
     await _fetchBatchlist();
-    initLoading.value = false;
+  }
+  Future<void> refreshList() async {
+    await _fetchBatchlist();
   }
 
   /// Fetch Order List
   Future<void> _fetchBatchlist() async {
-    var response = await dashboardController.callApi(apiCall: ()=>connectHelper.getBatchList());
+    var response = await dashboardController.callApi(
+      apiCall: () => connectHelper.getBatchList(),
+      isLoading: initLoading,
+    );
     if (!response.hasError) {
       batchModel.value = batchListModel.fromJson(jsonDecode(response.data));
       batchList.value = batchModel.value?.data ?? [];
@@ -51,16 +64,30 @@ class NonInwardController extends GetxController {
   Future<void> onInit() async {
     // TODO: implement onInit
     super.onInit();
-    initLoading.value = true;
+    // initLoading.value = true;
+    // await fetchNonBatchlist();
+    // initLoading.value = false;
+  }
+
+  @override
+  Future<void> onReady() async {
+    // TODO: implement onReady
+    super.onReady();
+
     await fetchNonBatchlist();
-    initLoading.value = false;
+
+  }
+  Future<void> refreshList() async {
+    await fetchNonBatchlist();
   }
 
   /// Fetch Order List
   Future<void> fetchNonBatchlist() async {
-    var response = await dashboardController.callApi(apiCall: ()=>connectHelper.getNonBatchList());
+    var response = await dashboardController.callApi(
+      apiCall: () => connectHelper.getNonBatchList(),
+      isLoading: initLoading,
+    );
     if (!response.hasError) {
-
       batchListModel.value = NonBatchListModel.fromJson(
         jsonDecode(response.data),
       );

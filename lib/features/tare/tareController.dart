@@ -23,7 +23,7 @@ class TareProductController extends GetxController {
 
   // List of added tare items
   final RxList<TareProducts> addedTareItems = <TareProducts>[].obs;
-
+  var initLoading = false.obs;
   // Text controller for adding new product name
   final TextEditingController newNameController = TextEditingController();
   final dashboardController = Get.find<DashboardController>();
@@ -87,6 +87,7 @@ class TareProductController extends GetxController {
       labelFields: {
         "Weight": currentWeight.value,
       },
+      noAttribute: 1,
     );
   }
 
@@ -110,7 +111,8 @@ class TareProductController extends GetxController {
     }
     // TODO: Save to database or pass to next screen
     final data = TareModel(products: addedTareItems);
-    var response = await dashboardController.callApi(apiCall: ()=>connectHelper.tareStore(tareModel: data));
+    var response = await dashboardController.callApi(apiCall: ()=>connectHelper.tareStore(tareModel: data),      isLoading: initLoading,
+    );
     if (response.hasError) {
       Utility.showApiErrorSnackbar(response);
     } else {

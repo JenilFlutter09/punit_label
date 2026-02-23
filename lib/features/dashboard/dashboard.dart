@@ -38,180 +38,168 @@ class DashBoardView extends StatelessWidget {
         showDrawer: true,
       ),
       drawer: CustomDrawer(),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async => await dash.refreshDashboard(),
-          child: ListView(
-            //crossAxisAlignment: CrossAxisAlignment.start,
-            physics: const AlwaysScrollableScrollPhysics(), // ✅ important
-            padding: Dimens.edgeInsets10,
+      body: Stack(
+        children: [
+          Stack(
             children: [
-              // ============================
-              // DATE HEADER
-              // ============================
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(vertical: isTablet ? 20 : 14),
-                decoration: BoxDecoration(
-                  color: ColorsValue.primaryColor,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  today,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: isTablet ? 24 : 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-
-              SizedBox(height: isTablet ? 28 : 20),
-
-
-              Row(
-                children: [
-                  _statCard(
-                    "Inward",
-                    "12",
-                    Icons.keyboard_double_arrow_down,
-                    ColorsValue.primaryGrey,
-                    isTablet,
-                    onTap: (){
-                      if(dash.enableInward.value){
-                      Get.to(() => InwardScreen());}else{
-                        Utility.showDialog('Access Denied');
-                      }},
-                  ),
-                  SizedBox(width: 12),
-                  _statCard(
-                    "Dispatch",
-                    "7",
-                    Icons.keyboard_double_arrow_up,
-                    Colors.green,
-                    isTablet,
-                    onTap: (){
-                      if(dash.enableDispatch.value){
-                        Get.to(() => DispatchScreen());}else{
-                        Utility.showDialog('Access Denied');
-                      }},
-                  ),
-                ],
-              ),
-
-              SizedBox(height: isTablet ? 26 : 20),
-
-              // ============================
-              // INVENTORY TITLE
-              // ============================
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Inventory",
-                    style: TextStyle(
-                      fontSize: isTablet ? 22 : 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Obx(
-                    () => Text(
-                      "${dash.dashboardDetails.value?.data?.totalInventory} Kg",
-                      style: TextStyle(
-                        fontSize: isTablet ? 18 : 14,
-                        color: Colors.grey[600],
+              RefreshIndicator(
+                onRefresh: () async => await dash.refreshDashboard(),
+                child: ListView(
+                  //crossAxisAlignment: CrossAxisAlignment.start,
+                  physics: const AlwaysScrollableScrollPhysics(), // ✅ important
+                  padding: Dimens.edgeInsets10,
+                  children: [
+                    // ============================
+                    // DATE HEADER
+                    // ============================
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.symmetric(vertical: isTablet ? 20 : 14),
+                      decoration: BoxDecoration(
+                        color: ColorsValue.primaryColor,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        today,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: isTablet ? 24 : 18,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+
+                    SizedBox(height: isTablet ? 28 : 20),
+
+
+                    Row(
+                      children: [
+                        _statCard(
+                          "Inward",
+                          "12",
+                          Icons.keyboard_double_arrow_down,
+                          ColorsValue.primaryGrey,
+                          isTablet,
+                          onTap: (){
+                            if(dash.enableInward.value){
+                            Get.to(() => InwardScreen());}else{
+                              Utility.showDialog('Access Denied');
+                            }},
+                        ),
+                        SizedBox(width: 12),
+                        _statCard(
+                          "Dispatch",
+                          "7",
+                          Icons.keyboard_double_arrow_up,
+                          Colors.green,
+                          isTablet,
+                          onTap: (){
+                            if(dash.enableDispatch.value){
+                              Get.to(() => DispatchScreen());}else{
+                              Utility.showDialog('Access Denied');
+                            }},
+                        ),
+                      ],
+                    ),
+
+                    SizedBox(height: isTablet ? 26 : 20),
+
+                    // ============================
+                    // INVENTORY TITLE
+                    // ============================
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Inventory",
+                          style: TextStyle(
+                            fontSize: isTablet ? 22 : 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Obx(
+                          () => Text(
+                            "${dash.dashboardDetails.value?.data?.totalInventory} Kg",
+                            style: TextStyle(
+                              fontSize: isTablet ? 18 : 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    SizedBox(height: 14),
+                    // ============================
+                    // FILTER CHIPS
+                    // ============================
+                    _filterChips(),
+
+                    SizedBox(height: 20),
+
+                    // ============================
+                    // INVENTORY GRID
+                    // ============================
+                    Obx(() {
+                      List<dynamic> listToShow = [];
+
+                     if (dash.selectedFilter.value == "top") {
+                        listToShow = dash.topProducts;
+                        return ListView.builder(
+                          physics: NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          itemCount: listToShow.length,
+                          itemBuilder: (_, i) {
+                            var p = listToShow[i];
+                            return _inventoryCard(
+                              title: p.productName ?? "",
+                              qty: double.tryParse(p.qty ?? "0") ?? 0,
+                              icon: Icons.grade_sharp,
+                              color: ColorsValue.primaryColor,
+                              isTablet: isTablet,
+                            );
+                          },
+                        );
+                      } else {
+                        listToShow = dash.lowStockProducts;
+                        return ListView.builder(
+                          physics: NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          itemCount: listToShow.length,
+
+                          itemBuilder: (_, i) {
+                            var p = listToShow[i];
+                            return _inventoryCard(
+                              title: p.productName ?? "",
+                              qty: double.tryParse(p.qty ?? "0") ?? 0,
+                              icon: Icons.priority_high,
+                              color: ColorsValue.liked,
+                              isTablet: isTablet,
+                            );
+                          },
+                        );
+                      }
+                    })
+
+                  ],
+                ),
               ),
-
-              SizedBox(height: 14),
-              // ============================
-              // FILTER CHIPS
-              // ============================
-              _filterChips(),
-
-              SizedBox(height: 20),
-
-              // ============================
-              // INVENTORY GRID
-              // ============================
-              Obx(() {
-                List<dynamic> listToShow = [];
-
-               if (dash.selectedFilter.value == "top") {
-                  listToShow = dash.topProducts;
-                  return ListView.builder(
-                    physics: NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: listToShow.length,
-                    itemBuilder: (_, i) {
-                      var p = listToShow[i];
-                      return _inventoryCard(
-                        title: p.productName ?? "",
-                        qty: double.tryParse(p.qty ?? "0") ?? 0,
-                        icon: Icons.grade_sharp,
-                        color: ColorsValue.primaryColor,
-                        isTablet: isTablet,
-                      );
-                    },
-                  );
-                } else {
-                  listToShow = dash.lowStockProducts;
-                  return ListView.builder(
-                    physics: NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: listToShow.length,
-
-                    itemBuilder: (_, i) {
-                      var p = listToShow[i];
-                      return _inventoryCard(
-                        title: p.productName ?? "",
-                        qty: double.tryParse(p.qty ?? "0") ?? 0,
-                        icon: Icons.priority_high,
-                        color: ColorsValue.liked,
-                        isTablet: isTablet,
-                      );
-                    },
-                  );
-                }
-              })
-
+              Obx(() => dash.isLoading.value
+                  ? Container(
+                color: Colors.black.withOpacity(0.3),
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              )
+                  : const SizedBox()),
             ],
           ),
-        ),
+          /// 🔹 LOADER OVERLAY
+
+
+        ],
       ),
-      // floatingActionButton: Column(
-      //   mainAxisAlignment: MainAxisAlignment.end,
-      //
-      //   children: [
-      //     FloatingActionButton(onPressed: () => controller.openDeviceBottomSheet(), child: Icon(Icons.bluetooth_connected),),
-      //     Dimens.boxHeight12,
-      //     FloatingActionButton(onPressed:()=> controller.printReceipt(
-      //       companyName: "Sketch & Lift Store",
-      //       companyContact: "Sketch & Lift Store",
-      //       address: "Gujarat, India",
-      //       items: [
-      //         {"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},{"name": "Protein Bar", "qty": 2, "value": 100},
-      //         {"name": "Sketch Book", "qty": 1, "value": 250},
-      //       ],
-      //
-      //       barcodeData: "ORD123456",
-      //     ), child: Icon(Icons.print),),
-      //   ],
-      // ),
     );
   }
 

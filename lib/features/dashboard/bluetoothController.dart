@@ -120,6 +120,7 @@ class BluetoothController extends GetxController {
   Future<void> _showPaperSizeSelector() async {
     await Get.bottomSheet(
       Container(
+        height: 350,
         padding: const EdgeInsets.all(20),
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -211,7 +212,7 @@ class BluetoothController extends GetxController {
 
     //bytes += [27, 97, 0]; // left
 
-    bytes += utf8.encode(formatRow("Attribute", "Value", lineWidth) + "\n");
+    bytes += utf8.encode(formatRow("Description", "Detail", lineWidth) + "\n");
     bytes += utf8.encode("-" * lineWidth + "\n");
 
     for (var item in items) {

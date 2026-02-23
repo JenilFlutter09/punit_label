@@ -58,6 +58,8 @@ dependencies:
   collection: ^1.18.0
   path_provider: ^2.1.2
   share_plus:
+  mailer:
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

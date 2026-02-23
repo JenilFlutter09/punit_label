@@ -1,4 +1,4 @@
-package com.app.punit_label
+package com.punitinstrument.punitlabel
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -69,6 +69,7 @@ class MainActivity : FlutterActivity() {
                         val barcodeData = args["barcodeData"]?.toString() ?: ""
                         val productName = args["productName"]?.toString() ?: ""
                         val rawAttributes = call.argument<List<Map<String, Any>>>("attributes") ?: emptyList()
+                        val layout = call.argument<Map<String, Any>>("layout") ?: emptyMap()
                         val attributes = rawAttributes.map { it.mapValues { v -> v.value.toString() } }
                         printTrySticker(
                             result = result,
@@ -83,7 +84,8 @@ class MainActivity : FlutterActivity() {
                             companyContact = companyContact,
                             barcodeData = barcodeData,
                             productName = productName,
-                            attributes = attributes
+                            attributes = attributes,
+                            layout = layout
                         )
                     }
                     else -> result.notImplemented()
@@ -243,7 +245,9 @@ class MainActivity : FlutterActivity() {
         companyName: String = "NIVA GROUP INDIA",
         companyContact: String = "TEL: +91-7573830094  |  WWW.NIVAGROUPINDIA.COM",
         barcodeData: String = "123456789012",
-        productName: String = "123456789012"
+        productName: String = "123456789012",
+        layout: Map<String, Any>
+
     )   {
         Thread {
             try {
@@ -263,6 +267,17 @@ class MainActivity : FlutterActivity() {
                 }
 
                 lp.SetPrintDensity(15)
+
+                // ===== Layout config from Flutter =====
+                val maxAttributes = (layout["maxAttributes"] as? Number)?.toInt() ?: attributes.size
+                val lineHeight = (layout["lineHeight"] as? Number)?.toInt() ?: 60
+                val keyFont = (layout["keyFont"] as? Number)?.toInt() ?: 30
+                val valueFont = (layout["valueFont"] as? Number)?.toInt() ?: 34
+                val bottomPadding = (layout["bottomPadding"] as? Number)?.toInt() ?: 150
+                val columnGap = (layout["columnGap"] as? Number)?.toInt() ?: 200
+                val barcodeHeight =
+                    (layout["barcodeHeight"] as? Number)?.toInt() ?: 80
+
                 val left = margin
                 val top = margin
                 val right = width - margin
@@ -300,19 +315,6 @@ class MainActivity : FlutterActivity() {
                     }
 
                     yPos = contactY + 10
-
-//                    val contactX = left + 20
-//                    lp.PrintText(
-//                        contactX,
-//                        companyY + 40,
-//                        "0",
-//                        companyContact,
-//                        0,
-//                        contactFont,
-//                        contactFont,
-//                        0
-//                    )
-//                    yPos = companyY + 100
                 }else{
                     yPos = top + 20
                 }
@@ -357,50 +359,10 @@ class MainActivity : FlutterActivity() {
                     // Move yPos BELOW date & time so nothing overlaps
                    // yPos = dateY + (lineGap * 2) + 10
                 }
-
-//                if (printTime) {
-//                    val timeX = right - 220   // fixed safe width for timestamp
-//                    val timeY = companyY
-//                    val timeFont = 26
-//
-//                    lp.PrintText(
-//                        timeX,
-//                        timeY,
-//                        "0",
-//                        "Time:",
-//                        0,
-//                        timeFont,
-//                        timeFont,
-//                        0
-//                    )
-//
-//                    lp.PrintText(
-//                        timeX,
-//                        timeY + 30,
-//                        "0",
-//                        timeStamp,
-//                        0,
-//                        timeFont,
-//                        timeFont,
-//                        0
-//                    )
-//                }
-                //val contactX = (width / 2) - (companyContact.length * contactFont / 4)
-//                val contactX = left + 20
-//                lp.PrintText(
-//                    contactX,
-//                    companyY + 40,
-//                    "0",
-//                    companyContact,
-//                    0,
-//                    contactFont,
-//                    contactFont,
-//                    0
-//                )
                 // --- after contact printing, define centers & bounds ---
                 val cx = width / 2
                 val cy = height / 2
-                val lineHeight = 60
+               // val lineHeight = 60
                 // --- PRODUCT NAME ---
                 val productFont = 34
 
@@ -418,17 +380,19 @@ class MainActivity : FlutterActivity() {
                 if (attributes.isNotEmpty()) {
                     if (!isGrid) {
                         for (item in attributes) {
-                            if (yPos > bottom - 150) break
+                            //if (yPos > bottom - 150) break
+                            if (yPos > bottom - bottomPadding) break
 
                             val key = item["key"] ?: ""
                             val value = item["value"] ?: ""
 
                             // left column offset relative to center
                             val keyX = left + 20
-                            val valX = keyX + 200
+                            //val valX = keyX + 200
+                            val valX = keyX + columnGap
 
-                            lp.PrintText(keyX, yPos, "0", "$key:", 0, 30, 30, 0)
-                            lp.PrintText(valX, yPos, "0", value, 0, 34, 34, 0)
+                            lp.PrintText(keyX, yPos, "0", "$key:", 0, keyFont, keyFont, 0)
+                            lp.PrintText(valX, yPos, "0", value, 0, valueFont, valueFont, 0)
 
                             yPos += lineHeight
                         }
@@ -437,24 +401,25 @@ class MainActivity : FlutterActivity() {
                         val col2X = width / 2 + 20
 
                         for (i in attributes.indices step 2) {
-                            if (yPos > bottom - 150) break
+                           // if (yPos > bottom - 150) break
+                            if (yPos > bottom - bottomPadding) break
 
                             val first = attributes[i]
                             val second = attributes.getOrNull(i + 1)
 
-                            lp.PrintText(col1X, yPos, "0", "${first["key"]}:", 0, 30, 30, 0)
-                            lp.PrintText(col1X + 180, yPos, "0", first["value"] ?: "", 0, 34, 34, 0)
+                            lp.PrintText(col1X, yPos, "0", "${first["key"]}:", 0, keyFont, keyFont, 0)
+                            lp.PrintText(col1X + columnGap, yPos, "0", first["value"] ?: "", 0, valueFont, valueFont, 0)
 
                             if (second != null) {
-                                lp.PrintText(col2X, yPos, "0", "${second["key"]}:", 0, 30, 30, 0)
+                                lp.PrintText(col2X, yPos, "0", "${second["key"]}:", 0, keyFont, keyFont, 0)
                                 lp.PrintText(
-                                    col2X + 180,
+                                    col2X + columnGap,
                                     yPos,
                                     "0",
                                     second["value"] ?: "",
                                     0,
-                                    34,
-                                    34,
+                                    valueFont,
+                                    valueFont,
                                     0
                                 )
                             }
@@ -474,7 +439,7 @@ class MainActivity : FlutterActivity() {
                 val footerHeight = footerFont + 10
                 val footerY = bottom - footerHeight
 // --- BARCODE + FOOTER (improved centering & module width sync) ---
-                val barcodeHeight = 80
+               // val barcodeHeight = 80
                 //val barcodeY = bottom - barcodeHeight - 50
                 val barcodeBlockHeight = barcodeHeight + humanReadableHeight
                 val barcodeGap = 12  // breathing space
@@ -509,11 +474,6 @@ class MainActivity : FlutterActivity() {
 
 // center the barcode inside printable area (left + padding + half remaining)
                 var barcodeX = left + 20 // + ((availableWidth - estimatedBarcodeWidth) / 4)
-//
-//// safety clamps so the X is legal
-//                if (barcodeX < left + 5) barcodeX = left + 5
-//                if (barcodeX + estimatedBarcodeWidth > right - 5) barcodeX =
-//                    right - estimatedBarcodeWidth - 5
 
 // Use the same moduleWidth in the PrintBarcode1D call — this is crucial
                 val barcodeStatus = lp.PrintBarcode1D(
@@ -548,16 +508,6 @@ class MainActivity : FlutterActivity() {
                 var footerX = left + 20 + ((availableWidth - footerTextWidth) / 4)
                 if (footerX < left + 5) footerX = left + 5
                 if (footerX + footerTextWidth > right - 5) footerX = right - footerTextWidth - 5
-
-// place footer below barcode by 10 px if space permits, otherwise above it
-
-//                val footerBelowY = barcodeY + barcodeHeight + 10
-//                val footerAboveY = barcodeY - 20
-//                val footerY = when {
-//                    footerBelowY <= bottom - 5 -> footerBelowY
-//                    footerAboveY >= top + 5 -> footerAboveY
-//                    else -> (bottom - 10) // fallback inside bounds
-//                }
 
                 if (!isWhiteLabel) {
                 lp.PrintText(footerX, footerY, "0", footerText, 0, footerFont, footerFont, 0)

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:punit_label/features/login/loginmodel.dart';
+import 'package:punit_label/widgets/usbSerial.dart';
 
 import '../apis/sharedPreference.dart';
 import '../constants/colors.dart';
@@ -9,6 +10,7 @@ import '../constants/strings.dart';
 import '../constants/styles.dart';
 import '../features/dashboard/dashboardController.dart';
 import 'bluetooth_bottomsheet.dart';
+/*
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   CustomAppBar({
@@ -111,7 +113,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         /// PRINTER BUTTON
         /// ---------------------------
         // if (showPrinter)
-          /*IconButton(
+        */
+/*IconButton(
             iconSize: iconSize,
             onPressed: () {
               showBluetoothPrinterSheet(
@@ -141,9 +144,93 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ),
             ),
-          ),*/
+          ),*//*
+
         if (showPrinter)
-        dashboardController.isLabelPrinterMode
+          Obx(
+            () => dashboardController.isLabelPrinterMode.value
+                ? IconButton(
+                    iconSize: iconSize,
+                    onPressed: () {
+                      showBluetoothPrinterSheet(
+                        context,
+                        dashboardController,
+                        SStringConstants.role_printer,
+                      );
+                    },
+                    icon: Obx(
+                      () => Badge(
+                        alignment: Alignment.topRight,
+                        label: Icon(
+                          dashboardController.isPrinterConnected.value
+                              ? Icons.check_circle
+                              : Icons.dangerous,
+                          color: Colors.white,
+                          size: badgeIconSize,
+                        ),
+                        padding: EdgeInsets.zero,
+                        backgroundColor:
+                            dashboardController.isPrinterConnected.value
+                            ? Colors.green
+                            : Colors.red,
+                        child: CircleAvatar(
+                          radius: circleRadius,
+                          backgroundColor: Colors.white12,
+                          child: Icon(
+                            Icons.print,
+                            color: Colors.white,
+                            size: iconSize,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : IconButton(
+                    iconSize: iconSize,
+                    onPressed: () {
+                      // showBluetoothPrinterSheet(
+                      //   context,
+                      //   dashboardController,
+                      //   SStringConstants.role_printer,
+                      // );
+                      dashboardController.bluetoothController
+                          .openDeviceBottomSheet();
+                    },
+                    icon: Badge(
+                      alignment: Alignment.topRight,
+                      label: Icon(
+                        dashboardController
+                                .bluetoothController
+                                .isConnected
+                                .value
+                            ? Icons.check_circle
+                            : Icons.dangerous,
+                        color: Colors.white,
+                        size: badgeIconSize,
+                      ),
+                      padding: EdgeInsets.zero,
+                      backgroundColor:
+                          dashboardController
+                              .bluetoothController
+                              .isConnected
+                              .value
+                          ? Colors.green
+                          : Colors.red,
+                      child: CircleAvatar(
+                        radius: circleRadius,
+                        backgroundColor: Colors.white12,
+                        child: Icon(
+                          Icons.receipt_long,
+                          color: Colors.white,
+                          size: iconSize,
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        // if (showPrinter)
+        */
+/*dashboardController.isLabelPrinterMode.value
             ? IconButton(
                 iconSize: iconSize,
                 onPressed: () {
@@ -190,33 +277,91 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   // );
                   dashboardController.bluetoothController.openDeviceBottomSheet();
                 },
-                icon: Obx(
-                  () => Badge(
-                    alignment: Alignment.topRight,
-                    label: Icon(
-                      dashboardController.bluetoothController.isConnected.value
-                          ? Icons.check_circle
-                          : Icons.dangerous,
-                      color: Colors.white,
-                      size: badgeIconSize,
-                    ),
-                    padding: EdgeInsets.zero,
-                    backgroundColor:
+                icon: Badge(
+                  alignment: Alignment.topRight,
+                  label: Icon(
                     dashboardController.bluetoothController.isConnected.value
-                        ? Colors.green
-                        : Colors.red,
-                    child: CircleAvatar(
-                      radius: circleRadius,
-                      backgroundColor: Colors.white12,
-                      child: Icon(
-                        Icons.receipt_long,
-                        color: Colors.white,
-                        size: iconSize,
-                      ),
+                        ? Icons.check_circle
+                        : Icons.dangerous,
+                    color: Colors.white,
+                    size: badgeIconSize,
+                  ),
+                  padding: EdgeInsets.zero,
+                  backgroundColor:
+                  dashboardController.bluetoothController.isConnected.value
+                      ? Colors.green
+                      : Colors.red,
+                  child: CircleAvatar(
+                    radius: circleRadius,
+                    backgroundColor: Colors.white12,
+                    child: Icon(
+                      Icons.receipt_long,
+                      color: Colors.white,
+                      size: iconSize,
                     ),
                   ),
                 ),
+              ),*//*
+
+
+        /// ---------------------------
+        /// TOWER LIGHT BUTTON
+        /// ---------------------------
+        if (showUser)
+          IconButton(
+            iconSize: iconSize,
+            onPressed: () {
+              showTowerLightSheet(context, dashboardController.tower_controller);
+            },
+            icon: Badge(
+              alignment: Alignment.topRight,
+              label: Icon(
+                dashboardController.tower_controller.isConnected.value
+                    ? Icons.check_circle
+                    : Icons.dangerous,
+                color: Colors.white,
+                size: badgeIconSize,
               ),
+              padding: EdgeInsets.zero,
+              backgroundColor:
+                  dashboardController.tower_controller.isConnected.value
+                  ? Colors.green
+                  : Colors.red,
+              child: CircleAvatar(
+                radius: circleRadius,
+                backgroundColor: Colors.white12,
+                child: Icon(
+                  Icons.cell_tower,
+                  color: Colors.white,
+                  size: iconSize,
+                ),
+              ),
+            ),
+
+            */
+/*Obx(
+                  () => Badge(
+                alignment: Alignment.topRight,
+                label: Icon(
+                  dashboardController.isPrinterConnected.value
+                      ? Icons.check_circle
+                      : Icons.dangerous,
+                  color: Colors.white,
+                  size: badgeIconSize,
+                ),
+                padding: EdgeInsets.zero,
+                backgroundColor: dashboardController.isPrinterConnected.value
+                    ? Colors.green
+                    : Colors.red,
+                child: CircleAvatar(
+                  radius: circleRadius,
+                  backgroundColor: Colors.white12,
+                  child: Icon(Icons.print, color: Colors.white, size: iconSize),
+                ),
+              ),
+            ),*//*
+
+          ),
 
         /// ---------------------------
         /// USER INFO BUTTON
@@ -241,7 +386,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
 
-            /*Obx(
+            */
+/*Obx(
                   () => Badge(
                 alignment: Alignment.topRight,
                 label: Icon(
@@ -261,7 +407,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   child: Icon(Icons.print, color: Colors.white, size: iconSize),
                 ),
               ),
-            ),*/
+            ),*//*
+
           ),
 
         /// ---------------------------
@@ -284,6 +431,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(56); // Adjusted for tablet
 }
+*/
 
 void _disconnectDialog(BuildContext context, String title, Function onConfirm) {
   Get.defaultDialog(
@@ -399,4 +547,199 @@ Widget _detailRow(String label, String value) {
       ],
     ),
   );
+}
+class AppBarSizing {
+  final double iconSize;
+  final double badgeIconSize;
+  final double radius;
+  final double titleFont;
+
+  AppBarSizing(double width)
+      : iconSize = width > 600 ? 32 : 24,
+        badgeIconSize = width > 600 ? 20 : 15,
+        radius = width > 600 ? 26 : 20,
+        titleFont = width > 600 ? 22 : 16;
+}
+
+class StatusIconButton extends StatelessWidget {
+  final bool connected;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final AppBarSizing size;
+
+  const StatusIconButton({
+    super.key,
+    required this.connected,
+    required this.icon,
+    required this.onPressed,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      iconSize: size.iconSize,
+      onPressed: onPressed,
+      icon: Badge(
+        alignment: Alignment.topRight,
+        backgroundColor: connected ? Colors.green : Colors.red,
+        padding: EdgeInsets.zero,
+        label: Icon(
+          connected ? Icons.check_circle : Icons.dangerous,
+          color: Colors.white,
+          size: size.badgeIconSize,
+        ),
+        child: CircleAvatar(
+          radius: size.radius,
+          backgroundColor: Colors.white12,
+          child: Icon(icon, color: Colors.white, size: size.iconSize),
+        ),
+      ),
+    );
+  }
+}
+class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+  CustomAppBar({
+    super.key,
+    required this.title,
+    required this.showScale,
+    required this.showPrinter,
+    required this.showUser,
+    required this.showDrawer,
+  });
+
+  final bool showPrinter;
+  final bool showUser;
+  final bool showDrawer;
+  final bool showScale;
+  final String title;
+
+  final dashboardController = Get.find<DashboardController>();
+
+  @override
+  Widget build(BuildContext context) {
+    final sizing = AppBarSizing(MediaQuery.of(context).size.width);
+
+    return AppBar(
+      backgroundColor: ColorsValue.primaryColor,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+
+      title: Text(
+        title.toUpperCase(),
+        style: Styles.whiteBold22.copyWith(fontSize: sizing.titleFont),
+      ),
+
+      leading: showDrawer
+          ? Builder(
+        builder: (context) => IconButton(
+          icon: const Icon(Icons.menu, color: Colors.white),
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
+      )
+          : null,
+
+      actions: [
+        if (showScale) _scaleButton(sizing),
+        if (showPrinter) _printerButton(sizing),
+        Obx(() {
+          if (!dashboardController.isTowerLight.value) {
+            return const SizedBox.shrink();
+          }
+          return _towerLightButton(sizing);
+        }),
+        if (showUser) _userButton(sizing),
+        _logoutButton(sizing),
+      ],
+    );
+  }
+
+  // ---------------- Buttons ----------------
+
+  Widget _scaleButton(AppBarSizing s) {
+    return Obx(() => StatusIconButton(
+      size: s,
+      icon: Icons.scale,
+      connected: dashboardController.isWeightScaleConnected.value,
+      onPressed: () {
+        dashboardController.isWeightScaleConnected.value
+            ? _disconnectDialog(
+            Get.context!, "Scale", dashboardController.disconnectDevice)
+            : showBluetoothSheet(
+          Get.context!,
+          dashboardController,
+          SStringConstants.role_scale,
+        );
+      },
+    ));
+  }
+
+  Widget _printerButton(AppBarSizing s) {
+    return Obx(() {
+      final isLabelMode = dashboardController.isLabelPrinterMode.value;
+      final isConnected = isLabelMode
+          ? dashboardController.isPrinterConnected.value
+          : dashboardController.bluetoothController.isConnected.value;
+
+      return StatusIconButton(
+        size: s,
+        icon: isLabelMode ? Icons.print : Icons.receipt_long,
+        connected: isConnected,
+        onPressed: () {
+          isLabelMode
+              ? showBluetoothPrinterSheet(
+            Get.context!,
+            dashboardController,
+            SStringConstants.role_printer,
+          )
+              : dashboardController.bluetoothController
+              .openDeviceBottomSheet();
+        },
+      );
+    });
+  }
+
+  Widget _towerLightButton(AppBarSizing s) {
+    return Obx(() => StatusIconButton(
+      size: s,
+      icon: Icons.cell_tower,
+      connected:
+      dashboardController.tower_controller.isConnected.value,
+      onPressed: () => showTowerLightSheet(
+        Get.context!,
+        dashboardController.tower_controller,
+      ),
+    ));
+  }
+
+  Widget _userButton(AppBarSizing s) {
+    return IconButton(
+      iconSize: s.iconSize,
+      onPressed: () => _showUserDetailsDialog(
+        Get.context!,
+        dashboardController.userDetails.value,
+      ),
+      icon: CircleAvatar(
+        radius: s.radius,
+        backgroundColor: Colors.white12,
+        child: Icon(
+          Icons.account_circle_sharp,
+          color: Colors.white,
+          size: s.iconSize,
+        ),
+      ),
+    );
+  }
+
+  Widget _logoutButton(AppBarSizing s) {
+    return IconButton(
+      iconSize: s.iconSize,
+      icon: const Icon(Icons.logout, color: Colors.white),
+      onPressed: () =>
+          _disconnectDialog(Get.context!, "Logout", dashboardController.logout),
+    );
+  }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(56);
 }

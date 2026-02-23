@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -18,21 +19,26 @@ import '../../apis/sharedPreference.dart';
 import '../../constants/strings.dart';
 import '../../navigation/routesManagement.dart';
 import '../../widgets/searchableDropdown.dart';
+import '../../widgets/usbSerial.dart';
 import '../inward/models/singleProduct.dart';
 import 'bluetoothController.dart';
 import 'companyModel.dart';
+
 typedef ApiCall = Future<ResponseModel> Function();
 
 class DashboardController extends GetxController {
   static const platform = MethodChannel('label_printer');
   var selectedIndex = 0.obs;
-  bool isLabelPrinterMode = false;
+  var isLabelPrinterMode = true.obs;
+  var isTowerLight = false.obs;
   var isWeightScaleConnected = false.obs;
   ConnectHelper connectHelper = ConnectHelper();
   var isPrinterConnected = false.obs;
   final Map<String, StreamSubscription<List<int>>> _charSubs = {};
   var scanResults = <ScanResult>[].obs;
   Rx<TareState> tareState = TareState.on.obs;
+  Rx<LabelState> labelState = LabelState.Label.obs;
+ // Rx<DeviceState> towerLight = DeviceState.on.obs;
   var isWhiteLabel = false.obs;
   var printSerialNumberInLabel = false.obs;
   var printTimeInLabel = false.obs;
@@ -57,6 +63,7 @@ class DashboardController extends GetxController {
   var activeManualWeightTag = Rx<String>('');
   var statusMessage = ''.obs;
   Timer? printerTimer;
+  RxBool isLoading = false.obs;
 
   RxInt totalProducts = 0.obs;
   RxInt totalVariants = 0.obs;
@@ -67,29 +74,60 @@ class DashboardController extends GetxController {
   RxList<LowStockProducts> lowStockProducts = <LowStockProducts>[].obs;
 
   RxList<LabelFormatElement> labelFormats = <LabelFormatElement>[].obs;
+  final smallLabelLayout = LabelLayout(
+    maxAttributes: 6,
+    lineHeight: 40,
+    keyFont: 24,
+    valueFont: 26,
+    bottomPadding: 80,
+    columnGap: 140,
+    barcodeHeight: 45
+  );
+
+  final largeLabelLayout = LabelLayout(
+    maxAttributes: 10,
+    lineHeight: 60,
+    keyFont: 30,
+    valueFont: 34,
+    bottomPadding: 150,
+    columnGap: 200,
+    barcodeHeight: 80
+  );
+
+  final tower_controller = Get.put(TowerLightController());
+
+// Example triggers
+//   controller.updateState(DeviceState.inLimit);
+//   controller.updateState(DeviceState.almostLimit);
+//   controller.updateState(DeviceState.outOfLimit);
+
 
   @override
-  Future<void> onInit() async {
+  void onInit() {
     // TODO: implement onInit
     super.onInit();
+
+    // // react to white label toggle
+    // ever(isWhiteLabel, (_) {
+    //   loadLabelFormats();
+    // });
+    //
+    // // initial load
+    // loadLabelFormats();
+  }
+
+  @override
+  Future<void> onReady() async {
+    // TODO: implement onReady
+    super.onReady();
     await handlePermissions();
     await getUserDetails();
     await getDashboardDetails();
     await getCompanyDetails();
-
-    // react to white label toggle
+    loadLabelFormats();
     ever(isWhiteLabel, (_) {
       loadLabelFormats();
     });
-
-    // initial load
-    loadLabelFormats();
-  }
-
-  @override
-  void onReady() {
-    // TODO: implement onReady
-    super.onReady();
     printerTimer = Timer.periodic(Duration(seconds: 5), (timer) {
       checkPrinterConnection();
     });
@@ -102,64 +140,238 @@ class DashboardController extends GetxController {
     printerTimer?.cancel();
     super.onClose();
   }
+
   Future<ResponseModel> callApi({
     required ApiCall apiCall,
-  }) async
-  {
-    late ResponseModel response;
-
-    try {
-      /// 1️⃣ Initial API call
-      response = await apiCall();
-
-      /// 2️⃣ Handle explicit API error
-      if (response.hasError) {
-        if (response.errorCode == 401) {
-          var response = await connectHelper.refreshToken();
-          var decodedResponse = refreshModel.fromJson(jsonDecode(response.data));
-          await TokenStorage.saveToken(decodedResponse.accessToken ?? 'access Token');
-          response = await apiCall(); // 🔁 retry
-        } else {
-          Utility.showApiErrorSnackbar(response);
-          RouteManagement.offToLogin();
-          return response;
-        }
-      }
-      //
-      // /// 3️⃣ Handle backend token-expired message
-      // final decoded = jsonDecode(response.data);
-      // if (decoded["message"] == "Token expired") {
-      //   await connectHelper.refreshToken();
-      //   response = await apiCall(); // 🔁 retry
-      // }
-
-      return response;
-
-    } catch (e, stackTrace) {
-      /// 💥 Unexpected crash (JSON / null / network)
-      debugPrint("❌ API Wrapper Error: $e");
-      debugPrintStack(stackTrace: stackTrace);
-
-      Get.snackbar(
-        "Error",
-        "Something went wrong while calling API",
-        snackPosition: SnackPosition.BOTTOM,
-      );
-
-      /// ❗ Always return a ResponseModel
+    required RxBool isLoading,
+    bool retryOn401 = true,
+    bool throwOnError = false,
+    bool blockWhileRunning = true,
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    /// 🚫 Prevent duplicate parallel calls
+    if (blockWhileRunning && isLoading.value) {
       return ResponseModel(
         hasError: true,
-        data: e.toString(),
+        errorCode: 429,
+        data: jsonEncode({
+          "message": "Request already running",
+          "code": 429,
+        }),
+      );
+    }
+
+    try {
+      isLoading.value = true;
+
+      ResponseModel response = await apiCall().timeout(timeout);
+
+      /// 🔐 Handle 401 (Token Expired)
+      if (retryOn401 && response.hasError && response.errorCode == 401) {
+        final refresh = await connectHelper.refreshToken().timeout(timeout);
+
+        if (!refresh.hasError) {
+          final decoded = refreshModel.fromJson(jsonDecode(refresh.data));
+          await TokenStorage.saveToken(decoded.accessToken ?? "");
+
+          /// 🔁 Retry original request ONCE
+          response = await apiCall().timeout(timeout);
+        } else {
+          logout();
+          return refresh;
+        }
+      }
+
+      /// ❌ Handle API error (except blocked calls)
+      if (response.hasError && response.errorCode != 429) {
+        _handleApiError(response);
+
+        if (throwOnError) {
+          throw Exception(response.data);
+        }
+      }
+
+      return response;
+    }
+
+    /// ⏳ Timeout
+    on TimeoutException {
+      final error = ResponseModel(
+        hasError: true,
+        errorCode: 408,
+        data: jsonEncode({
+          "message": "Request timed out",
+          "code": 408,
+        }),
       );
 
+      _handleApiError(error);
+      if (throwOnError) throw error;
+      return error;
+    }
+
+    /// 🌐 Network error
+    on SocketException {
+      final error = ResponseModel(
+        hasError: true,
+        errorCode: 408,
+        data: jsonEncode({
+          "message": "No Internet Connection",
+          "code": 408,
+        }),
+      );
+
+      _handleApiError(error);
+      if (throwOnError) throw error;
+      return error;
+    }
+
+    /// 💥 Unknown crash
+    catch (e, stack) {
+      debugPrint("API CRASH: $e");
+      debugPrintStack(stackTrace: stack);
+
+      final error = ResponseModel(
+        hasError: true,
+        errorCode: 500,
+        data: jsonEncode({
+          "message": "Unexpected error occurred",
+          "code": 500,
+        }),
+      );
+
+      _handleApiError(error);
+      if (throwOnError) throw error;
+      return error;
+    }
+
+    finally {
+      isLoading.value = false;
     }
   }
 
+
+/*  Future<ResponseModel> callApi({
+    required ApiCall apiCall,
+    required RxBool isLoading,
+    bool retryOn401 = true,
+    bool throwOnError = false,
+    bool blockWhileRunning = true,
+    Duration timeout = const Duration(seconds: 20),
+  }) async
+  {
+    /// 🚫 Prevent duplicate parallel calls
+    if (blockWhileRunning && isLoading.value) {
+      return ResponseModel(hasError: true, data: "Request already running");
+    }
+
+    try {
+      isLoading.value = true;
+
+      ResponseModel response = await apiCall().timeout(timeout);
+
+      /// 🔐 Handle 401 (Token Expired)
+      if (retryOn401 && response.hasError && response.errorCode == 401) {
+        final refresh = await connectHelper.refreshToken().timeout(timeout);
+
+        if (!refresh.hasError) {
+          final decoded = refreshModel.fromJson(jsonDecode(refresh.data));
+
+          await TokenStorage.saveToken(decoded.accessToken ?? "");
+
+          /// Retry original request ONCE
+          response = await apiCall().timeout(timeout);
+        } else {
+          logout();
+          return refresh;
+        }
+      }
+
+      /// ❌ If still error
+      if (response.hasError) {
+        _handleApiError(response);
+
+        if (throwOnError) {
+          throw Exception(response.data);
+        }
+      }
+
+      return response;
+    }
+    /// ⏳ Timeout
+    on TimeoutException {
+      final error = ResponseModel(
+        hasError: true,
+        data: jsonEncode({"message": "Request timed out", "code": 408}),
+        errorCode: 408,
+      );
+
+      _handleApiError(error);
+
+      if (throwOnError) throw error;
+
+      return error;
+    }
+    /// 🌐 Network error
+    on SocketException {
+      final error = ResponseModel(
+        hasError: true,
+        data: jsonEncode({"message": "No Internet Connection", "code": 408}),
+        errorCode: 408,
+      );
+
+      _handleApiError(error);
+
+      if (throwOnError) throw error;
+
+      return error;
+    }
+    /// 💥 Unknown crash
+    catch (e, stack) {
+      debugPrint("API CRASH: $e");
+      debugPrintStack(stackTrace: stack);
+
+      final error = ResponseModel(
+        hasError: true,
+        data: jsonEncode({"message": "Request timed out", "code": 408}),
+      );
+
+      _handleApiError(error);
+
+      if (throwOnError) throw error;
+
+      return error;
+    } finally {
+      isLoading.value = false;
+    }
+  }*/
+
+  void _handleApiError(ResponseModel response) {
+    if (response.errorCode == 500) {
+      Get.snackbar(
+        "Server Error",
+        "Something went wrong on server",
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } else if (response.data == "No Internet Connection") {
+      Get.snackbar(
+        "No Internet",
+        "Please check your connection",
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } else {
+      Utility.showApiErrorSnackbar(response);
+    }
+  }
   void loadLabelFormats() {
-    if(isWhiteLabel.value) {
+    if (isWhiteLabel.value) {
       labelFormats.value = [
         LabelFormatElement(
-            1, "Small Label Select Max (3)", 3, LabelFormat.Small),
+          1,
+          "Small Label Select Max (3)",
+          3,
+          LabelFormat.Small,
+        ),
         LabelFormatElement(
           2,
           "Medium Label Select Max (6)",
@@ -167,7 +379,11 @@ class DashboardController extends GetxController {
           LabelFormat.Medium,
         ),
         LabelFormatElement(
-            3, "Large Label Select Max (8)", 8, LabelFormat.Large),
+          3,
+          "Large Label Select Max (8)",
+          8,
+          LabelFormat.Large,
+        ),
         LabelFormatElement(
           4,
           "Extra Large Label Select Max (9)",
@@ -175,10 +391,14 @@ class DashboardController extends GetxController {
           LabelFormat.ExtraLarge,
         ),
       ];
-    }else{
+    } else {
       labelFormats.value = [
         LabelFormatElement(
-            1, "Small Label Select Max (1)", 1, LabelFormat.Small),
+          1,
+          "Small Label Select Max (3)",
+          3,
+          LabelFormat.Small,
+        ),
         LabelFormatElement(
           2,
           "Medium Label Select Max (4)",
@@ -186,7 +406,11 @@ class DashboardController extends GetxController {
           LabelFormat.Medium,
         ),
         LabelFormatElement(
-            3, "Large Label Select Max (5)", 5, LabelFormat.Large),
+          3,
+          "Large Label Select Max (5)",
+          5,
+          LabelFormat.Large,
+        ),
         LabelFormatElement(
           4,
           "Extra Large Label Select Max (7)",
@@ -196,6 +420,7 @@ class DashboardController extends GetxController {
       ];
     }
   }
+
   void checkPrinterConnection() {
     if (isPrinterConnected.value) {
       checkPrinterStatus();
@@ -210,11 +435,14 @@ class DashboardController extends GetxController {
 
   Future<void> getCompanyDetails() async {
     try {
-      var response = await callApi(apiCall: ()=>connectHelper.getCompanyDetails());
+      var response = await callApi(
+        apiCall: () => connectHelper.getCompanyDetails(),
+        isLoading: isLoading,
+      );
 
-      companyDetails.value =
-          CompanyDetailsModel.fromJson(jsonDecode(response.data));
-
+      companyDetails.value = CompanyDetailsModel.fromJson(
+        jsonDecode(response.data),
+      );
     } catch (e, stackTrace) {
       debugPrint("❌ getCompanyDetails error: $e");
       debugPrintStack(stackTrace: stackTrace);
@@ -238,21 +466,22 @@ class DashboardController extends GetxController {
 
   Future<void> getDashboardDetails() async {
     try {
-      var response = await callApi(apiCall: ()=> connectHelper.getDashboardDetails());
+      var response = await callApi(
+        apiCall: () => connectHelper.getDashboardDetails(),
+        isLoading: isLoading,
+      );
 
       /// 📦 Parse dashboard data
-      dashboardDetails.value =
-          dashboardModel.fromJson(jsonDecode(response.data));
+      dashboardDetails.value = dashboardModel.fromJson(
+        jsonDecode(response.data),
+      );
 
       /// 📊 Assign lists safely
-      topProducts.assignAll(
-        dashboardDetails.value?.data?.topProducts ?? [],
-      );
+      topProducts.assignAll(dashboardDetails.value?.data?.topProducts ?? []);
 
       lowStockProducts.assignAll(
         dashboardDetails.value?.data?.lowStockProducts ?? [],
       );
-
     } catch (e, stackTrace) {
       /// 💥 Any unexpected runtime / JSON / null crash
       debugPrint("❌ getDashboardDetails error: $e");
@@ -263,7 +492,6 @@ class DashboardController extends GetxController {
         "Something went wrong while loading dashboard",
         snackPosition: SnackPosition.BOTTOM,
       );
-
     } finally {
       /// ✅ Runs no matter success or failure
       debugPrint(
@@ -271,76 +499,6 @@ class DashboardController extends GetxController {
       );
     }
   }
-/*
-  List<String> buildCompanyInfoLines(CompanyData? data) {
-    if (data == null || data.labelFields == null) return [];
-
-    final Map<String, String?> valueMap = {
-      "name": data.name,
-      "email": data.email,
-      "contact_no": data.contactNo,
-      "gst_no": data.gstNo,
-      "address": data.address,
-      "website": data.labelFields?['website'], // if website stored elsewhere, adjust
-    };
-
-    final List<String> lines = [];
-
-    data.labelFields!.forEach((key, value) {
-      if (value == "on") {
-        final fieldValue = valueMap[key];
-        if (fieldValue != null && fieldValue.isNotEmpty) {
-          lines.add(fieldValue);
-        }
-      }
-    });
-
-    return lines;
-  }
-*/
-  // List<String> buildCompanyInfoLines(CompanyData? data) {
-  //   if (data == null || data.labelFields == null) return [];
-  //
-  //   final valueMap = <String, String>{
-  //     "email": data.email ?? "",
-  //     "contact_no": data.contactNo ?? "",
-  //     "gst_no": data.gstNo ?? "",
-  //     "address": data.address ?? "",
-  //     "website": data.website ?? "",
-  //   };
-  //
-  //   final List<String> topLineParts = [];
-  //   String addressLine = "";
-  //
-  //   data.labelFields!.forEach((key, toggle) {
-  //     if (toggle == "on" && valueMap.containsKey(key)) {
-  //       final value = valueMap[key]!.trim();
-  //
-  //       if (value.isEmpty) return;
-  //
-  //       if (key == "address") {
-  //         addressLine = value;
-  //       } else {
-  //         topLineParts.add(value);
-  //       }
-  //     }
-  //   });
-  //
-  //   // Limit to max 2 fields in top line
-  //   final limitedTop = topLineParts.take(2).toList();
-  //
-  //   final List<String> lines = [];
-  //
-  //   if (limitedTop.isNotEmpty) {
-  //     lines.add(limitedTop.join(" | "));
-  //   }
-  //
-  //   if (addressLine.isNotEmpty) {
-  //     lines.add(addressLine);
-  //   }
-  //
-  //   return lines;
-  // }
 
   List<String> buildCompanyInfoLines(CompanyData? data) {
     if (data == null || data.labelFields == null) return [];
@@ -385,7 +543,6 @@ class DashboardController extends GetxController {
     return lines;
   }
 
-
   Future<void> printOneSticker({
     required int stickerHeight,
     required int stickerWidth,
@@ -393,17 +550,17 @@ class DashboardController extends GetxController {
     required int thickness,
     required String barcode,
     required String productName,
+    required LabelFormat format,
     required bool isGrid,
     Map<String, dynamic>? labelFields,
-  }) async
-  {
+    required LabelLayout label_layout,
+  }) async {
     try {
       // COMPANY DETAILS SAFE HANDLING
 
       final companyData = companyDetails.value?.data;
       final companyName = companyData?.name ?? "";
-      final List<String> companyInfoLines =
-      buildCompanyInfoLines(companyData);
+      final List<String> companyInfoLines = buildCompanyInfoLines(companyData);
 
       // CONVERT labelFields → attribute list
       final List<Map<String, dynamic>> dynamicAttributes = [];
@@ -413,13 +570,19 @@ class DashboardController extends GetxController {
         });
       }
 
-      if(isLabelPrinterMode == false){
-        bluetoothController.printReceipt(companyName: companyName, companyContact: companyInfoLines, items: dynamicAttributes, barcodeData: barcode);
-      }else {
+      if (isLabelPrinterMode.value == false) {
+        bluetoothController.printReceipt(
+          companyName: companyName,
+          companyContact: companyInfoLines,
+          items: dynamicAttributes,
+          barcodeData: barcode,
+        );
+      } else {
         // CALLING PLATFORM
         final result = await platform.invokeMethod("printTestSticker", {
           "width": stickerWidth,
           "height": stickerHeight,
+          //"fontSize": fontSizeForFormat(format),
           "margin": margin,
           "thickness": thickness,
           "barcodeData": barcode,
@@ -430,6 +593,7 @@ class DashboardController extends GetxController {
           "companyName": companyName,
           "companyContact": companyInfoLines.join("\n"),
           "attributes": dynamicAttributes,
+          "layout": label_layout.toMap(), // 👈 KEY
         });
 
         print(result);
@@ -439,80 +603,30 @@ class DashboardController extends GetxController {
       print("Error printing sticker: $e");
     }
   }
-/*
-  Future<void> printOneSticker({
-    required int stickerHeight,
-    required int stickerWidth,
-    required int margin,
-    required int thickness,
-    required String barcode,
-    required String productName,
-    required bool isGrid,
-    Map<String, dynamic>? labelFields,
-  }) async {
-    try {
-      // COMPANY DETAILS SAFE HANDLING
 
-      final companyData = companyDetails.value?.data;
-      final companyName = companyData?.name ?? "";
-      final List<String> companyInfoLines =
-      buildCompanyInfoLines(companyData);
-      // final name = companyDetails.value?.data?.name ?? "";
-      // final contact = companyDetails.value?.data?.contactNo ?? "";
-      // final email = companyDetails.value?.data?.email ?? "";
-      //
-      // final companyContact = (contact.isNotEmpty && email.isNotEmpty)
-      //     ? "$contact | $email"
-      //     : contact + email;
-
-      // CONVERT labelFields → attribute list
-      final List<Map<String, dynamic>> dynamicAttributes = [];
-      if (labelFields != null) {
-        labelFields.forEach((key, value) {
-          dynamicAttributes.add({"key": key, "value": value.toString()});
-        });
-      }
-
-      // CALLING PLATFORM
-      final result = await platform.invokeMethod("printTestSticker", {
-        "width": stickerWidth,
-        "height": stickerHeight,
-        "margin": margin,
-        "thickness": thickness,
-        "barcodeData": barcode,
-        "productName": "Product Name :- $productName",
-        "isGrid": isGrid,
-        "printTime": printTimeInLabel.value,
-        "companyName": companyName,
-        "companyContact": companyInfoLines,
-        "attributes": dynamicAttributes,
-      });
-
-      print(result);
-    } catch (e) {
-      print("Error printing sticker: $e");
-    }
-  }*/
-  /// Print 50 X 75 Sticker (2 Attribute)
+  /// Print 50 X 75 Sticker
   Future<void> printSmallSticker({
     required String barcodeString,
     required String productName,
+    required int noAttribute,
     Map<String, dynamic>? labelFields,
   }) async {
-    if(printSerialNumberInLabel.value){
-    await printOneSticker(
-      stickerHeight: 375,
-      stickerWidth: 600,
-      margin: 0,
-      thickness: 0,
-      productName: productName,
-      barcode: barcodeString,
-      isGrid: true,
-      labelFields: labelFields,
-    );
-    }else{
+    if (noAttribute > 1) {
       await printOneSticker(
-        stickerHeight: 375,
+        stickerHeight: 410,
+        stickerWidth: 600,
+        margin: 0,
+        thickness: 0,
+        productName: productName,
+        barcode: barcodeString,
+        isGrid: true,
+        labelFields: labelFields,
+        format: LabelFormat.Small,
+        label_layout: smallLabelLayout,
+      );
+    } else {
+      await printOneSticker(
+        stickerHeight: 410,
         stickerWidth: 600,
         margin: 0,
         thickness: 0,
@@ -520,17 +634,20 @@ class DashboardController extends GetxController {
         barcode: barcodeString,
         isGrid: false,
         labelFields: labelFields,
+        format: LabelFormat.Small,
+        label_layout: smallLabelLayout,
       );
     }
   }
-  /// Print 75 X 75 Sticker (3 Attribute)
+
+  /// Print 75 X 75 Sticker
   Future<void> printMediumSticker({
     required String barcodeString,
     required String productName,
     required int noAttribute,
     Map<String, dynamic>? labelFields,
   }) async {
-    if(noAttribute > 5) {
+    if (noAttribute > 5) {
       await printOneSticker(
         stickerHeight: 600,
         stickerWidth: 600,
@@ -540,8 +657,10 @@ class DashboardController extends GetxController {
         barcode: barcodeString,
         isGrid: true,
         labelFields: labelFields,
+        format: LabelFormat.Medium,
+        label_layout: largeLabelLayout,
       );
-    }else{
+    } else {
       await printOneSticker(
         stickerHeight: 600,
         stickerWidth: 600,
@@ -551,30 +670,33 @@ class DashboardController extends GetxController {
         barcode: barcodeString,
         isGrid: false,
         labelFields: labelFields,
+        format: LabelFormat.Medium,
+        label_layout: largeLabelLayout,
       );
     }
   }
-  /// Print 75 X 100 Sticker (6 Attribute)
+
+  /// Print 75 X 100 Sticker
   Future<void> printLargeSticker({
     required String barcodeString,
     required String productName,
     Map<String, dynamic>? labelFields,
-    required int noAttribute
+    required int noAttribute,
   }) async {
-    if(noAttribute > 5)
-      {
-        await printOneSticker(
-          stickerHeight: 600,
-          stickerWidth: 700,
-          margin: 0,
-          thickness: 0,
-          productName: productName,
-          barcode: barcodeString,
-          isGrid: true,
-          labelFields: labelFields,
-        );
-      }
-    else {
+    if (noAttribute > 5) {
+      await printOneSticker(
+        stickerHeight: 600,
+        stickerWidth: 700,
+        margin: 0,
+        thickness: 0,
+        productName: productName,
+        barcode: barcodeString,
+        isGrid: true,
+        labelFields: labelFields,
+        format: LabelFormat.Large,
+        label_layout: largeLabelLayout,
+      );
+    } else {
       await printOneSticker(
         stickerHeight: 600,
         stickerWidth: 700,
@@ -584,17 +706,20 @@ class DashboardController extends GetxController {
         barcode: barcodeString,
         isGrid: false,
         labelFields: labelFields,
+        format: LabelFormat.Large,
+        label_layout: largeLabelLayout,
       );
     }
   }
-  /// Print 100 X 100 Sticker (1 Attribute)
+
+  /// Print 100 X 100 Sticker
   Future<void> printExtraLargeSticker({
     required String barcodeString,
     required String productName,
     Map<String, dynamic>? labelFields,
-    required int noAttribute
+    required int noAttribute,
   }) async {
-    if(noAttribute > 5) {
+    if (noAttribute > 5) {
       await printOneSticker(
         stickerHeight: 700,
         stickerWidth: 700,
@@ -604,8 +729,10 @@ class DashboardController extends GetxController {
         barcode: barcodeString,
         isGrid: true,
         labelFields: labelFields,
+        format: LabelFormat.ExtraLarge,
+        label_layout: largeLabelLayout,
       );
-    }else{
+    } else {
       await printOneSticker(
         stickerHeight: 700,
         stickerWidth: 700,
@@ -615,6 +742,8 @@ class DashboardController extends GetxController {
         barcode: barcodeString,
         isGrid: false,
         labelFields: labelFields,
+        format: LabelFormat.ExtraLarge,
+        label_layout: largeLabelLayout,
       );
     }
   }
@@ -710,7 +839,6 @@ class DashboardController extends GetxController {
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
       Permission.location,
-      Permission.storage
     ];
 
     for (final permission in permissions) {
@@ -932,7 +1060,7 @@ class module {
     this.seconds = 5,
     this.productTareWeight = 0,
     this.unitConversion = false,
-    this.unitValue = 0
+    this.unitValue = 0,
   });
 }
 
@@ -950,4 +1078,35 @@ class ManualWeightController extends GetxController {
     final tare = double.tryParse(manualTare.value ?? '') ?? 0.0;
     manualNet.value = (gross - tare).toStringAsFixed(2);
   }
+}
+
+class LabelLayout {
+  final int maxAttributes;
+  final int lineHeight;
+  final int keyFont;
+  final int valueFont;
+  final int bottomPadding;
+  final int columnGap;
+  final int barcodeHeight;
+
+  const LabelLayout({
+    required this.maxAttributes,
+    required this.lineHeight,
+    required this.keyFont,
+    required this.valueFont,
+    required this.bottomPadding,
+    required this.columnGap,
+    required this.barcodeHeight,
+  });
+
+  Map<String, dynamic> toMap() => {
+    "maxAttributes": maxAttributes,
+    "lineHeight": lineHeight,
+    "keyFont": keyFont,
+    "valueFont": valueFont,
+    "bottomPadding": bottomPadding,
+    "columnGap": columnGap,
+    "barcodeHeight": barcodeHeight,
+
+  };
 }

@@ -14,7 +14,7 @@
         android:maxSdkVersion="28"/>
 
     <application
-        android:label="punit_label"
+        android:label="Punit Label"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

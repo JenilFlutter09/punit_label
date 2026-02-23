@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:excel/excel.dart';
+import 'package:mailer/mailer.dart';
+import 'package:mailer/smtp_server/gmail.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -114,7 +116,9 @@ class ExportHelper {
   static Future<void> exportHorizontalClientPDF({
     required BuildContext context,
     required String title,
+    required String? email,
     required Map<String, String> metaData,
+
     required List<Dispatchbarcodes> items,
   }) async
   {
@@ -291,7 +295,9 @@ class ExportHelper {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("PDF saved at ${file.path}")),
       );
-      Utility.sharePdfFile(file.path);
+     // Utility.sharePdfFile(file.path);
+      await sendPdfEmail(filePath: file.path,sendingEmail: email ?? 'shahjenil9977@gmail.com');
+
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to save PDF: $e")),
@@ -423,73 +429,303 @@ class ExportHelper {
       ),
     );
   }
-
-  /// 🔹 Generate Dynamic PDF
+  /// 🔹 Generate Dynamic PDF (With Product-wise Subtotals)
   static Future<void> generatePDF({
     required String title,
     required Map<String, String> metaData,
     required List<String> headers,
     required List<List<String>> data,
+    String? email,
   }) async {
     final pdf = pw.Document();
+
+    /// 🔹 Helper to parse weight
+    double parseWeight(String value) {
+      return double.tryParse(
+        value.replaceAll("kg", "").trim(),
+      ) ?? 0.0;
+    }
+
+    // /// 🔹 Group rows product-wise (Column index 1 = Product Name)
+    // final Map<String, List<List<String>>> grouped = {};
+    // for (var row in data) {
+    //   final product = row[1];
+    //   grouped.putIfAbsent(product, () => []);
+    //   grouped[product]!.add(row);
+    // }
+    /// 🔹 Group rows by Product + Attribute combo
+    final Map<String, List<List<String>>> grouped = {};
+
+    for (var row in data) {
+      final productName = row[1];
+      final attributeText = row[2].isEmpty ? "No Attributes" : row[2];
+
+      final key = "$productName||$attributeText";
+
+      grouped.putIfAbsent(key, () => []);
+      grouped[key]!.add(row);
+    }
+
 
     pdf.addPage(
       pw.MultiPage(
         margin: const pw.EdgeInsets.all(24),
-        build: (context) => [
-          // 🏷 Title
-          pw.Center(
-            child: pw.Text(
-              title,
-              style: pw.TextStyle(
-                fontSize: 22,
-                fontWeight: pw.FontWeight.bold,
+        build: (context) {
+          List<pw.Widget> widgets = [];
+
+          // 🔹 Title
+          widgets.add(
+            pw.Center(
+              child: pw.Text(
+                title,
+                style: pw.TextStyle(
+                  fontSize: 22,
+                  fontWeight: pw.FontWeight.bold,
+                ),
               ),
             ),
-          ),
-          pw.SizedBox(height: 10),
+          );
 
-          // 🧾 Dynamic metadata section
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: metaData.entries.map((entry) {
-              return pw.Text(
-                "${entry.key}: ${entry.value}",
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.grey700,
-                ),
-              );
-            }).toList(),
-          ),
+          widgets.add(pw.SizedBox(height: 10));
 
-          pw.SizedBox(height: 20),
-
-          // 📋 Table
-          pw.Table.fromTextArray(
-            headers: headers,
-            data: data,
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            headerDecoration: const pw.BoxDecoration(
-              color: PdfColors.grey300,
+          // 🔹 Metadata
+          widgets.add(
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: metaData.entries.map((entry) {
+                return pw.Text(
+                  "${entry.key}: ${entry.value}",
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                );
+              }).toList(),
             ),
-            border: pw.TableBorder.all(width: 0.5),
-            cellHeight: 25,
-            cellAlignments: {
-              for (var i = 0; i < headers.length; i++) i: pw.Alignment.center,
-            },
-          ),
-        ],
+          );
+
+          widgets.add(pw.SizedBox(height: 20));
+
+          double grandGross = 0;
+          double grandTare = 0;
+          double grandNet = 0;
+
+          /// 🔹 Loop product-wise
+          grouped.forEach((key, rows) {
+            final parts = key.split("||");
+            final productName = parts[0];
+            final attributeText = parts.length > 1 ? parts[1] : "";
+            double subGross = 0;
+            double subTare = 0;
+            double subNet = 0;
+
+            // 🔹 Section Heading (Product + Attribute)
+            widgets.add(
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    productName,
+                    style: pw.TextStyle(
+                      fontSize: 14,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  if (attributeText.isNotEmpty)
+                    pw.Text(
+                      attributeText,
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                ],
+              ),
+            );
+
+            widgets.add(pw.SizedBox(height: 6));
+
+
+            // 🔹 Table Header Row
+            widgets.add(
+              pw.Table(
+                border: pw.TableBorder.all(width: 0.5),
+                columnWidths: {
+                  for (int i = 0; i < headers.length; i++)
+                    i: const pw.FlexColumnWidth(),
+                },
+                children: [
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(
+                      color: PdfColors.grey300,
+                    ),
+                    children: headers.map((h) {
+                      return pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          h,
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+
+                  /// 🔹 Product Rows
+                  ...rows.map((row) {
+                    subGross += parseWeight(row[3]);
+                    subTare += parseWeight(row[4]);
+                    subNet += parseWeight(row[5]);
+// 🔹 Remove attribute column (index 2)
+                    final displayRow = [
+                      row[0], // Sr No
+                      row[1], // Product Name
+                      row[3], // Gross
+                      row[4], // Tare
+                      row[5], // Net
+                      row[6], // Created_at
+                    ];
+                    return pw.TableRow(
+                      children: displayRow.map((cell) {
+                        return pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            cell,
+                            textAlign: pw.TextAlign.center,
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  }),
+
+                  /// 🔹 Subtotal Row (Styled)
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(
+                      color: PdfColors.grey200,
+                    ),
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(""),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          "SUBTOTAL (${rows.length} items)",
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                        ),
+                      ),
+                      // pw.Padding(
+                      //   padding: const pw.EdgeInsets.all(6),
+                      //   child: pw.Text(""),
+                      // ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          "${subGross.toStringAsFixed(2)} kg",
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          "${subTare.toStringAsFixed(2)} kg",
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          "${subNet.toStringAsFixed(2)} kg",
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+
+            widgets.add(pw.SizedBox(height: 18)); // 🔹 spacing between products
+
+            grandGross += subGross;
+            grandTare += subTare;
+            grandNet += subNet;
+          });
+
+          /// 🔹 GRAND TOTAL
+          widgets.add(
+            pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(),
+                color: PdfColors.grey300,
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    "GRAND TOTAL",
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  pw.Text(
+                    "Gross: ${grandGross.toStringAsFixed(2)} kg   "
+                        "Tare: ${grandTare.toStringAsFixed(2)} kg   "
+                        "Net: ${grandNet.toStringAsFixed(2)} kg",
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          );
+
+          return widgets;
+        },
       ),
     );
 
     final outputDir = Directory("/storage/emulated/0/Download");
     final filePath = "${outputDir.path}/$title.pdf";
     final file = File(filePath);
+
     await file.writeAsBytes(await pdf.save());
-    print("✅ PDF saved at: $filePath");
-    Utility.sharePdfFile(file.path);
+
+    await sendPdfEmail(
+      filePath: file.path,
+      sendingEmail: email ?? 'shahjenil9977@gmail.com',
+    );
+  }
+
+
+  static Future<void> sendPdfEmail({required String filePath, required String sendingEmail}) async {
+    const String username = 'jenilflutter@gmail.com'; // sender email
+    const String appPassword = 'zaha xgeb fnwl szvw'; // Google App Password
+
+    final smtpServer = gmail(username, appPassword);
+
+    final message = Message()
+      ..from = Address(username, 'Weighing System')
+      ..recipients.add(sendingEmail) // designated email
+      ..subject = 'Auto Generated Packing Slip'
+      ..text = 'Packing slip generated automatically.'
+      ..attachments = [
+        FileAttachment(File(filePath))
+      ];
+
+    try {
+      final sendReport = await send(message, smtpServer);
+      print('✅ Email sent successfully: $sendReport');
+      Utility.showDialog('Pdf send by email');
+    } catch (e) {
+      Utility.showDialog('Pdf send by email');
+      print('❌ Email sending failed: $e');
+    }
   }
 
   /// 🔹 Generate Dynamic Excel

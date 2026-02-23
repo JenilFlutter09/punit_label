@@ -44,16 +44,25 @@ class BatchInwardController extends GetxController {
   Future<void> onInit() async {
     // TODO: implement onInit
     super.onInit();
-    initLoading.value = true;
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
     await _fetchBatchDetail(batchId);
     await _fetchTareProductsList();
+
     serialNumberTextController.text = serialNumber.value.toString();
-    initLoading.value = false;
   }
 
   Future<void> _fetchTareProductsList() async {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getTareList(),
+      isLoading: initLoading,
     );
     tareProductsListModel.value = TareProductListModel.fromJson(
       jsonDecode(response.data),
@@ -66,6 +75,7 @@ class BatchInwardController extends GetxController {
   Future<void> _fetchBatchDetail(String batchId) async {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getBatchDetails(batchId),
+      isLoading: initLoading,
     );
     batchModel.value = BatchDetails.fromJson(jsonDecode(response.data));
     print(
@@ -89,7 +99,7 @@ class BatchInwardController extends GetxController {
         )
         .where((p) => p.id != 0 && p.name.isNotEmpty)
         .toList();
-    if(products?.isNotEmpty == true) {
+    if (products?.isNotEmpty == true) {
       dropdownProducts.value = products!;
     }
     if (dropdownProducts.isNotEmpty) {
@@ -114,6 +124,7 @@ class BatchInwardController extends GetxController {
     isSerialVerified.value = RegExp(r'^\d+$').hasMatch(value);
     serialNumber.value = int.tryParse(value) ?? 1;
   }
+
   void changeSelectedProductId(int id) {
     // find the product by id
     var product = batchModel.value?.data?.products?.firstWhere(
@@ -218,6 +229,7 @@ class BatchInwardController extends GetxController {
     // API CALL
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.batchProductStore(batch_inward_model: data),
+      isLoading: initLoading,
     );
 
     if (response.hasError) {
@@ -242,7 +254,7 @@ class BatchInwardController extends GetxController {
     }
   }
 
-  Future<void> generatePdf() async{
+  Future<void> generatePdf() async {
     final now = DateTime.now();
 
     final uniqueSuffix =
@@ -259,7 +271,10 @@ class BatchInwardController extends GetxController {
       },
 
       /// 📌 Table Headers
-      headers: ["Sr No", "Item", "Gross", "Tare", "Net"],
+      headers: ["Sr No", "Name", "Gross", "Tare", "Net"],
+      email:
+          dashboardController.companyDetails.value?.data?.email ??
+          'shahjenil9977@gmail.com',
 
       /// 📌 Data rows generated from productList
       data: productList.asMap().entries.map((entry) {
@@ -268,12 +283,24 @@ class BatchInwardController extends GetxController {
         return [
           (index + 1).toString(),
           e.batchProductName ?? '',
+          formatAttributes(selectedModelProduct.value?.combinations),
           "${e.grossWeight} kg",
           "${e.tareWeight} kg",
           "${e.netWeight} kg",
         ];
       }).toList(),
     );
+  }
+
+  String formatAttributes(List<Combinations>? combinations) {
+    if (combinations == null || combinations.isEmpty) return '';
+
+    final printable = combinations
+        .where((c) => c.isPrintable.value == true)
+        .map((c) => "${c.attrName}: ${c.attrValue}")
+        .toList();
+
+    return printable.join(", ");
   }
 
   void onTapPdf(BuildContext context) {
@@ -312,7 +339,7 @@ class BatchInwardController extends GetxController {
     }
   }
 
-  void _startAutoWeightMonitor() {
+  /*void _startAutoWeightMonitor() {
     autoWeightTimer?.cancel(); // reset
     final double nWeight = double.parse(manualCtrl.manualNet.value ?? '0.0');
 
@@ -350,6 +377,52 @@ class BatchInwardController extends GetxController {
         continuousOutOfRangeSeconds = 0;
       }
     });
+  }*/
+  void _startAutoWeightMonitor() {
+    autoWeightTimer?.cancel(); // reset existing timer
+
+    autoWeightTimer = Timer.periodic(
+      const Duration(seconds: 1),
+          (timer) async {
+
+        // 1️⃣ Auto mode must be enabled
+        if (!isBatchAutoWeightEnabled.value) return;
+
+        // 2️⃣ Product must be selected
+        if (selectedModuleProduct.value == null) return;
+
+        final module product = selectedModuleProduct.value!;
+
+        // 3️⃣ Parse weight safely
+        final double netWeight =
+            double.tryParse(manualCtrl.manualNet.value ?? '') ?? 0.0;
+
+        // 4️⃣ Correct range check
+        final bool isInRange =
+            netWeight >= product.minWeight &&
+                netWeight <= product.maxWeight;
+
+        // 5️⃣ 🔥 TOWER LIGHT INTEGRATION
+        dashboardController.tower_controller.updateWeightStatus(
+          isInRange
+              ? WeightStatus.inRange   // sends "0"
+              : WeightStatus.outOfRange, // sends "1"
+        );
+        print('tower controller => ' + isInRange.toString());
+
+        // 6️⃣ Existing batch logic (unchanged)
+        if (!isInRange) {
+          continuousOutOfRangeSeconds++;
+
+          if (continuousOutOfRangeSeconds >= product.seconds) {
+            await addToList();
+            continuousOutOfRangeSeconds = 0;
+          }
+        } else {
+          continuousOutOfRangeSeconds = 0;
+        }
+      },
+    );
   }
 
   Future<void> addToList() async {
@@ -398,7 +471,7 @@ class BatchInwardController extends GetxController {
       text: 'Entry Added Successfully',
       toastColor: Colors.green,
     );
-    if(inwardState.value != InwardState.running){
+    if (inwardState.value != InwardState.running) {
       inwardState.value = InwardState.running;
     }
     final combinations = fetchedProduct?.combinations ?? [];
@@ -469,6 +542,7 @@ class BatchInwardController extends GetxController {
         await dashboardController.printSmallSticker(
           barcodeString: barcodeString,
           productName: productName,
+          noAttribute: noAttr,
           labelFields: labelFields,
         );
         break;
@@ -512,5 +586,12 @@ class BatchInwardController extends GetxController {
     await onPauseOrStop(pauseOrStop: 'stop');
     productList.clear();
     print("Stopped");
+  }
+
+  @override
+  void onClose() {
+    autoWeightTimer?.cancel();
+    serialNumberTextController.dispose();
+    super.onClose();
   }
 }

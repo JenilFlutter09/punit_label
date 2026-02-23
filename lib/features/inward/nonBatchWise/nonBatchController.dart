@@ -64,19 +64,46 @@ class NonBatchInwardController extends GetxController {
   Future<void> onInit() async {
     // TODO: implement onInit
     super.onInit();
-    initLoading.value = true;
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
     await _fetchTareProductsList();
+    await fetchProductNames();
+    await fetchAttributes();
+
     if (nonInwardController.selectedTransaction.value != null) {
       await fetchNonBatchDetail(
         nonInwardController.selectedTransaction.value?.id.toString() ?? '1',
       );
     }
-    await fetchProductNames();
-    await fetchAttributes();
+
     serialNumberTextController.text = serialNumber.value.toString();
     validateSerial(serialNumberTextController.text);
-    initLoading.value = false;
   }
+
+  // @override
+  // Future<void> onReady() async {
+  //   // TODO: implement onReady
+  //   super.onReady();
+  //   initLoading.value = true;
+  //   await _fetchTareProductsList();
+  //   if (nonInwardController.selectedTransaction.value != null) {
+  //     await fetchNonBatchDetail(
+  //       nonInwardController.selectedTransaction.value?.id.toString() ?? '1',
+  //     );
+  //   }
+  //   await fetchProductNames();
+  //   await fetchAttributes();
+  //   serialNumberTextController.text = serialNumber.value.toString();
+  //   validateSerial(serialNumberTextController.text);
+  //   initLoading.value = false;
+  // }
 
   void validateSerial(String value) {
     isSerialVerified.value = RegExp(r'^\d+$').hasMatch(value);
@@ -86,6 +113,8 @@ class NonBatchInwardController extends GetxController {
   Future<void> _fetchTareProductsList() async {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getTareList(),
+      isLoading: initLoading,
+
     );
     tareProductsListModel.value = TareProductListModel.fromJson(
       jsonDecode(response.data),
@@ -124,6 +153,8 @@ class NonBatchInwardController extends GetxController {
   Future<void> fetchNonBatchDetail(String batchId) async {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getNonBatchDetails(batchId),
+      isLoading: initLoading,
+
     );
     nonBatchDetailModel.value = NonBatchDetailModel.fromJson(
       jsonDecode(response.data),
@@ -150,6 +181,8 @@ class NonBatchInwardController extends GetxController {
   Future<void> fetchProductNames() async {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getProductList(),
+      isLoading: initLoading,
+
     );
 
     product_list_model.value = productListModel.fromJson(
@@ -194,6 +227,8 @@ class NonBatchInwardController extends GetxController {
   Future<void> fetchAttributes() async {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getAttributeList(),
+      isLoading: initLoading,
+
     );
     attributes_list_model.value = attributesListModel.fromJson(
       jsonDecode(response.data),
@@ -339,26 +374,6 @@ class NonBatchInwardController extends GetxController {
           );
         })
         .toList();
-
-    // -----------------------------
-    // 2. Generate Barcode
-    // -----------------------------
-
-
-    // final newBarcode = NonBatchBarcodes(
-    //   barCodeString: barcode,
-    //   tareWeightEnable: (dashboardController.tareState.value != TareState.off),
-    //   tareWeight: tare,
-    //   grossWeight: gross,
-    //   netWeight: net,
-    //   time: nowWithoutSeconds(), // 🕒
-    // );
-    //
-    // barcode_list.insert(0, newBarcode);
-    // Utility.showToast(
-    //   text: 'Entry Added Successfully',
-    //   toastColor: Colors.green,
-    // );
     // -----------------------------
     // 3. Check if SAME product+attributes exists
     // -----------------------------
@@ -491,17 +506,18 @@ class NonBatchInwardController extends GetxController {
     // -------------------------------------------------------------
     switch (selected) {
       case LabelFormat.Small:
-        if (dashboardController.printSerialNumberInLabel.value) {
-          labelFields = {
-            "Sr No ": serialNumber.toString(),
-            "Weight": manualCtrl.manualNet.value ?? '0',
-          };
-        } else {
-          labelFields = {"Weight": manualCtrl.manualNet.value ?? '0'};
-        }
+        // if (dashboardController.printSerialNumberInLabel.value) {
+        //   labelFields = {
+        //     "Sr No ": serialNumber.toString(),
+        //     "Weight": manualCtrl.manualNet.value ?? '0',
+        //   };
+        // } else {
+        //   labelFields = {"Weight": manualCtrl.manualNet.value ?? '0'};
+        // }
         await dashboardController.printSmallSticker(
           barcodeString: barcodeString,
           productName: productName,
+          noAttribute: noAttr,
           labelFields: labelFields,
         );
         break;
@@ -601,28 +617,31 @@ class NonBatchInwardController extends GetxController {
     var response = await dashboardController.callApi(
       apiCall: () =>
           connectHelper.nonBatchProductStore(non_batch_inward_model: data),
+      isLoading: initLoading,
+
     );
     if (!response.hasError) {
+      if(pauseOrStop == 'stop') {
+        Get.snackbar(
+          "Successful",
+          "Transaction Saved Successfully",
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          animationDuration: Duration(seconds: 3),
+        );
+      }else{
+        Get.snackbar(
+          "Paused",
+          "Transaction Paused Successfully",
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          animationDuration: Duration(seconds: 3),
+        );
+      }
       await generatePdf();
-      Get.snackbar(
-        "Paused",
-        "Transaction Paused Successfully",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-        animationDuration: Duration(seconds: 3),
-      );
     }
-    // } else {
-    //   Get.snackbar(
-    //     "Success",
-    //     "Products Added Successfully",
-    //     snackPosition: SnackPosition.BOTTOM,
-    //     backgroundColor: Colors.green,
-    //     colorText: Colors.white,
-    //     animationDuration: Duration(seconds: 3),
-    //   );
-    // }
   }
 
   String formatBarcodeTime(DateTime? dt) {
@@ -645,8 +664,9 @@ class NonBatchInwardController extends GetxController {
         "Generated By": "punitinstrument.com",
         "Date": DateFormat('dd-MM-yyyy').format(DateTime.now()),
       },
-      headers: ["Sr No", "Item", "Gross", "Tare", "Net", "Created_at"],
+      headers: ["Sr No", "Name", "Gross", "Tare", "Net", "Created_at"],
       data: _flattenBarcodesForExport(),
+      email: dashboardController.companyDetails.value?.data?.email ?? 'shahjenil9977@gmail.com'
     );
   }
 
@@ -690,11 +710,12 @@ class NonBatchInwardController extends GetxController {
 
     for (var product in productList) {
       if (product.barcodes == null) continue;
-
+      final attributeText = formatAttributes(product.attributes);
       for (var b in product.barcodes!) {
         rows.add([
           counter.toString(),
           product.productName ?? '',
+          attributeText,
           "${b.grossWeight ?? 0} kg",
           "${b.tareWeight ?? 0} kg",
           "${b.netWeight ?? 0} kg",
@@ -706,35 +727,91 @@ class NonBatchInwardController extends GetxController {
 
     return rows;
   }
+  String formatAttributes(List<NonBatchAttributes>? attrs) {
+    if (attrs == null || attrs.isEmpty) return "";
 
+    return attrs
+        .map((a) => "${a.attributeName}: ${a.optionName}")
+        .join(", "); ///If you want multi-line instead of comma: .join("\n");
+
+  }
   void _startAutoWeightMonitor() {
     autoWeightTimer?.cancel();
 
-    autoWeightTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (!isBatchAutoWeightEnabled.value) return;
-      if (selectedProduct.value == null) return;
+    autoWeightTimer = Timer.periodic(
+      const Duration(seconds: 1),
+          (timer) async {
+        // 1️⃣ Auto mode enabled
+        if (!isBatchAutoWeightEnabled.value) return;
 
-      final product = selectedProduct.value!;
-      final double netWeight =
-          double.tryParse(manualCtrl.manualNet.value ?? "0") ?? 0;
+        // 2️⃣ Product selected
+        if (selectedProduct.value == null) return;
 
-      final bool isInRange =
-          netWeight >= product.minWeight && netWeight <= product.maxWeight;
+        final product = selectedProduct.value!;
 
-      if (!isInRange) {
-        continuousOutOfRangeSeconds = 0;
-        return;
-      }
+        // 3️⃣ Parse weight safely
+        final double netWeight =
+            double.tryParse(manualCtrl.manualNet.value ?? '') ?? 0.0;
 
-      continuousOutOfRangeSeconds++;
+        // 4️⃣ Range check
+        final bool isInRange =
+            netWeight >= product.minWeight &&
+                netWeight <= product.maxWeight;
 
-      if (continuousOutOfRangeSeconds >= product.seconds) {
-        await addToList();
-        print("✔ Auto weight added: ${product.name} | Net = $netWeight");
-        continuousOutOfRangeSeconds = 0;
-      }
-    });
+        // 5️⃣ 🔥 TOWER LIGHT INTEGRATION
+
+        dashboardController.tower_controller.updateWeightStatus(
+          isInRange
+              ? WeightStatus.inRange   // sends "0"
+              : WeightStatus.outOfRange, // sends "1"
+        );
+
+        // 6️⃣ Existing batch logic (unchanged)
+        if (!isInRange) {
+          continuousOutOfRangeSeconds = 0;
+          return;
+        }
+
+        continuousOutOfRangeSeconds++;
+
+        if (continuousOutOfRangeSeconds >= product.seconds) {
+          await addToList();
+          print(
+            "✔ Auto weight added: ${product.name} | Net = $netWeight",
+          );
+          continuousOutOfRangeSeconds = 0;
+        }
+      },
+    );
   }
+  // void _startAutoWeightMonitor() {
+  //   autoWeightTimer?.cancel();
+  //
+  //   autoWeightTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+  //     if (!isBatchAutoWeightEnabled.value) return;
+  //     if (selectedProduct.value == null) return;
+  //
+  //     final product = selectedProduct.value!;
+  //     final double netWeight =
+  //         double.tryParse(manualCtrl.manualNet.value ?? "0") ?? 0;
+  //
+  //     final bool isInRange =
+  //         netWeight >= product.minWeight && netWeight <= product.maxWeight;
+  //
+  //     if (!isInRange) {
+  //       continuousOutOfRangeSeconds = 0;
+  //       return;
+  //     }
+  //
+  //     continuousOutOfRangeSeconds++;
+  //
+  //     if (continuousOutOfRangeSeconds >= product.seconds) {
+  //       await addToList();
+  //       print("✔ Auto weight added: ${product.name} | Net = $netWeight");
+  //       continuousOutOfRangeSeconds = 0;
+  //     }
+  //   });
+  // }
 
   void deleteBarcode(NonBatchProducts product, NonBatchBarcodes barcode) {
     product.barcodes?.remove(barcode);
@@ -763,4 +840,12 @@ class NonBatchInwardController extends GetxController {
     Get.back();
     print("Stopped");
   }
+  @override
+  void onClose() {
+    autoWeightTimer?.cancel();
+    serialNumberTextController.dispose();
+    transactionName.dispose();
+    super.onClose();
+  }
+
 }

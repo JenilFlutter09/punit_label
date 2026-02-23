@@ -39,36 +39,39 @@ class InwardScreen extends StatelessWidget {
           horizontal: isTablet ? 24 : 16,
           vertical: isTablet ? 20 : 14,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _sectionHeader("Select Batch", isTablet),
-            SizedBox(height: isTablet ? 14 : 10),
+        child: RefreshIndicator(
+          onRefresh: () => controller.refreshList(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sectionHeader("Select Batch", isTablet),
+              SizedBox(height: isTablet ? 14 : 10),
 
-            Expanded(
-              child: Obx((){
-                if(controller.initLoading.value){
-                    return Container(
-                        alignment: Alignment.center,
-                        child: CircularProgressIndicator());
-                }
-                else if(controller.batchList.isEmpty){
-                  return Center(child: Text('No Batch Found'),);
-                }
-                return ListView.separated(
-                  itemCount: controller.batchList.length,
-                  separatorBuilder: (_, __) => SizedBox(height: isTablet ? 12 : 10),
-                  itemBuilder: (context, index) {
-                    var data = controller.batchList[index];
-                    return GestureDetector(
-                      onTap: () => Get.to(()=>BatchInwardScreen(selectedBatchId: data.id.toString(),)),
-                      child: _batchTile(index, isTablet,data),
-                    );
-                  },
-                );
-              })
-            ),
-          ],
+              Expanded(
+                child: Obx((){
+                  if(controller.initLoading.value){
+                      return Container(
+                          alignment: Alignment.center,
+                          child: CircularProgressIndicator());
+                  }
+                  else if(controller.batchList.isEmpty){
+                    return Center(child: Text('No Batch Found'),);
+                  }
+                  return ListView.separated(
+                    itemCount: controller.batchList.length,
+                    separatorBuilder: (_, __) => SizedBox(height: isTablet ? 12 : 10),
+                    itemBuilder: (context, index) {
+                      var data = controller.batchList[index];
+                      return GestureDetector(
+                        onTap: () => Get.to(()=>BatchInwardScreen(selectedBatchId: data.id.toString(),)),
+                        child: _batchTile(index, isTablet,data),
+                      );
+                    },
+                  );
+                })
+              ),
+            ],
+          ),
         ),
       ),
 
