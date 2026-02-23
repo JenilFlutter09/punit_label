@@ -1,12 +1,17 @@
 // ble/ble_service.dart
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 
 import '../constants/enums.dart';
 import '../constants/strings.dart';
-
+String buildPayload(WeightStatus status) {
+  return jsonEncode({
+    "status": status == WeightStatus.inRange ? "0" : "1"
+  });
+}
 
 
 class BleService {

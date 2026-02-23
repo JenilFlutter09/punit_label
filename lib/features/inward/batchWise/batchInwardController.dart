@@ -580,6 +580,10 @@ class BatchInwardController extends GetxController {
     inwardState.value = InwardState.idle;
 
     autoWeightTimer?.cancel();
+    dashboardController.tower_controller.updateWeightStatus(
+
+           WeightStatus.outOfRange, // sends "1"
+    );
     continuousOutOfRangeSeconds = 0;
 
     /// API CALL

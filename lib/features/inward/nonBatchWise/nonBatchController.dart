@@ -688,18 +688,6 @@ class NonBatchInwardController extends GetxController {
         headers: ["Sr No", "Item", "Gross", "Tare", "Net", "Created_at"],
         data: _flattenBarcodesForExport(),
 
-        /// 📌 Data rows generated from productList
-        /* data: productList.asMap().entries.map((entry) {
-          final int index = entry.key;
-          final NonBatchBarcodes e = entry.value;
-          return [
-            (index + 1).toString(),
-            e.batchProductName ?? '',
-            "${e.grossWeight} kg",
-            "${e.tareWeight} kg",
-            "${e.netWeight} kg",
-          ];
-        }).toList(),*/
       );
     }
   }
@@ -784,34 +772,6 @@ class NonBatchInwardController extends GetxController {
       },
     );
   }
-  // void _startAutoWeightMonitor() {
-  //   autoWeightTimer?.cancel();
-  //
-  //   autoWeightTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-  //     if (!isBatchAutoWeightEnabled.value) return;
-  //     if (selectedProduct.value == null) return;
-  //
-  //     final product = selectedProduct.value!;
-  //     final double netWeight =
-  //         double.tryParse(manualCtrl.manualNet.value ?? "0") ?? 0;
-  //
-  //     final bool isInRange =
-  //         netWeight >= product.minWeight && netWeight <= product.maxWeight;
-  //
-  //     if (!isInRange) {
-  //       continuousOutOfRangeSeconds = 0;
-  //       return;
-  //     }
-  //
-  //     continuousOutOfRangeSeconds++;
-  //
-  //     if (continuousOutOfRangeSeconds >= product.seconds) {
-  //       await addToList();
-  //       print("✔ Auto weight added: ${product.name} | Net = $netWeight");
-  //       continuousOutOfRangeSeconds = 0;
-  //     }
-  //   });
-  // }
 
   void deleteBarcode(NonBatchProducts product, NonBatchBarcodes barcode) {
     product.barcodes?.remove(barcode);
@@ -831,6 +791,9 @@ class NonBatchInwardController extends GetxController {
     inwardState.value = InwardState.idle;
 
     autoWeightTimer?.cancel();
+    dashboardController.tower_controller.updateWeightStatus(
+      WeightStatus.outOfRange, // sends "1"
+    );
     continuousOutOfRangeSeconds = 0;
 
     /// API CALL
