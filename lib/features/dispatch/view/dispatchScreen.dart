@@ -221,6 +221,7 @@ class ProductSelectorSection extends StatelessWidget {
                           borderRadius: BorderRadius.circular(Dimens.ten),
                           color: ColorsValue.primaryColor,
                         ),
+                        padding: Dimens.edgeInsets5,
                         child: Text(
                           'Add Entry',
                           style: TextStyle(

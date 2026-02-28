@@ -5,11 +5,13 @@ import 'package:punit_label/constants/sizes.dart';
 import 'package:punit_label/features/dashboard/dashboardController.dart';
 import 'package:punit_label/features/dispatch/view/dispatchScreen.dart';
 import 'package:punit_label/features/inward/view/inwardScreen.dart';
+import 'package:punit_label/navigation/routesManagement.dart';
 
 import '../constants/colors.dart';
 import '../constants/styles.dart';
 import '../constants/utility.dart';
 import '../features/tare/tareView.dart';
+
 class CustomDrawer extends StatelessWidget {
   CustomDrawer({super.key});
 
@@ -20,6 +22,7 @@ class CustomDrawer extends StatelessWidget {
     final bool isTablet = MediaQuery.of(context).size.width > 600;
 
     return Drawer(
+      width: isTablet ? Dimens.twoHundredFifty : Dimens.hundredFifty,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
           topRight: Radius.circular(24),
@@ -35,40 +38,46 @@ class CustomDrawer extends StatelessWidget {
               padding: Dimens.edgeInsets8_0_8_0,
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  child: Obx(() => Row(
-                    children: [
-                      DrawerQuickAction(
-                        icon: Icons.archive,
-                        label: "Inward",
-                        enabled: dashController.enableInward.value,
-                        onTap: () {
-                          Get.back();
-                          Get.to(() => InwardScreen());
-                        },
-                      ),
-                      DrawerQuickAction(
-                        icon: Icons.local_shipping,
-                        label: "Dispatch",
-                        enabled: dashController.enableDispatch.value,
-                        onTap: () {
-                          Get.back();
-                          Get.to(() => DispatchScreen());
-                        },
-                      ),
-                      DrawerQuickAction(
-                        icon: Icons.line_weight,
-                        label: "Tare",
-                        onTap: () {
-                          Get.back();
-                          Get.to(() => AddTareProductsView());
-                        },
-                      ),
-                    ],
-                  )),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  child: Obx(
+                    () => Row(
+                      children: [
+                        DrawerQuickAction(
+                          icon: Icons.archive,
+                          label: "Inward",
+                          enabled: dashController.enableInward.value,
+                          onTap: () {
+                            Get.back();
+                            Get.to(() => InwardScreen());
+                          },
+                        ),
+                        DrawerQuickAction(
+                          icon: Icons.local_shipping,
+                          label: "Dispatch",
+                          enabled: dashController.enableDispatch.value,
+                          onTap: () {
+                            Get.back();
+                            Get.to(() => DispatchScreen());
+                          },
+                        ),
+                        DrawerQuickAction(
+                          icon: Icons.line_weight,
+                          label: "Tare",
+                          onTap: () {
+                            Get.back();
+                            Get.to(() => AddTareProductsView());
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
 
-                Divider(),
+                // Divider(),
+                Dimens.boxHeight10,
 
                 _sectionTitle("Label Configuration"),
                 _switchTile(
@@ -87,51 +96,57 @@ class CustomDrawer extends StatelessWidget {
                   title: "Time Stamp",
                   value: dashController.printTimeInLabel,
                 ),
-                Divider(),
+                //  Divider(),
+                Dimens.boxHeight10,
                 _sectionTitle("Tare Weight Configuration"),
                 //Dimens.boxHeight10,
                 Obx(
-                      () => ThreeLevelSelector(
+                  () => ThreeLevelSelector(
                     value: dashController.tareState.value,
                     isTablet: isTablet,
                     onChanged: (state) {
                       dashController.tareState.value = state;
                       if (state == TareState.off) {
-                        dashController.manualBatchWeights.manualTare.value = '0';
+                        dashController.manualBatchWeights.manualTare.value =
+                            '0';
                         dashController.manualBatchWeights.tareCtrl.text = '0';
-                        dashController.manualNonBatchWeights.manualTare.value = '0';
-                        dashController.manualNonBatchWeights.tareCtrl.text = '0';
+                        dashController.manualNonBatchWeights.manualTare.value =
+                            '0';
+                        dashController.manualNonBatchWeights.tareCtrl.text =
+                            '0';
                       }
                     },
                   ),
                 ),
 
                 //Dimens.boxHeight10,
-                Divider(),
+                // Divider(),
+                Dimens.boxHeight10,
                 _sectionTitle("Printer Configuration"),
                 //Dimens.boxHeight10,
                 Obx(
-                      () => TwoLevelSelector(
+                  () => TwoLevelSelector(
                     value: dashController.labelState.value,
                     isTablet: isTablet,
                     onChanged: (state) {
                       dashController.labelState.value = state;
                       if (state == LabelState.Receipt) {
-                        if(dashController.isPrinterConnected.value == true){
+                        if (dashController.isPrinterConnected.value == true) {
                           dashController.disconnectPrinter();
                         }
                         dashController.isLabelPrinterMode.value = false;
-                      }else{
+                      } else {
                         dashController.isLabelPrinterMode.value = true;
                       }
                     },
                   ),
                 ),
-                Divider(),
+                // Divider(),
+                Dimens.boxHeight10,
                 _sectionTitle("Tower Light Configuration"),
                 //Dimens.boxHeight10,
                 Obx(
-                      () => TowerLevelSelector(
+                  () => TowerLevelSelector(
                     value: dashController.isTowerLight.value,
                     isTablet: isTablet,
                     onChanged: (state) {
@@ -139,26 +154,26 @@ class CustomDrawer extends StatelessWidget {
                     },
                   ),
                 ),
-                Divider(),
+                // Divider(),
+                Dimens.boxHeight10,
                 ListTile(
                   leading: const Icon(Icons.logout),
                   title: const Text(
                     "Logout",
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  onTap: () => Get.offAllNamed('/login'),
+                  onTap: () => RouteManagement.offToLogin(),
                 ),
               ],
             ),
           ),
-
         ],
       ),
     );
   }
 
   /// 🔹 Header
-  Widget _header({ required DashboardController dashboardController}) {
+  Widget _header({required DashboardController dashboardController}) {
     return Container(
       height: Dimens.hundredSixtySeven,
       width: Get.width,
@@ -166,17 +181,19 @@ class CustomDrawer extends StatelessWidget {
       alignment: Alignment.bottomCenter,
       decoration: BoxDecoration(
         color: ColorsValue.primaryColor,
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(24),
-        ),
+        borderRadius: const BorderRadius.only(topRight: Radius.circular(24)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-           CircleAvatar(
+          CircleAvatar(
             radius: 36,
             backgroundColor: Colors.white,
-            child: Icon(Icons.person, size: 42, color: ColorsValue.primaryColor,),
+            child: Icon(
+              Icons.person,
+              size: 42,
+              color: ColorsValue.primaryColor,
+            ),
           ),
           Dimens.boxHeight12,
           Text(
@@ -212,10 +229,7 @@ class CustomDrawer extends StatelessWidget {
   Widget _sectionTitle(String text) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Text(
-        text.toUpperCase(),
-        style: Styles.primaryBold14,
-      ),
+      child: Text(text.toUpperCase(), style: Styles.primaryBold14),
     );
   }
 
@@ -226,7 +240,7 @@ class CustomDrawer extends StatelessWidget {
     required RxBool value,
   }) {
     return Obx(
-          () => SwitchListTile(
+      () => SwitchListTile(
         secondary: Icon(icon, color: ColorsValue.primaryColor),
         title: Text(title),
         value: value.value,
@@ -268,13 +282,13 @@ class ThreeLevelSelector extends StatelessWidget {
             level: TareState.off,
             selected: value == TareState.off,
           ),
-          _divider(),
+          // Divider(),
           _option(
             label: "ON",
             level: TareState.on,
             selected: value == TareState.on,
           ),
-          _divider(),
+          // Divider(),
           _option(
             label: "Barcode",
             level: TareState.barcode,
@@ -353,7 +367,7 @@ class TwoLevelSelector extends StatelessWidget {
             level: LabelState.Label,
             selected: value == LabelState.Label,
           ),
-          _divider(),
+          // Divider(),
           _option(
             label: "Receipt",
             level: LabelState.Receipt,
@@ -427,17 +441,9 @@ class TowerLevelSelector extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _option(
-            label: "ON",
-            level: true,
-            selected: value == true,
-          ),
+          _option(label: "ON", level: true, selected: value == true),
           _divider(),
-          _option(
-            label: "OFF",
-            level: false,
-            selected: value == false,
-          ),
+          _option(label: "OFF", level: false, selected: value == false),
         ],
       ),
     );
@@ -508,9 +514,7 @@ class DrawerQuickAction extends StatelessWidget {
                   : Colors.grey.shade200,
               child: Icon(
                 icon,
-                color: enabled
-                    ? ColorsValue.primaryColor
-                    : Colors.grey,
+                color: enabled ? ColorsValue.primaryColor : Colors.grey,
               ),
             ),
             const SizedBox(height: 6),
@@ -519,9 +523,7 @@ class DrawerQuickAction extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: enabled
-                    ? Colors.black87
-                    : Colors.grey,
+                color: enabled ? Colors.black87 : Colors.grey,
               ),
             ),
           ],
