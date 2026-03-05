@@ -9,7 +9,7 @@ import '../constants/sizes.dart';
 import '../constants/strings.dart';
 import '../constants/styles.dart';
 import '../features/dashboard/dashboardController.dart';
-import '../features/dashboard/try.dart';
+// import '../features/dashboard/try.dart';
 import 'bluetooth_bottomsheet.dart';
 
 void _disconnectDialog(BuildContext context, String title, Function onConfirm) {
