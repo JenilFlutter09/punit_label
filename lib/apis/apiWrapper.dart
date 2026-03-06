@@ -16,7 +16,8 @@ class ApiWrapper {
   /// Base Url for testing purpose
  //  final String _baseUrl = "https://labels.clotheeo.com/api/";
   /// Live Url for Client purpose
-  final String _baseUrl = "https://pinnacle.punitinstrument.com/api/";
+  // final String _baseUrl = "https://pinnacle.punitinstrument.com/api/";
+  final String _baseUrl = "https://testingpinnacle.punitinstrument.com/api/";
 
   Future<ResponseModel> makeRequest({
     required String url,

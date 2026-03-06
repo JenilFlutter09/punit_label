@@ -40,9 +40,9 @@ class DispatchController extends GetxController {
   Future<void> onReady() async {
     // TODO: implement onReady
     super.onReady();
-    initLoading.value = true;
+    // initLoading.value = true;
     await refresh();
-    initLoading.value = false;
+    // initLoading.value = false;
   }
   Future<void> refresh() async {
     await _fetchBatchlist();

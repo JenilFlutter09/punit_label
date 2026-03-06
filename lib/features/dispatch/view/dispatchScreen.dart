@@ -198,6 +198,12 @@ class ProductSelectorSection extends StatelessWidget {
                     flex: 2,
                     child: TextField(
                       controller: controller.manualBarcode,
+                      autofocus: true,
+                        onSubmitted: (value) {
+                        if (value.trim().isNotEmpty) {
+                          controller.verifyAndAddBarcode(value.trim());
+                        }
+                      },
                       decoration: InputDecoration(
                         // helperText: 'Barcode String here...',
                         labelText: 'Barcode',
