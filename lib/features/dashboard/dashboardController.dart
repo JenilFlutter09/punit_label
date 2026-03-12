@@ -94,6 +94,17 @@ class DashboardController extends GetxController {
     barcodeHeight: 80
   );
 
+  final wholesalePackLayout = LabelLayout(
+    maxAttributes: 10,
+    lineHeight: 60,
+    keyFont: 40,      // 5mm
+    valueFont: 40,    // 5mm
+    bottomPadding: 180,
+    columnGap: 400,
+    barcodeHeight: 90,
+);
+
+
   final tower_controller = Get.put(TowerLightController());
 
 // Example triggers
@@ -390,6 +401,12 @@ class DashboardController extends GetxController {
           9,
           LabelFormat.ExtraLarge,
         ),
+        LabelFormatElement(
+          5,
+          "Wholesale Pack",
+          10, 
+          LabelFormat.WholesalePack),
+
       ];
     } else {
       labelFormats.value = [
@@ -417,6 +434,11 @@ class DashboardController extends GetxController {
           7,
           LabelFormat.ExtraLarge,
         ),
+        LabelFormatElement(
+          5,
+          "Wholesale Pack",
+          10, 
+          LabelFormat.WholesalePack),
       ];
     }
   }
@@ -536,8 +558,16 @@ class DashboardController extends GetxController {
       lines.add(topLineParts.take(2).join(" | "));
     }
 
+    // if (addressLine.isNotEmpty) {
+    //   lines.add(addressLine);
+    // }
     if (addressLine.isNotEmpty) {
-      lines.add(addressLine);
+      const int maxChars = 49; // fits within label width at contactFont size
+      for (int i = 0; i < addressLine.length; i += maxChars) {
+        lines.add(
+          addressLine.substring(i, (i + maxChars).clamp(0, addressLine.length)),
+        );
+      }
     }
 
     return lines;
@@ -552,6 +582,7 @@ class DashboardController extends GetxController {
     required String productName,
     required LabelFormat format,
     required bool isGrid,
+    String? businessHours,
     Map<String, dynamic>? labelFields,
     required LabelLayout label_layout,
   }) async {
@@ -594,6 +625,7 @@ class DashboardController extends GetxController {
           "companyContact": companyInfoLines.join("\n"),
           "attributes": dynamicAttributes,
           "layout": label_layout.toMap(), // 👈 KEY
+          "businessHours": businessHours ?? "",
         });
 
         print(result);
@@ -746,6 +778,29 @@ class DashboardController extends GetxController {
         label_layout: largeLabelLayout,
       );
     }
+  }
+ 
+  /// Print 100 X 150mm Wholesale Pack Sticker
+  Future<void> printWholesalePackSticker({
+    required String barcodeString,
+    required String productName,
+    Map<String, dynamic>? labelFields,
+    required int noAttribute,
+  }) async {
+    await printOneSticker(
+      stickerHeight: 1200,
+      stickerWidth: 700,
+      margin: 0,
+      thickness: 0,
+      productName: productName,
+      barcode: barcodeString,
+      isGrid: false,
+      labelFields: labelFields,
+      format: LabelFormat.WholesalePack,
+      label_layout: wholesalePackLayout,
+      businessHours: "On working day 11:00AM - 6:00PM",
+
+    );
   }
 
   Future<void> checkPrinterStatus() async {

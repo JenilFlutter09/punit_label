@@ -548,6 +548,37 @@ class NonBatchInwardController extends GetxController {
           noAttribute: noAttr,
         );
         break;
+
+      // case LabelFormat.WholesalePack:
+      // // Net Weight comes from attribute dropdown (already in combinationFields)
+      // // Gross Weight is the actual measured weight — append it
+      // final wholesaleFields = {
+      //   ...combinationFields,
+      //   "Gross Weight": manualCtrl.manualGross.value ?? '0',
+      // };
+      // await dashboardController.printWholesalePackSticker(
+      //   barcodeString: barcodeString,
+      //   productName: productName,
+      //   labelFields: wholesaleFields,
+      //   noAttribute: wholesaleFields.length,
+      // );
+      // break;
+      case LabelFormat.WholesalePack:
+        final wholesaleFields = <String, dynamic>{};
+        // Include Sr No if enabled
+        if (labelFields.containsKey("Sr No ")) {
+          wholesaleFields["Sr No "] = labelFields["Sr No "];
+        }
+        wholesaleFields.addAll(combinationFields);
+        wholesaleFields["Gross Weight"] = manualCtrl.manualGross.value ?? '0';
+
+        await dashboardController.printWholesalePackSticker(
+          barcodeString: barcodeString,
+          productName: productName,
+          labelFields: wholesaleFields,
+          noAttribute: wholesaleFields.length,
+        );
+        break;
     }
   }
 

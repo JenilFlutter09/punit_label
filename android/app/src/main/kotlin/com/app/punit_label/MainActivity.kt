@@ -71,6 +71,8 @@ class MainActivity : FlutterActivity() {
                         val rawAttributes = call.argument<List<Map<String, Any>>>("attributes") ?: emptyList()
                         val layout = call.argument<Map<String, Any>>("layout") ?: emptyMap()
                         val attributes = rawAttributes.map { it.mapValues { v -> v.value.toString() } }
+                        val businessHours = args["businessHours"]?.toString() ?: ""
+
                         printTrySticker(
                             result = result,
                             width = width,
@@ -85,7 +87,9 @@ class MainActivity : FlutterActivity() {
                             barcodeData = barcodeData,
                             productName = productName,
                             attributes = attributes,
-                            layout = layout
+                            layout = layout,
+                            businessHours = businessHours,
+
                         )
                     }
                     else -> result.notImplemented()
@@ -246,7 +250,9 @@ class MainActivity : FlutterActivity() {
         companyContact: String = "TEL: +91-7573830094  |  WWW.NIVAGROUPINDIA.COM",
         barcodeData: String = "123456789012",
         productName: String = "123456789012",
-        layout: Map<String, Any>
+        layout: Map<String, Any>,
+        businessHours: String = "",
+
 
     )   {
         Thread {
@@ -282,7 +288,8 @@ class MainActivity : FlutterActivity() {
                 val top = margin
                 val right = width - margin
                 val bottom = height - margin
-                val titleFont = 40
+                //val titleFont = 40
+                val titleFont = if (businessHours.isNotEmpty()) 56 else 40
                 val contactFont = 26
                 /// If White Label is True then dont print the Company name and company details and if false print the company name and details
                 //val companyX = (width / 2) - (companyName.length * titleFont / 4)
@@ -297,7 +304,7 @@ class MainActivity : FlutterActivity() {
 
                     val contactLines = companyContact.split("\n")
                     val contactX = left + 20
-                    var contactY = companyY + 40
+                    var contactY = companyY + 70
                     for (line in contactLines) {
                         if (line.isNotBlank()) {
                             lp.PrintText(
@@ -313,7 +320,11 @@ class MainActivity : FlutterActivity() {
                             contactY += 30   // line spacing (adjust if needed)
                         }
                     }
-
+// ← ADD THIS BLOCK HERE (before yPos line)
+if (businessHours.isNotEmpty()) {
+    lp.PrintText(contactX, contactY, "0", businessHours, 0, contactFont, contactFont, 0)
+    contactY += 30
+}
                     yPos = contactY + 10
                 }else{
                     yPos = top + 20
@@ -330,8 +341,11 @@ class MainActivity : FlutterActivity() {
                     val timeText = timeFormat.format(Date())
 
                     val dateX = right - 150
-                    var dateY = companyY
-
+                    //var dateY = companyY
+                    var dateY = if (businessHours.isNotEmpty()) yPos else companyY  // Move down ONLY for Wholesale Pack
+                    if (businessHours.isNotEmpty()) {
+                        yPos += 50  // Add spacing before WHOLESALE PACK title ONLY for Wholesale Pack
+                    }
                     // Date (line 1)
                     lp.PrintText(
                         dateX,
@@ -355,26 +369,52 @@ class MainActivity : FlutterActivity() {
                         dateTimeFont,
                         0
                     )
-
-                    // Move yPos BELOW date & time so nothing overlaps
-                   // yPos = dateY + (lineGap * 2) + 10
                 }
                 // --- after contact printing, define centers & bounds ---
                 val cx = width / 2
                 val cy = height / 2
                // val lineHeight = 60
                 // --- PRODUCT NAME ---
-                val productFont = 34
-
+                //val productFont = 34
+                val productFont = if (businessHours.isNotEmpty()) 56 else 34
+                // --- WHOLESALE PACK TITLE (only for Wholesale Pack format) ---
+                if (businessHours.isNotEmpty()) {
+                    val titleText = "Wholesale Pack"
+                    val titleFont = 56
+                    val titleX = centerText(titleText, titleFont, width)
+                    lp.PrintText(titleX, yPos, "0", titleText, 0, titleFont, titleFont, 1) // bold
+                    yPos += 70  // space below title
+                }
+                
                 //val productX = isGrid ? (width / 2) - (productName.length * productFont / 4) : left + 20
-                val productX = left + 20
+                //val productX = left + 20
+                val displayName = if (businessHours.isNotEmpty() && productName.contains(":- "))
+                    productName.substringAfter(":- ")
+                else
+                    productName
+
+                // Calculate maximum font size that fits on one line
+                // The formula is derived from centerText: estWidth = text.length * fontSize / 2.2
+                val maxTextWidth = width - 40 // 20 dots margin on each side
+                var dynamicProductFont = if (businessHours.isNotEmpty()) {
+                    val maxFitSize = (maxTextWidth * 2.2 / displayName.length).toInt()
+                    // Cap it at 56 (7mm) maximum, but don't go smaller than 24
+                    maxFitSize.coerceIn(24, 56)
+                } else {
+                    34
+                }
+                val productX = if (businessHours.isNotEmpty())
+                    centerText(displayName, dynamicProductFont, width)   // center for Wholesale Pack
+                else
+                    left + 20 
+
                 val productY = yPos
 
-                lp.PrintText(productX, productY, "0", productName, 0, productFont, productFont, 0)
+                lp.PrintText(productX, productY, "0", displayName, 0, dynamicProductFont, dynamicProductFont, 0)
 
 // update yPos to start attributes below product name
-                yPos = productY + 40
-
+                //yPos = productY + 40
+                yPos = productY + if (businessHours.isNotEmpty()) 80 else 40
 
 // Print attributes (unchanged logic, but uses cx for better alignment)
                 if (attributes.isNotEmpty()) {
