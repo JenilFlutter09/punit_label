@@ -519,6 +519,13 @@ class BatchInwardController extends GetxController {
           "Gross Weight": manualCtrl.manualGross.value ?? '0',  // Measured
         };
         break;
+      case 6:
+        selectedLabelFormat = LabelFormat.Dryfruit;
+        labelFields = {
+          ...combinationFields,
+          "Gross Weight": manualCtrl.manualGross.value ?? '0',
+        };
+        break;
     }
     if (dashboardController.printSerialNumberInLabel.value) {
       labelFields = {"Sr No ": nextSerial.toString(), ...labelFields};
@@ -583,6 +590,15 @@ class BatchInwardController extends GetxController {
 
       case LabelFormat.WholesalePack:
         await dashboardController.printWholesalePackSticker(
+          barcodeString: barcodeString,
+          productName: productName,
+          labelFields: labelFields,
+          noAttribute: labelFields.length,
+        );
+        break;
+      
+      case LabelFormat.Dryfruit:
+        await dashboardController.printDryfruitSticker(
           barcodeString: barcodeString,
           productName: productName,
           labelFields: labelFields,

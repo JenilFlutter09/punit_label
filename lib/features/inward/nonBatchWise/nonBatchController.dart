@@ -548,21 +548,7 @@ class NonBatchInwardController extends GetxController {
           noAttribute: noAttr,
         );
         break;
-
-      // case LabelFormat.WholesalePack:
-      // // Net Weight comes from attribute dropdown (already in combinationFields)
-      // // Gross Weight is the actual measured weight — append it
-      // final wholesaleFields = {
-      //   ...combinationFields,
-      //   "Gross Weight": manualCtrl.manualGross.value ?? '0',
-      // };
-      // await dashboardController.printWholesalePackSticker(
-      //   barcodeString: barcodeString,
-      //   productName: productName,
-      //   labelFields: wholesaleFields,
-      //   noAttribute: wholesaleFields.length,
-      // );
-      // break;
+        
       case LabelFormat.WholesalePack:
         final wholesaleFields = <String, dynamic>{};
         // Include Sr No if enabled
@@ -577,6 +563,24 @@ class NonBatchInwardController extends GetxController {
           productName: productName,
           labelFields: wholesaleFields,
           noAttribute: wholesaleFields.length,
+        );
+        break;
+
+      case LabelFormat.Dryfruit:
+        // Gross Weight is recorded live from weight scale
+        final dryfruitFields = <String, dynamic>{};
+        // Include Sr No if enabled
+        if (labelFields.containsKey("Sr No ")) {
+          dryfruitFields["Sr No "] = labelFields["Sr No "];
+        }
+        dryfruitFields.addAll(combinationFields);
+        dryfruitFields["Gross Weight"] = manualCtrl.manualGross.value ?? '0';
+
+        await dashboardController.printDryfruitSticker(
+          barcodeString: barcodeString,
+          productName: productName,
+          labelFields: dryfruitFields,
+          noAttribute: dryfruitFields.length,
         );
         break;
     }

@@ -104,6 +104,15 @@ class DashboardController extends GetxController {
     barcodeHeight: 90,
 );
 
+  final dryfruitLabelLayout = LabelLayout(
+    maxAttributes: 6,      // Product Name, Batch No, Packed On, Quantity, Net Weight, Gross Weight, + 1 for barcode
+    lineHeight: 30,        // Compact for smaller label
+    keyFont: 24,           // Smaller font for 75mm x 50mm
+    valueFont: 26,
+    bottomPadding:170,     // Room for barcode at bottom
+    columnGap: 170,        // Space for single column layout
+    barcodeHeight: 60      // Smaller barcode
+  );
 
   final tower_controller = Get.put(TowerLightController());
 
@@ -407,6 +416,11 @@ class DashboardController extends GetxController {
           10, 
           LabelFormat.WholesalePack),
 
+        LabelFormatElement(
+          6,
+          "Dryfruit Label Select Max (6)",
+          6,
+          LabelFormat.Dryfruit),
       ];
     } else {
       labelFormats.value = [
@@ -439,6 +453,11 @@ class DashboardController extends GetxController {
           "Wholesale Pack",
           10, 
           LabelFormat.WholesalePack),
+        LabelFormatElement(
+          6,
+          "Dryfruit Label Select Max (6)",
+          6,
+          LabelFormat.Dryfruit),
       ];
     }
   }
@@ -799,7 +818,27 @@ class DashboardController extends GetxController {
       format: LabelFormat.WholesalePack,
       label_layout: wholesalePackLayout,
       businessHours: "On working day 11:00AM - 6:00PM",
+    );
+  }
 
+  /// Print 75 X 50mm Dryfruit Label
+  Future<void> printDryfruitSticker({
+    required String barcodeString,
+    required String productName,
+    Map<String, dynamic>? labelFields,
+    required int noAttribute,
+  }) async {
+    await printOneSticker(
+      stickerHeight: 410,    
+      stickerWidth: 600,     
+      margin: 0,
+      thickness: 0,
+      productName: productName,
+      barcode: barcodeString,
+      isGrid: false,
+      labelFields: labelFields,
+      format: LabelFormat.Dryfruit,
+      label_layout: dryfruitLabelLayout,
     );
   }
 

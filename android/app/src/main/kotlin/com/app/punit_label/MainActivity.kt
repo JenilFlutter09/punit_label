@@ -288,9 +288,10 @@ class MainActivity : FlutterActivity() {
                 val top = margin
                 val right = width - margin
                 val bottom = height - margin
+                val isDryfruit= (width==600 && height==410)
                 //val titleFont = 40
-                val titleFont = if (businessHours.isNotEmpty()) 56 else 40
-                val contactFont = 26
+                val titleFont = if (isDryfruit) 36 else if (businessHours.isNotEmpty()) 56 else 40
+                val contactFont = if (isDryfruit) 20 else 26
                 /// If White Label is True then dont print the Company name and company details and if false print the company name and details
                 //val companyX = (width / 2) - (companyName.length * titleFont / 4)
                 var yPos = top + 20
@@ -304,7 +305,7 @@ class MainActivity : FlutterActivity() {
 
                     val contactLines = companyContact.split("\n")
                     val contactX = left + 20
-                    var contactY = companyY + 70
+                    var contactY = companyY + if (isDryfruit) 45 else 70
                     for (line in contactLines) {
                         if (line.isNotBlank()) {
                             lp.PrintText(
@@ -317,7 +318,7 @@ class MainActivity : FlutterActivity() {
                                 contactFont,
                                 0
                             )
-                            contactY += 30   // line spacing (adjust if needed)
+                            contactY += if (isDryfruit) 45 else 30   // line spacing (adjust if needed)
                         }
                     }
 // ← ADD THIS BLOCK HERE (before yPos line)
@@ -325,7 +326,8 @@ if (businessHours.isNotEmpty()) {
     lp.PrintText(contactX, contactY, "0", businessHours, 0, contactFont, contactFont, 0)
     contactY += 30
 }
-                    yPos = contactY + 10
+
+                    yPos = contactY + if (isDryfruit) 30 else 10
                 }else{
                     yPos = top + 20
                 }
@@ -376,7 +378,7 @@ if (businessHours.isNotEmpty()) {
                // val lineHeight = 60
                 // --- PRODUCT NAME ---
                 //val productFont = 34
-                val productFont = if (businessHours.isNotEmpty()) 56 else 34
+                val productFont = if (isDryfruit) 36 else if (businessHours.isNotEmpty()) 56 else 34
                 // --- WHOLESALE PACK TITLE (only for Wholesale Pack format) ---
                 if (businessHours.isNotEmpty()) {
                     val titleText = "Wholesale Pack"
@@ -388,7 +390,7 @@ if (businessHours.isNotEmpty()) {
                 
                 //val productX = isGrid ? (width / 2) - (productName.length * productFont / 4) : left + 20
                 //val productX = left + 20
-                val displayName = if (businessHours.isNotEmpty() && productName.contains(":- "))
+                val displayName = if ((isDryfruit ||businessHours.isNotEmpty()) && productName.contains(":- "))
                     productName.substringAfter(":- ")
                 else
                     productName
@@ -400,7 +402,11 @@ if (businessHours.isNotEmpty()) {
                     val maxFitSize = (maxTextWidth * 2.2 / displayName.length).toInt()
                     // Cap it at 56 (7mm) maximum, but don't go smaller than 24
                     maxFitSize.coerceIn(24, 56)
-                } else {
+                } 
+                else if (isDryfruit) {
+                    36
+                }
+                else {
                     34
                 }
                 val productX = if (businessHours.isNotEmpty())
@@ -414,14 +420,15 @@ if (businessHours.isNotEmpty()) {
 
 // update yPos to start attributes below product name
                 //yPos = productY + 40
-                yPos = productY + if (businessHours.isNotEmpty()) 80 else 40
-
+                yPos = productY + if (businessHours.isNotEmpty()) 80 else if (isDryfruit) 60 else 40
+                
 // Print attributes (unchanged logic, but uses cx for better alignment)
                 if (attributes.isNotEmpty()) {
                     if (!isGrid) {
                         for (item in attributes) {
                             //if (yPos > bottom - 150) break
-                            if (yPos > bottom - bottomPadding) break
+                            if (!isDryfruit && yPos > bottom - bottomPadding) break
+
 
                             val key = item["key"] ?: ""
                             val value = item["value"] ?: ""
@@ -442,7 +449,7 @@ if (businessHours.isNotEmpty()) {
 
                         for (i in attributes.indices step 2) {
                            // if (yPos > bottom - 150) break
-                            if (yPos > bottom - bottomPadding) break
+                            if (!isDryfruit && yPos > bottom - bottomPadding) break
 
                             val first = attributes[i]
                             val second = attributes.getOrNull(i + 1)
@@ -474,16 +481,22 @@ if (businessHours.isNotEmpty()) {
                     lp.PrintText(cx - 200, 350, "0", "Printer Connected ✔", 0, 30, 30, 0)
                 }
 
-                val humanReadableHeight = 28   // printer-dependent, safe avg
-                val footerFont = 20
+                val humanReadableHeight =  28   // printer-dependent, safe avg
+                val footerFont = if (isDryfruit) 15 else 20
                 val footerHeight = footerFont + 10
-                val footerY = bottom - footerHeight
+                val defaultfooterY = bottom - footerHeight
 // --- BARCODE + FOOTER (improved centering & module width sync) ---
                // val barcodeHeight = 80
                 //val barcodeY = bottom - barcodeHeight - 50
                 val barcodeBlockHeight = barcodeHeight + humanReadableHeight
-                val barcodeGap = 12  // breathing space
-                val barcodeY = footerY - barcodeBlockHeight - barcodeGap
+                val barcodeGap = if (isDryfruit) 12 else 12  // breathing space
+                val defaultbarcodeY = defaultfooterY - barcodeBlockHeight - barcodeGap
+
+                val flowBarcodeY = yPos + 8
+                val flowFooterY = flowBarcodeY + barcodeBlockHeight + 6
+
+                val barcodeY = if (isDryfruit) flowBarcodeY else defaultbarcodeY
+                val footerY = if (isDryfruit) flowFooterY else defaultfooterY
 
 // available horizontal printable width inside margins
                 val availableWidth = (right - left) - 20   // leave a small safety padding
