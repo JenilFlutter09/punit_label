@@ -72,6 +72,7 @@ class MainActivity : FlutterActivity() {
                         val layout = call.argument<Map<String, Any>>("layout") ?: emptyMap()
                         val attributes = rawAttributes.map { it.mapValues { v -> v.value.toString() } }
                         val businessHours = args["businessHours"]?.toString() ?: ""
+                        val labelFormat = args["labelFormat"]?.toString() ?: ""
 
                         printTrySticker(
                             result = result,
@@ -89,6 +90,8 @@ class MainActivity : FlutterActivity() {
                             attributes = attributes,
                             layout = layout,
                             businessHours = businessHours,
+                            labelFormat = labelFormat,
+
 
                         )
                     }
@@ -252,6 +255,8 @@ class MainActivity : FlutterActivity() {
         productName: String = "123456789012",
         layout: Map<String, Any>,
         businessHours: String = "",
+        labelFormat: String = "",
+
 
 
     )   {
@@ -274,11 +279,22 @@ class MainActivity : FlutterActivity() {
 
                 lp.SetPrintDensity(15)
 
+
+                val isDryfruit = labelFormat.equals("Dryfruit", ignoreCase = true)
+
                 // ===== Layout config from Flutter =====
                 val maxAttributes = (layout["maxAttributes"] as? Number)?.toInt() ?: attributes.size
                 val lineHeight = (layout["lineHeight"] as? Number)?.toInt() ?: 60
+
+                val printlineHeight = if (isDryfruit && isWhiteLabel) lineHeight + 10 else lineHeight
+
+
                 val keyFont = (layout["keyFont"] as? Number)?.toInt() ?: 30
                 val valueFont = (layout["valueFont"] as? Number)?.toInt() ?: 34
+
+                val printkeyFont = if (isDryfruit && isWhiteLabel) keyFont + 4 else keyFont
+                val printvalueFont = if (isDryfruit && isWhiteLabel) valueFont + 5 else valueFont
+
                 val bottomPadding = (layout["bottomPadding"] as? Number)?.toInt() ?: 150
                 val columnGap = (layout["columnGap"] as? Number)?.toInt() ?: 200
                 val barcodeHeight =
@@ -288,7 +304,7 @@ class MainActivity : FlutterActivity() {
                 val top = margin
                 val right = width - margin
                 val bottom = height - margin
-                val isDryfruit= (width==600 && height==410)
+                
                 //val titleFont = 40
                 val titleFont = if (isDryfruit) 36 else if (businessHours.isNotEmpty()) 56 else 40
                 val contactFont = if (isDryfruit) 20 else 26
@@ -378,7 +394,7 @@ if (businessHours.isNotEmpty()) {
                // val lineHeight = 60
                 // --- PRODUCT NAME ---
                 //val productFont = 34
-                val productFont = if (isDryfruit) 36 else if (businessHours.isNotEmpty()) 56 else 34
+                val productFont = if (isDryfruit && isWhiteLabel) 58 else if (isDryfruit) 36 else if (businessHours.isNotEmpty()) 56 else 34
                 // --- WHOLESALE PACK TITLE (only for Wholesale Pack format) ---
                 if (businessHours.isNotEmpty()) {
                     val titleText = "Wholesale Pack"
@@ -402,6 +418,9 @@ if (businessHours.isNotEmpty()) {
                     val maxFitSize = (maxTextWidth * 2.2 / displayName.length).toInt()
                     // Cap it at 56 (7mm) maximum, but don't go smaller than 24
                     maxFitSize.coerceIn(24, 56)
+                }
+                else if (isDryfruit && isWhiteLabel) {
+                    58
                 } 
                 else if (isDryfruit) {
                     36
@@ -420,7 +439,7 @@ if (businessHours.isNotEmpty()) {
 
 // update yPos to start attributes below product name
                 //yPos = productY + 40
-                yPos = productY + if (businessHours.isNotEmpty()) 80 else if (isDryfruit) 60 else 40
+                yPos = productY + if (businessHours.isNotEmpty()) 80 else if (isDryfruit && isWhiteLabel) 80 else if (isDryfruit) 60 else 40
                 
 // Print attributes (unchanged logic, but uses cx for better alignment)
                 if (attributes.isNotEmpty()) {
@@ -438,10 +457,10 @@ if (businessHours.isNotEmpty()) {
                             //val valX = keyX + 200
                             val valX = keyX + columnGap
 
-                            lp.PrintText(keyX, yPos, "0", "$key:", 0, keyFont, keyFont, 0)
-                            lp.PrintText(valX, yPos, "0", value, 0, valueFont, valueFont, 0)
+                            lp.PrintText(keyX, yPos, "0", "$key:", 0, printkeyFont, printkeyFont, 0)
+                            lp.PrintText(valX, yPos, "0", value, 0, printvalueFont, printvalueFont, 0)
 
-                            yPos += lineHeight
+                            yPos += printlineHeight
                         }
                     } else {
                         val col1X = left + 20
@@ -454,24 +473,24 @@ if (businessHours.isNotEmpty()) {
                             val first = attributes[i]
                             val second = attributes.getOrNull(i + 1)
 
-                            lp.PrintText(col1X, yPos, "0", "${first["key"]}:", 0, keyFont, keyFont, 0)
-                            lp.PrintText(col1X + columnGap, yPos, "0", first["value"] ?: "", 0, valueFont, valueFont, 0)
+                            lp.PrintText(col1X, yPos, "0", "${first["key"]}:", 0, printkeyFont, printkeyFont, 0)
+                            lp.PrintText(col1X + columnGap, yPos, "0", first["value"] ?: "", 0, printvalueFont, printvalueFont, 0)
 
                             if (second != null) {
-                                lp.PrintText(col2X, yPos, "0", "${second["key"]}:", 0, keyFont, keyFont, 0)
+                                lp.PrintText(col2X, yPos, "0", "${second["key"]}:", 0, printkeyFont, printkeyFont, 0)
                                 lp.PrintText(
                                     col2X + columnGap,
                                     yPos,
                                     "0",
                                     second["value"] ?: "",
                                     0,
-                                    valueFont,
-                                    valueFont,
+                                    printvalueFont,
+                                    printvalueFont,
                                     0
                                 )
                             }
 
-                            yPos += lineHeight
+                            yPos += printlineHeight
                         }
                     }
                 } else {
@@ -584,7 +603,6 @@ if (businessHours.isNotEmpty()) {
 
         }.start()
     }
-
 
     private fun disconnectPrinter(result: MethodChannel.Result) {
         Thread {

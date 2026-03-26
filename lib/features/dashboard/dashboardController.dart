@@ -645,6 +645,8 @@ class DashboardController extends GetxController {
           "attributes": dynamicAttributes,
           "layout": label_layout.toMap(), // 👈 KEY
           "businessHours": businessHours ?? "",
+          "labelFormat": format.name, // e.g. Dryfruit
+
         });
 
         print(result);
