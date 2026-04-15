@@ -631,12 +631,18 @@ class NonBatchInwardController extends GetxController {
     if (inwardState.value == InwardState.running) {
       inwardState.value = InwardState.paused;
     }
+    final connectedDevice = dashboardController.connectedDevice.value;
+    final rawScaleName = connectedDevice?.platformName ?? '';
+    final scaleName = rawScaleName.trim().isEmpty ? null : rawScaleName;
+    final scaleMac = connectedDevice?.remoteId.str;
     var data = NonBatchInwardModel(
       transactionId: nonInwardController.selectedTransaction.value != null
           ? nonBatchDetailModel.value?.data?.transactionId
           : null,
       transactionName: transactionName.text,
       status: pauseOrStop,
+      scaleName: scaleName,
+      scaleMac: scaleMac,
       products: productList,
     );
     final body = data.toJson();

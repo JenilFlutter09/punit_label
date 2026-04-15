@@ -30,18 +30,24 @@ class NonBatchListModel {
 class Entity {
   int? id;
   String? name;
+  String? scaleName;
+  String? scaleMac;
 
-  Entity({this.id, this.name});
+  Entity({this.id, this.name, this.scaleName, this.scaleMac});
 
   Entity.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     name = json['name'];
+    scaleName = json['scale_name'];
+    scaleMac = json['scale_mac'];
   }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = new Map<String, dynamic>();
     data['id'] = this.id;
     data['name'] = this.name;
+    data['scale_name'] = this.scaleName;
+    data['scale_mac'] = this.scaleMac;
     return data;
   }
 }

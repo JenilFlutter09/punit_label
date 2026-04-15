@@ -4,12 +4,16 @@ class NonBatchInwardModel {
   int? transactionId;
   String? transactionName;
   String? status;
+  String? scaleName;
+  String? scaleMac;
   List<NonBatchProducts>? products;
 
   NonBatchInwardModel({
     this.transactionId,
     this.transactionName,
     this.status,
+    this.scaleName,
+    this.scaleMac,
     this.products,
   });
 
@@ -17,6 +21,8 @@ class NonBatchInwardModel {
     transactionId = json['transaction_id'];
     transactionName = json['transaction_name'];
     status = json['status'];
+    scaleName = json['scale_name'];
+    scaleMac = json['scale_mac'];
     if (json['products'] != null) {
       products = <NonBatchProducts>[];
       json['products'].forEach((v) {
@@ -30,6 +36,8 @@ class NonBatchInwardModel {
     data['transaction_id'] = this.transactionId;
     data['transaction_name'] = this.transactionName;
     data['status'] = this.status;
+    data['scale_name'] = this.scaleName;
+    data['scale_mac'] = this.scaleMac;
     if (this.products != null) {
       data['products'] = this.products!.map((v) => v.toJson()).toList();
     }

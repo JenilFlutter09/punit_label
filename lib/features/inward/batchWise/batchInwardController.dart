@@ -221,8 +221,11 @@ class BatchInwardController extends GetxController {
 
     // Sort DESC by batchProductId (optional)
     apiProducts.sort((a, b) => b.batchProductId!.compareTo(a.batchProductId!));
-
-    final data = batchInwardModel(status: pauseOrStop, products: apiProducts);
+    final connectedDevice = dashboardController.connectedDevice.value;
+    final rawScaleName = connectedDevice?.platformName ?? '';
+    final scaleName = rawScaleName.trim().isEmpty ? null : rawScaleName;
+    final scaleMac = connectedDevice?.remoteId.str;
+    final data = batchInwardModel(status: pauseOrStop,scaleName: scaleName,scaleMac: scaleMac, products: apiProducts);
 
     print(jsonEncode(data.toJson())); // DEBUG PRINT
 
