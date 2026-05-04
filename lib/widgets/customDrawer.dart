@@ -19,10 +19,20 @@ class CustomDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isTablet = MediaQuery.of(context).size.width > 600;
+    //final bool isTablet = MediaQuery.of(context).size.width > 600;
 
+    final width = MediaQuery.of(context).size.width;
+
+    final isMobile = width < 600;
+    final isTablet = width >= 600 && width < 1024;
+    final isDesktop = width >= 1024;
     return Drawer(
-      width: isTablet ? Dimens.twoHundredFifty : Dimens.hundredFifty,
+     // width: isTablet ? Dimens.twoHundredFifty : Dimens.hundredFifty,
+      width: isMobile
+          ? width * 0.75
+          : isTablet
+          ? 320
+          : 360,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
           topRight: Radius.circular(24),

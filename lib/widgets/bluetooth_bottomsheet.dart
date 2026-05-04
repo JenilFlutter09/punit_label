@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../constants/colors.dart';
+import '../constants/bluetooth_device_display.dart';
 import '../constants/sizes.dart';
 import '../constants/strings.dart';
 import '../constants/styles.dart';
-import '../features/bluetooth/bluetoothController.dart';
 import '../features/dashboard/dashboardController.dart';
 
-Future<void> showBluetoothSheet(BuildContext context, DashboardController controller,String role) async {
-  await controller.startScan(roles: SStringConstants.role_scale);
+Future<void> showBluetoothSheet(
+  BuildContext context,
+  DashboardController controller,
+  String role,
+) async {
+  await controller.startScan(roles: role);
 
   Get.bottomSheet(
     Container(
@@ -20,7 +24,7 @@ Future<void> showBluetoothSheet(BuildContext context, DashboardController contro
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Obx(
-            () => Column(
+        () => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
@@ -50,9 +54,8 @@ Future<void> showBluetoothSheet(BuildContext context, DashboardController contro
                   ),
                   Dimens.boxHeight20,
                   ElevatedButton(
-                    onPressed: () async => await controller.startScan(
-                      roles: SStringConstants.role_scale,
-                    ),
+                    onPressed: () async =>
+                        await controller.startScan(roles: role),
                     style: ButtonStyle(
                       backgroundColor: MaterialStatePropertyAll(
                         ColorsValue.primaryColor,
@@ -61,7 +64,7 @@ Future<void> showBluetoothSheet(BuildContext context, DashboardController contro
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.refresh,color: Colors.white,),
+                        Icon(Icons.refresh, color: Colors.white),
                         Dimens.boxWidth8,
                         Text(
                           'Re-Scan',
@@ -81,14 +84,14 @@ Future<void> showBluetoothSheet(BuildContext context, DashboardController contro
                 separatorBuilder: (_, __) => const Divider(),
                 itemBuilder: (context, i) {
                   final result = controller.scanResults[i];
+                  final deviceName = BluetoothDeviceDisplay.displayName(result);
+                  final deviceId = BluetoothDeviceDisplay.deviceIdFromResult(
+                    result,
+                  );
                   return ListTile(
                     leading: const Icon(Icons.bluetooth, color: Colors.blue),
-                    title: Text(
-                      result.device.name.isNotEmpty
-                          ? result.device.name
-                          : "Unknown Device",
-                    ),
-                    subtitle: Text(result.device.id.toString()),
+                    title: Text(deviceName),
+                    subtitle: Text(deviceId),
 
                     /* trailing: ElevatedButton(
                       onPressed: () {
@@ -107,8 +110,7 @@ Future<void> showBluetoothSheet(BuildContext context, DashboardController contro
                       ),
                     ),*/
                     trailing: Obx(() {
-                      if (controller.connectingDeviceId.value ==
-                          result.device.id.id) {
+                      if (controller.connectingDeviceId.value == deviceId) {
                         return const SizedBox(
                           width: 24,
                           height: 24,
@@ -119,8 +121,8 @@ Future<void> showBluetoothSheet(BuildContext context, DashboardController contro
                       return ElevatedButton(
                         onPressed: () async {
                           await controller.connectToDevice(result.device);
-                          if (controller.connectedDevice.value?.id ==
-                              result.device.id) {
+                          if (controller.connectedDevice.value?.remoteId ==
+                              result.device.remoteId) {
                             Get.back(); // close only if connected ✅
                           }
                         },
@@ -152,16 +154,15 @@ Future<void> showBluetoothSheet(BuildContext context, DashboardController contro
     isScrollControlled: true,
   );
 }
+
 Future<void> showBluetoothPrinterSheet(
-    BuildContext context,
-    DashboardController controller,
-    String role,
-    )
-async {
+  BuildContext context,
+  DashboardController controller,
+  String role,
+) async {
   await controller.startScan(roles: SStringConstants.role_printer);
 
   Get.bottomSheet(
-
     Container(
       height: Get.height / 2,
       padding: const EdgeInsets.all(16),
@@ -170,7 +171,7 @@ async {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Obx(
-            () => Column(
+        () => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
@@ -211,7 +212,7 @@ async {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.refresh,color: Colors.white,),
+                        Icon(Icons.refresh, color: Colors.white),
                         Dimens.boxWidth8,
                         Text(
                           'Re-Scan',
@@ -231,18 +232,17 @@ async {
                 separatorBuilder: (_, __) => const Divider(),
                 itemBuilder: (context, i) {
                   final result = controller.scanResults[i];
+                  final deviceName = BluetoothDeviceDisplay.displayName(result);
+                  final deviceId = BluetoothDeviceDisplay.deviceIdFromResult(
+                    result,
+                  );
                   return ListTile(
                     leading: const Icon(Icons.bluetooth, color: Colors.blue),
-                    title: Text(
-                      result.device.name.isNotEmpty
-                          ? result.device.name
-                          : "Unknown Device",
-                    ),
-                    subtitle: Text(result.device.id.toString()),
+                    title: Text(deviceName),
+                    subtitle: Text(deviceId),
 
                     trailing: Obx(() {
-                      if (controller.connectingDeviceId.value ==
-                          result.device.id.id) {
+                      if (controller.connectingDeviceId.value == deviceId) {
                         return const SizedBox(
                           width: 24,
                           height: 24,
@@ -252,7 +252,7 @@ async {
 
                       return ElevatedButton(
                         onPressed: () async {
-                          String mac = result.device.id.id; // MAC address
+                          String mac = deviceId; // MAC address
                           Get.snackbar('Mac Address', mac);
 
                           try {

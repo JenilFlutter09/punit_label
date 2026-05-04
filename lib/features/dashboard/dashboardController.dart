@@ -14,13 +14,14 @@ import 'package:punit_label/features/dashboard/dashboardModel.dart';
 import 'package:punit_label/features/login/loginmodel.dart';
 
 import '../../apis/connectHelper.dart';
+import '../../apis/bluetooth_device_store.dart';
 import '../../apis/responseModel.dart';
 import '../../apis/sharedPreference.dart';
+import '../../constants/bluetooth_device_display.dart';
 import '../../constants/strings.dart';
 import '../../navigation/routesManagement.dart';
 import '../../widgets/searchableDropdown.dart';
 import '../../widgets/usbSerial.dart';
-import '../inward/models/singleProduct.dart';
 import 'bluetoothController.dart';
 import 'companyModel.dart';
 
@@ -38,7 +39,7 @@ class DashboardController extends GetxController {
   var scanResults = <ScanResult>[].obs;
   Rx<TareState> tareState = TareState.on.obs;
   Rx<LabelState> labelState = LabelState.Label.obs;
- // Rx<DeviceState> towerLight = DeviceState.on.obs;
+  // Rx<DeviceState> towerLight = DeviceState.on.obs;
   var isWhiteLabel = false.obs;
   var printSerialNumberInLabel = false.obs;
   var printTimeInLabel = false.obs;
@@ -63,6 +64,7 @@ class DashboardController extends GetxController {
   var activeManualWeightTag = Rx<String>('');
   var statusMessage = ''.obs;
   Timer? printerTimer;
+  bool _autoReconnectStarted = false;
   RxBool isLoading = false.obs;
 
   RxInt totalProducts = 0.obs;
@@ -81,7 +83,7 @@ class DashboardController extends GetxController {
     valueFont: 26,
     bottomPadding: 80,
     columnGap: 140,
-    barcodeHeight: 45
+    barcodeHeight: 45,
   );
 
   final largeLabelLayout = LabelLayout(
@@ -91,7 +93,7 @@ class DashboardController extends GetxController {
     valueFont: 34,
     bottomPadding: 150,
     columnGap: 200,
-    barcodeHeight: 80
+    barcodeHeight: 80,
   );
 
   final wholesalePackLayout = LabelLayout(
@@ -107,11 +109,10 @@ class DashboardController extends GetxController {
 
   final tower_controller = Get.put(TowerLightController());
 
-// Example triggers
-//   controller.updateState(DeviceState.inLimit);
-//   controller.updateState(DeviceState.almostLimit);
-//   controller.updateState(DeviceState.outOfLimit);
-
+  // Example triggers
+  //   controller.updateState(DeviceState.inLimit);
+  //   controller.updateState(DeviceState.almostLimit);
+  //   controller.updateState(DeviceState.outOfLimit);
 
   @override
   void onInit() {
@@ -132,6 +133,10 @@ class DashboardController extends GetxController {
     // TODO: implement onReady
     super.onReady();
     await handlePermissions();
+    if (!_autoReconnectStarted) {
+      _autoReconnectStarted = true;
+      unawaited(autoReconnectDevicesOnStartup());
+    }
     await getUserDetails();
     await getDashboardDetails();
     await getCompanyDetails();
@@ -165,10 +170,7 @@ class DashboardController extends GetxController {
       return ResponseModel(
         hasError: true,
         errorCode: 429,
-        data: jsonEncode({
-          "message": "Request already running",
-          "code": 429,
-        }),
+        data: jsonEncode({"message": "Request already running", "code": 429}),
       );
     }
 
@@ -204,39 +206,30 @@ class DashboardController extends GetxController {
 
       return response;
     }
-
     /// ⏳ Timeout
     on TimeoutException {
       final error = ResponseModel(
         hasError: true,
         errorCode: 408,
-        data: jsonEncode({
-          "message": "Request timed out",
-          "code": 408,
-        }),
+        data: jsonEncode({"message": "Request timed out", "code": 408}),
       );
 
       _handleApiError(error);
       if (throwOnError) throw error;
       return error;
     }
-
     /// 🌐 Network error
     on SocketException {
       final error = ResponseModel(
         hasError: true,
         errorCode: 408,
-        data: jsonEncode({
-          "message": "No Internet Connection",
-          "code": 408,
-        }),
+        data: jsonEncode({"message": "No Internet Connection", "code": 408}),
       );
 
       _handleApiError(error);
       if (throwOnError) throw error;
       return error;
     }
-
     /// 💥 Unknown crash
     catch (e, stack) {
       debugPrint("API CRASH: $e");
@@ -245,24 +238,18 @@ class DashboardController extends GetxController {
       final error = ResponseModel(
         hasError: true,
         errorCode: 500,
-        data: jsonEncode({
-          "message": "Unexpected error occurred",
-          "code": 500,
-        }),
+        data: jsonEncode({"message": "Unexpected error occurred", "code": 500}),
       );
 
       _handleApiError(error);
       if (throwOnError) throw error;
       return error;
-    }
-
-    finally {
+    } finally {
       isLoading.value = false;
     }
   }
 
-
-/*  Future<ResponseModel> callApi({
+  /*  Future<ResponseModel> callApi({
     required ApiCall apiCall,
     required RxBool isLoading,
     bool retryOn401 = true,
@@ -374,6 +361,7 @@ class DashboardController extends GetxController {
       Utility.showApiErrorSnackbar(response);
     }
   }
+
   void loadLabelFormats() {
     if (isWhiteLabel.value) {
       labelFormats.value = [
@@ -861,6 +849,67 @@ class DashboardController extends GetxController {
     RouteManagement.offToLogin();
   }
 
+  Future<void> autoReconnectDevicesOnStartup() async {
+    await _runReconnectSafely(_tryAutoReconnectScale);
+    await _runReconnectSafely(_tryAutoReconnectLabelPrinter);
+    await _runReconnectSafely(bluetoothController.tryAutoReconnectFromSaved);
+    await _runReconnectSafely(tower_controller.tryAutoReconnectFromSaved);
+  }
+
+  Future<void> _runReconnectSafely(Future<void> Function() fn) async {
+    try {
+      await fn().timeout(const Duration(seconds: 12));
+    } catch (_) {}
+  }
+
+  Future<void> _tryAutoReconnectScale() async {
+    if (isWeightScaleConnected.value) return;
+
+    final savedScaleId = await BluetoothDeviceStore.getDevice(
+      BluetoothDeviceStore.scaleKey,
+    );
+    if (savedScaleId == null || savedScaleId.isEmpty) return;
+
+    await startScan(roles: SStringConstants.role_scale);
+
+    final device = await _findScannedDeviceById(
+      savedScaleId,
+      timeout: const Duration(seconds: 7),
+    );
+    if (device == null) return;
+
+    await connectToDevice(device);
+  }
+
+  Future<BluetoothDevice?> _findScannedDeviceById(
+    String deviceId, {
+    required Duration timeout,
+  }) async {
+    final until = DateTime.now().add(timeout);
+
+    while (DateTime.now().isBefore(until)) {
+      for (final result in scanResults) {
+        final id = BluetoothDeviceDisplay.deviceIdFromResult(result);
+        if (id == deviceId) {
+          return result.device;
+        }
+      }
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
+    return null;
+  }
+
+  Future<void> _tryAutoReconnectLabelPrinter() async {
+    if (isPrinterConnected.value) return;
+
+    final savedMac = await BluetoothDeviceStore.getDevice(
+      BluetoothDeviceStore.printerKey,
+    );
+    if (savedMac == null || savedMac.isEmpty) return;
+
+    await connectPrinterWithMac(savedMac);
+  }
+
   Future<void> connectPrinterWithMac(String macAddress) async {
     try {
       await FlutterBluePlus.stopScan();
@@ -874,6 +923,10 @@ class DashboardController extends GetxController {
 
       statusMessage.value = "Connected" + result;
       isPrinterConnected.value = true;
+      await BluetoothDeviceStore.saveDevice(
+        BluetoothDeviceStore.printerKey,
+        macAddress,
+      );
       // wasPrinterEverConnected.value = true;    // MARK it now
       // await checkPrinterStatus();              // prime status immediately
     } catch (e) {
@@ -962,8 +1015,8 @@ class DashboardController extends GetxController {
       // Sort results: devices starting with "BT" go first
       if (roles == SStringConstants.role_scale) {
         results.sort((a, b) {
-          final aName = a.device.name;
-          final bName = b.device.name;
+          final aName = BluetoothDeviceDisplay.displayName(a);
+          final bName = BluetoothDeviceDisplay.displayName(b);
 
           final aIsBT = aName.startsWith("BT");
           final bIsBT = bName.startsWith("BT");
@@ -986,9 +1039,11 @@ class DashboardController extends GetxController {
   }
 
   Future<void> connectToDevice(BluetoothDevice device) async {
-    if (connectedDevice.value?.id == device.id) return;
+    if (connectedDevice.value?.remoteId == device.remoteId) return;
 
-    connectingDeviceId.value = device.id.id; // mark this device as connecting
+    connectingDeviceId.value = BluetoothDeviceDisplay.deviceIdFromDevice(
+      device,
+    ); // mark this device as connecting
 
     try {
       await FlutterBluePlus.stopScan();
@@ -1052,6 +1107,10 @@ class DashboardController extends GetxController {
           }
         }
       }
+      await BluetoothDeviceStore.saveDevice(
+        BluetoothDeviceStore.scaleKey,
+        BluetoothDeviceDisplay.deviceIdFromDevice(device),
+      );
     } catch (e) {
       debugPrint("Connection failed: $e");
       isWeightScaleConnected.value = false;
@@ -1074,6 +1133,7 @@ class DashboardController extends GetxController {
     }
     connectedDevice.value = null;
     receivedData.value = '';
+    await BluetoothDeviceStore.clearDevice(BluetoothDeviceStore.scaleKey);
     //startScan(roles: '');
   }
 
@@ -1090,6 +1150,8 @@ class DashboardController extends GetxController {
     try {
       final result = await platform.invokeMethod('disconnectPrinter');
       statusMessage.value = result;
+      isPrinterConnected.value = false;
+      await BluetoothDeviceStore.clearDevice(BluetoothDeviceStore.printerKey);
     } catch (e) {
       statusMessage.value = "Error disconnecting: $e";
     }
@@ -1162,6 +1224,5 @@ class LabelLayout {
     "bottomPadding": bottomPadding,
     "columnGap": columnGap,
     "barcodeHeight": barcodeHeight,
-
   };
 }

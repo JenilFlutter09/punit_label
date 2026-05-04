@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+
+import '../../apis/bluetooth_device_store.dart';
+import '../../constants/bluetooth_device_display.dart';
+
 class BluetoothController extends GetxController {
   RxList<ScanResult> devices = <ScanResult>[].obs;
   RxBool isScanning = false.obs;
@@ -45,12 +49,40 @@ class BluetoothController extends GetxController {
     await FlutterBluePlus.stopScan();
   }
 
+  Future<void> tryAutoReconnectFromSaved() async {
+    if (isConnected.value) return;
+
+    final savedDeviceId = await BluetoothDeviceStore.getDevice(
+      BluetoothDeviceStore.receiptPrinterKey,
+    );
+    if (savedDeviceId == null || savedDeviceId.isEmpty) return;
+
+    await scanDevices();
+
+    BluetoothDevice? matchedDevice;
+    for (final result in devices) {
+      final id = result.device.remoteId.str;
+      if (id == savedDeviceId) {
+        matchedDevice = result.device;
+        break;
+      }
+    }
+
+    if (matchedDevice == null) return;
+
+    await connectToDevice(
+      matchedDevice,
+      showPaperSizeSelector: false,
+      showConnectedSnackbar: false,
+      showErrorSnackbar: false,
+    );
+  }
+
   String formatRow(String left, String right, int totalWidth) {
     final space = totalWidth - left.length - right.length;
     if (space <= 0) return "$left $right";
     return left + (" " * space) + right;
   }
-
 
   /*Future<void> connectToDevice(BluetoothDevice device) async {
     try {
@@ -83,7 +115,12 @@ class BluetoothController extends GetxController {
   }
 */
 
-  Future<void> connectToDevice(BluetoothDevice device) async {
+  Future<void> connectToDevice(
+    BluetoothDevice device, {
+    bool showPaperSizeSelector = true,
+    bool showConnectedSnackbar = true,
+    bool showErrorSnackbar = true,
+  }) async {
     try {
       connectingDeviceId.value = device.remoteId.str;
 
@@ -106,17 +143,28 @@ class BluetoothController extends GetxController {
       }
 
       isConnected.value = true;
+      await BluetoothDeviceStore.saveDevice(
+        BluetoothDeviceStore.receiptPrinterKey,
+        device.remoteId.str,
+      );
       if (Get.isBottomSheetOpen ?? false) {
         Get.back();
       }
-      Get.snackbar("Connected", device.platformName);
-      await _showPaperSizeSelector();
+      if (showConnectedSnackbar) {
+        Get.snackbar("Connected", device.platformName);
+      }
+      if (showPaperSizeSelector) {
+        await _showPaperSizeSelector();
+      }
     } catch (e) {
-      Get.snackbar("Error", e.toString());
+      if (showErrorSnackbar) {
+        Get.snackbar("Error", e.toString());
+      }
     } finally {
       connectingDeviceId.value = null;
     }
   }
+
   Future<void> _showPaperSizeSelector() async {
     await Get.bottomSheet(
       Container(
@@ -126,44 +174,45 @@ class BluetoothController extends GetxController {
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: Obx(() => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Select Paper Size",
-              style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
+        child: Obx(
+          () => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Select Paper Size",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
 
-            RadioListTile<int>(
-              value: 58,
-              groupValue: selectedPaperSize.value,
-              title: const Text("2 Inch (58mm)"),
-              onChanged: (val) {
-                selectedPaperSize.value = val!;
-              },
-            ),
+              RadioListTile<int>(
+                value: 58,
+                groupValue: selectedPaperSize.value,
+                title: const Text("2 Inch (58mm)"),
+                onChanged: (val) {
+                  selectedPaperSize.value = val!;
+                },
+              ),
 
-            RadioListTile<int>(
-              value: 80,
-              groupValue: selectedPaperSize.value,
-              title: const Text("3 Inch (80mm)"),
-              onChanged: (val) {
-                selectedPaperSize.value = val!;
-              },
-            ),
+              RadioListTile<int>(
+                value: 80,
+                groupValue: selectedPaperSize.value,
+                title: const Text("3 Inch (80mm)"),
+                onChanged: (val) {
+                  selectedPaperSize.value = val!;
+                },
+              ),
 
-            const SizedBox(height: 15),
+              const SizedBox(height: 15),
 
-            ElevatedButton(
-              onPressed: () {
-                Get.back();
-              },
-              child: const Text("Confirm"),
-            ),
-          ],
-        )),
+              ElevatedButton(
+                onPressed: () {
+                  Get.back();
+                },
+                child: const Text("Confirm"),
+              ),
+            ],
+          ),
+        ),
       ),
       isDismissible: false,
     );
@@ -174,9 +223,8 @@ class BluetoothController extends GetxController {
     required List<String?> companyContact,
     required List<Map<String, dynamic>> items,
     required String barcodeData,
-   // required int paperSize, // 58 or 80
-  }) async
-  {
+    // required int paperSize, // 58 or 80
+  }) async {
     if (writeCharacteristic == null) {
       Get.snackbar("Error", "Printer not connected");
       return;
@@ -192,18 +240,17 @@ class BluetoothController extends GetxController {
     bytes += [27, 64]; // init
     bytes += [27, 97, 1]; // center
 
-   // bytes += utf8.encode("$companyName\n");
+    // bytes += utf8.encode("$companyName\n");
     for (final line in wrapText(companyName, lineWidth)) {
       bytes += utf8.encode(line + "\n");
     }
 
-    for(var item in companyContact)
-      {
-        if (item == null) continue;
-        for (final line in wrapText(item, lineWidth)) {
-          bytes += utf8.encode(line + "\n");
-        }
+    for (var item in companyContact) {
+      if (item == null) continue;
+      for (final line in wrapText(item, lineWidth)) {
+        bytes += utf8.encode(line + "\n");
       }
+    }
     bytes += utf8.encode("\n");
     bytes += [27, 97, 0];
     bytes += utf8.encode(formatRow("Date", formattedDate, lineWidth) + "\n");
@@ -217,11 +264,7 @@ class BluetoothController extends GetxController {
 
     for (var item in items) {
       bytes += utf8.encode(
-        formatRow(
-          item['key'].toString(),
-          item['value'].toString(),
-          lineWidth,
-        ) +
+        formatRow(item['key'].toString(), item['value'].toString(), lineWidth) +
             "\n",
       );
     }
@@ -249,15 +292,13 @@ class BluetoothController extends GetxController {
     const int chunkSize = 180; // safe for BLE
 
     for (int i = 0; i < bytes.length; i += chunkSize) {
-      final end =
-      (i + chunkSize > bytes.length) ? bytes.length : i + chunkSize;
+      final end = (i + chunkSize > bytes.length) ? bytes.length : i + chunkSize;
 
       final chunk = bytes.sublist(i, end);
 
       await writeCharacteristic!.write(
         chunk,
-        withoutResponse:
-        writeCharacteristic!.properties.writeWithoutResponse,
+        withoutResponse: writeCharacteristic!.properties.writeWithoutResponse,
       );
 
       // small delay for printer buffer stability
@@ -294,28 +335,31 @@ class BluetoothController extends GetxController {
                 return ListView.builder(
                   itemCount: devices.length,
                   itemBuilder: (context, index) {
-                    final device = devices[index].device;
+                    final result = devices[index];
+                    final device = result.device;
+                    final deviceName = BluetoothDeviceDisplay.displayName(
+                      result,
+                    );
+                    final deviceId = BluetoothDeviceDisplay.deviceIdFromResult(
+                      result,
+                    );
                     final isConnectingNow =
-                        connectingDeviceId.value == device.remoteId.str;
+                        connectingDeviceId.value == deviceId;
 
                     return ListTile(
-                      title: Text(
-                        device.platformName.isEmpty
-                            ? "Unknown Device"
-                            : device.platformName,
-                      ),
-                      subtitle: Text(device.remoteId.str),
+                      title: Text(deviceName),
+                      subtitle: Text(deviceId),
 
                       trailing: isConnectingNow
                           ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : ElevatedButton(
-                        onPressed: () => connectToDevice(device),
-                        child: const Text("Connect"),
-                      ),
+                              onPressed: () => connectToDevice(device),
+                              child: const Text("Connect"),
+                            ),
                     );
                   },
                 );
@@ -345,6 +389,11 @@ class BluetoothController extends GetxController {
     if (connectedDevice != null) {
       await connectedDevice!.disconnect();
       isConnected.value = false;
+      connectedDevice = null;
+      writeCharacteristic = null;
+      await BluetoothDeviceStore.clearDevice(
+        BluetoothDeviceStore.receiptPrinterKey,
+      );
     }
   }
 
