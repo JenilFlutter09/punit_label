@@ -1,11 +1,15 @@
 class batchInwardModel {
   String? status;
+  String? scaleName;
+  String? scaleMac;
   List<InwardProducts>? products;
 
-  batchInwardModel({this.status, this.products});
+  batchInwardModel({this.status, this.scaleName, this.scaleMac,this.products});
 
   batchInwardModel.fromJson(Map<String, dynamic> json) {
     status = json['status'];
+    scaleName = json['scale_name'];
+    scaleMac = json['scale_mac'];
     if (json['products'] != null) {
       products = <InwardProducts>[];
       json['products'].forEach((v) {
@@ -17,6 +21,8 @@ class batchInwardModel {
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = new Map<String, dynamic>();
     data['status'] = this.status;
+    data['scale_name'] = this.scaleName;
+    data['scale_mac'] = this.scaleMac;
     if (this.products != null) {
       data['products'] = this.products!.map((v) => v.toJson()).toList();
     }

@@ -146,6 +146,18 @@ class NonBatchListScreen extends StatelessWidget {
                       color: Colors.black87,
                     ),
                   ),
+                  if ((batchData.scaleMac ?? "").isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '${(batchData.scaleName ?? "Unnamed")} (${batchData.scaleMac})',
+                        style: TextStyle(
+                          fontSize: isTablet ? 13 : 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

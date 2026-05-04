@@ -27,15 +27,19 @@ class NonBatchDetailModel {
 class Data {
   int? transactionId;
   String? transactionName;
+  String? scaleName;
+  String? scaleMac;
   List<Products>? products;
   bool? isPaused;
 
   Data(
-      {this.transactionId, this.transactionName, this.products, this.isPaused});
+      {this.transactionId, this.transactionName, this.scaleName, this.scaleMac, this.products, this.isPaused});
 
   Data.fromJson(Map<String, dynamic> json) {
     transactionId = json['transaction_id'];
     transactionName = json['transaction_name'];
+    scaleName = json['scale_name'];
+    scaleMac = json['scale_mac'];
     if (json['products'] != null) {
       products = <Products>[];
       json['products'].forEach((v) {
@@ -49,6 +53,8 @@ class Data {
     final Map<String, dynamic> data = new Map<String, dynamic>();
     data['transaction_id'] = this.transactionId;
     data['transaction_name'] = this.transactionName;
+    data['scale_name'] = this.scaleName;
+    data['scale_mac'] = this.scaleMac;
     if (this.products != null) {
       data['products'] = this.products!.map((v) => v.toJson()).toList();
     }
