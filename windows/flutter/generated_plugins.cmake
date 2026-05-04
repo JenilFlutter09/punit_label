@@ -5,10 +5,12 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
   firebase_core
+  flutter_bluetooth_classic_serial
   flutter_secure_storage_windows
   permission_handler_windows
   printing
   share_plus
+  universal_ble
   url_launcher_windows
 )
 

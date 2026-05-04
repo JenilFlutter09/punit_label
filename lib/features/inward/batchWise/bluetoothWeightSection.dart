@@ -28,12 +28,13 @@ class BluetoothWeightSection extends StatelessWidget {
       final tareState = dashboardController.tareState.value;
       final isBluetoothConnected =
           dashboardController.isWeightScaleConnected.value &&
-              dashboardController.connectedDevice.value != null;
+          (dashboardController.connectedDevice.value != null ||
+              dashboardController.isUniversalBleScaleConnected.value ||
+              dashboardController.isExperimentalScaleConnected.value);
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           /// 🔵 TARE ON / BARCODE → GROSS + TARE UI
           if (tareState != TareState.off) ...[
             Row(
@@ -42,9 +43,7 @@ class BluetoothWeightSection extends StatelessWidget {
                   child: Text("Gross Weight", style: Styles.blackBold12),
                 ),
                 Dimens.boxWidth10,
-                Expanded(
-                  child: Text("Tare Weight", style: Styles.blackBold12),
-                ),
+                Expanded(child: Text("Tare Weight", style: Styles.blackBold12)),
               ],
             ),
 
@@ -56,13 +55,13 @@ class BluetoothWeightSection extends StatelessWidget {
                 Expanded(
                   child: isBluetoothConnected
                       ? _LiveGrossField(
-                    manualCtrl: controller.manualCtrl,
-                    isTablet: isTablet,
-                  )
+                          manualCtrl: controller.manualCtrl,
+                          isTablet: isTablet,
+                        )
                       : _ManualGrossField(
-                    manualCtrl: controller.manualCtrl,
-                    isTablet: isTablet,
-                  ),
+                          manualCtrl: controller.manualCtrl,
+                          isTablet: isTablet,
+                        ),
                 ),
 
                 Dimens.boxWidth5,
@@ -70,14 +69,14 @@ class BluetoothWeightSection extends StatelessWidget {
                 Expanded(
                   child: tareState == TareState.on
                       ? _ManualTareField(
-                    manualCtrl: controller.manualCtrl,
-                    isTablet: isTablet,
-                  )
+                          manualCtrl: controller.manualCtrl,
+                          isTablet: isTablet,
+                        )
                       : _BarcodeTareField(
-                    manualCtrl: controller.manualCtrl,
-                    controller: controller,
-                    isTablet: isTablet,
-                  ),
+                          manualCtrl: controller.manualCtrl,
+                          controller: controller,
+                          isTablet: isTablet,
+                        ),
                 ),
               ],
             ),
@@ -90,9 +89,8 @@ class BluetoothWeightSection extends StatelessWidget {
             isTablet: isTablet,
             netWeight: controller.manualCtrl.manualNet,
             isUnitConversion:
-            controller.selectedModuleProduct.value?.unitConversion ?? false,
-            unitValue:
-            controller.selectedModuleProduct.value?.unitValue ?? 1,
+                controller.selectedModuleProduct.value?.unitConversion ?? false,
+            unitValue: controller.selectedModuleProduct.value?.unitValue ?? 1,
 
             /// 🔑 SAME LOGIC AS NON-BATCH
             isEditable: tareState == TareState.off,
@@ -103,8 +101,6 @@ class BluetoothWeightSection extends StatelessWidget {
       );
     });
   }
-
-
 }
 
 // Reusable Live Gross (Bluetooth)
@@ -129,7 +125,8 @@ class _LiveGrossField extends StatelessWidget {
         enabled: false,
         controller: manualCtrl.grossCtrl,
         suffix: Text('Kg'),
-        isTablet: isTablet, keyboard: TextInputType.number,
+        isTablet: isTablet,
+        keyboard: TextInputType.number,
         // suffixIcon: const Padding(
         //   padding: EdgeInsets.all(8.0),
         //   child: Icon(Icons.bluetooth_connected, color: Colors.green),
@@ -151,7 +148,7 @@ class _ManualGrossField extends StatelessWidget {
       label: "Gross Weight",
       icon: Icons.scale,
       controller: manualCtrl.grossCtrl,
-     suffix: Text('Kg'),
+      suffix: Text('Kg'),
       isTablet: isTablet,
       keyboard: TextInputType.number,
       onChanged: (v) {
@@ -174,7 +171,7 @@ class _ManualTareField extends StatelessWidget {
       label: "Tare Weight",
       icon: Icons.line_weight,
       controller: manualCtrl.tareCtrl,
-     suffix: Text('Kg'),
+      suffix: Text('Kg'),
       isTablet: isTablet,
       keyboard: TextInputType.number,
       onChanged: (v) {
@@ -190,7 +187,11 @@ class _BarcodeTareField extends StatelessWidget {
   final ManualWeightController manualCtrl;
   final BatchInwardController controller;
   final bool isTablet;
-  const _BarcodeTareField({required this.manualCtrl, required this.isTablet, required this.controller});
+  const _BarcodeTareField({
+    required this.manualCtrl,
+    required this.isTablet,
+    required this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -200,64 +201,60 @@ class _BarcodeTareField extends StatelessWidget {
       enabled: true,
       readOnly: true,
       controller: manualCtrl.tareCtrl,
-      isTablet: isTablet, keyboard: TextInputType.text,
+      isTablet: isTablet,
+      keyboard: TextInputType.text,
       suffix: Text('Kg'),
-      onTapPrefixIcon:() async {
-      // TODO: Open barcode scanner
-      final result = await showBarcodeScannerDialog(
-      context,
-    );
-      final scanned = result?.trim();
-    if (result != null) {
-
-      if (controller.tareProductsListModel.value?.data?.any(
-            (b) => b.barCodeString?.trim() == scanned,
-      ) ??
-          false) {
-        controller.selectedBarcode.value = controller
-            .tareProductsListModel.value?.data
-            ?.firstWhere(
-              (b) =>
-          b.barCodeString?.trim() == scanned,
-        );
-        Get.snackbar(
-          '',
-          '',
-          titleText: Text('Verified'),
-          messageText: Icon(
-            Icons.check_circle,
-            size: Dimens.fifty,
-            color: Colors.green,
-          ),
-          snackStyle: SnackStyle.FLOATING,
-        );
-        var data = controller.selectedBarcode.value;
-        manualCtrl.manualTare.value =
-            data?.weight.toString();
-        manualCtrl.tareCtrl.text = data?.weight.toString() ?? '0';
-        manualCtrl.calculateManualNet();
-      } else {
-        Get.snackbar(
-          '',
-          '',
-          titleText: Text('Unverified'),
-          messageText: Icon(
-            Icons.cancel,
-            size: Dimens.fifty,
-            color: Colors.red,
-          ),
-          snackStyle: SnackStyle.FLOATING,
-        );
-        manualCtrl.manualTare.value = '0';
-        manualCtrl.tareCtrl.text = '0';
-      }
-    }
-    if (result == null) {
-      manualCtrl.tareCtrl.text = '0';
-      manualCtrl.manualTare.value = '0';
-      manualCtrl.calculateManualNet();
-    }
-  },
+      onTapPrefixIcon: () async {
+        // TODO: Open barcode scanner
+        final result = await showBarcodeScannerDialog(context);
+        final scanned = result?.trim();
+        if (result != null) {
+          if (controller.tareProductsListModel.value?.data?.any(
+                (b) => b.barCodeString?.trim() == scanned,
+              ) ??
+              false) {
+            controller.selectedBarcode.value = controller
+                .tareProductsListModel
+                .value
+                ?.data
+                ?.firstWhere((b) => b.barCodeString?.trim() == scanned);
+            Get.snackbar(
+              '',
+              '',
+              titleText: Text('Verified'),
+              messageText: Icon(
+                Icons.check_circle,
+                size: Dimens.fifty,
+                color: Colors.green,
+              ),
+              snackStyle: SnackStyle.FLOATING,
+            );
+            var data = controller.selectedBarcode.value;
+            manualCtrl.manualTare.value = data?.weight.toString();
+            manualCtrl.tareCtrl.text = data?.weight.toString() ?? '0';
+            manualCtrl.calculateManualNet();
+          } else {
+            Get.snackbar(
+              '',
+              '',
+              titleText: Text('Unverified'),
+              messageText: Icon(
+                Icons.cancel,
+                size: Dimens.fifty,
+                color: Colors.red,
+              ),
+              snackStyle: SnackStyle.FLOATING,
+            );
+            manualCtrl.manualTare.value = '0';
+            manualCtrl.tareCtrl.text = '0';
+          }
+        }
+        if (result == null) {
+          manualCtrl.tareCtrl.text = '0';
+          manualCtrl.manualTare.value = '0';
+          manualCtrl.calculateManualNet();
+        }
+      },
     );
   }
 }
@@ -283,8 +280,7 @@ class NetWeightDisplayCard extends StatelessWidget {
     required this.manualCtrl,
   }) : super(key: key);
 
-  double get _netWeightValue =>
-      double.tryParse(netWeight.value ?? '0') ?? 0;
+  double get _netWeightValue => double.tryParse(netWeight.value ?? '0') ?? 0;
 
   double get _convertedValue => _netWeightValue * unitValue;
 
@@ -307,7 +303,6 @@ class NetWeightDisplayCard extends StatelessWidget {
         }
 
         return IntrinsicHeight(
-
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -331,6 +326,7 @@ class NetWeightDisplayCard extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+
                         /// 🟢 EDITABLE MODE
                         if (isEditable && !isBluetoothConnected)
                           TextField(
@@ -352,7 +348,6 @@ class NetWeightDisplayCard extends StatelessWidget {
                               manualCtrl.manualNet.value = v;
                             },
                           )
-
                         /// 🔵 DISPLAY MODE
                         else
                           Text(
@@ -381,10 +376,13 @@ class NetWeightDisplayCard extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text("Converted Unit",style: TextStyle(
-                            fontSize: isTablet ? 22 : 18,
-                            fontWeight: FontWeight.w600,
-                          ),),
+                          Text(
+                            "Converted Unit",
+                            style: TextStyle(
+                              fontSize: isTablet ? 22 : 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
 
                           Text(
                             _convertedValue.toStringAsFixed(2),
@@ -495,7 +493,6 @@ class NetWeightDisplayCard extends StatelessWidget {
   }
 }*/
 
-
 /*
 
 class NetWeightDisplayCard extends StatelessWidget {
@@ -579,7 +576,9 @@ class NetWeightDisplayCard extends StatelessWidget {
         // Main Weight Input Area
         Obx(() {
           final isBluetoothConnected = dashboardController.isWeightScaleConnected.value &&
-              dashboardController.connectedDevice.value != null;
+              (dashboardController.connectedDevice.value != null ||
+                  dashboardController.isUniversalBleScaleConnected.value ||
+                  dashboardController.isExperimentalScaleConnected.value);
 
           final tareState = dashboardController.tareState.value;
 

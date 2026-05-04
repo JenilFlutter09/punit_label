@@ -7,7 +7,6 @@ class TokenStorage {
   static final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
   static const String _tokenKey = 'auth_token';
-  static const String _loginKey = 'isLoggedIn';
   static const String _userKey = 'user';
   static const String _saveTareList = 'tare';
 
@@ -48,16 +47,6 @@ class TokenStorage {
     return UserProfile.fromJson(jsonMap);
   }
 
-  /// Save login flag
-  static Future<void> saveLoggedIn(String value) async {
-    await _secureStorage.write(key: _loginKey, value: value);
-  }
-
-  /// Check login flag
-  static Future<String?> checkLoggedIn() async {
-    return await _secureStorage.read(key: _loginKey);
-  }
-
   /// Delete token
   static Future<void> deleteToken() async {
     await _secureStorage.delete(key: _tokenKey);
@@ -70,6 +59,8 @@ class TokenStorage {
 
   /// Clear everything
   static Future<void> clearAll() async {
-    await _secureStorage.deleteAll();
+    //await _secureStorage.deleteAll();
+    await _secureStorage.delete(key: _tokenKey);
+    await _secureStorage.delete(key: _userKey);
   }
 }

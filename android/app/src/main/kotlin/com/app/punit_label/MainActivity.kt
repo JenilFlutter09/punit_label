@@ -92,6 +92,76 @@ class MainActivity : FlutterActivity() {
 
                         )
                     }
+                    "printTeaSticker" -> {
+                        val args = call.arguments as? Map<String, Any> ?: emptyMap()
+
+                        val width = (args["width"] as? Number)?.toInt() ?: 600
+                        val height = (args["height"] as? Number)?.toInt() ?: 410
+                        val margin = (args["margin"] as? Number)?.toInt() ?: 0
+
+                        val companyName = args["companyName"]?.toString() ?: "Majedar Tea Co."
+                        val productName = args["productName"]?.toString() ?: ""
+                        val description = args["description"]?.toString() ?: ""
+                        val grossWt = args["grossWt"]?.toString() ?: ""
+                        val barcodeData = args["barcodeData"]?.toString() ?: ""
+
+                        val rawAttributes =
+                            call.argument<List<Map<String, Any>>>("attributes") ?: emptyList()
+
+                        val attributes =
+                            rawAttributes.map { it.mapValues { v -> v.value.toString() } }
+
+                        val isGrid = args["isGrid"] as? Boolean ?: false
+                        val isWhiteLabel = args["isWhiteLabel"] as? Boolean ?: false
+                        val printTime = args["printTime"] as? Boolean ?: false
+
+                        printTeaSticker(
+                            result = result,
+                            width = width,
+                            height = height,
+                            margin = margin,
+                            companyName = companyName,
+                            productName = productName,
+                            description = description,
+                            grossWt = grossWt,
+                            barcodeData = barcodeData,
+                            attributes = attributes,
+                            isGrid = isGrid,
+                            isWhiteLabel = isWhiteLabel,
+                            printTime = printTime
+                        )
+                    }
+
+//                    "printTeaSticker" -> {
+//                        val args = call.arguments as? Map<String, Any> ?: emptyMap()
+//
+//                        val width = (args["width"] as? Number)?.toInt() ?: 600
+//                        val height = (args["height"] as? Number)?.toInt() ?: 410
+//                        val margin = (args["margin"] as? Number)?.toInt() ?: 0
+//                        val companyName = args["companyName"]?.toString() ?: "Majedar Tea Co."
+//                        val barcodeData = args["barcodeData"]?.toString() ?: ""
+//
+//                        val rawAttributes =
+//                            call.argument<List<Map<String, Any>>>("attributes") ?: emptyList()
+//
+//                        val attributes =
+//                            rawAttributes.map { it.mapValues { v -> v.value.toString() } }
+//
+//                        val isWhiteLabel = args["isWhiteLabel"] as? Boolean ?: false
+//                        val printTime = args["printTime"] as? Boolean ?: false
+//
+//                        printTeaSticker(
+//                            result = result,
+//                            width = width,
+//                            height = height,
+//                            margin = margin,
+//                            companyName = companyName,
+//                            barcodeData = barcodeData,
+//                            attributes = attributes,
+//                            isWhiteLabel = isWhiteLabel,
+//                            printTime = printTime
+//                        )
+//                    }
                     else -> result.notImplemented()
                 }
             }
@@ -569,6 +639,409 @@ if (businessHours.isNotEmpty()) {
                 mainHandler.post { result.error("EXCEPTION", e.message ?: "Unknown", null) }
             }
 
+        }.start()
+    }
+
+//    private fun printTeaSticker(
+//        result: MethodChannel.Result,
+//        width: Int = 600,
+//        height: Int = 410,
+//        margin: Int = 0,
+//        companyName: String = "Majedar Tea Co.",
+//        barcodeData: String = "",
+//        attributes: List<Map<String, String>> = emptyList(),
+//        isWhiteLabel: Boolean = false,
+//        printTime: Boolean = false,
+//        layout: Map<String, Any> = emptyMap()
+//    ) {
+//        Thread {
+//            try {
+//                val lp = printer ?: run {
+//                    mainHandler.post {
+//                        result.error("NO_PRINTER", "Printer not connected", null)
+//                    }
+//                    return@Thread
+//                }
+//
+//                val setSize = lp.SetLabelSize(width, height)
+//                if (setSize != 0) {
+//                    mainHandler.post {
+//                        result.error("SET_LABEL_ERROR", "Failed: $setSize", null)
+//                    }
+//                    return@Thread
+//                }
+//
+//                lp.SetPrintDensity(15)
+//
+//                // ----------- LAYOUT CONFIG (Optimized for 1-2 attributes) -----------
+//                val lineHeight = (layout["lineHeight"] as? Number)?.toInt() ?: 70
+//                val keyFont = (layout["keyFont"] as? Number)?.toInt() ?: 34
+//                val valueFont = (layout["valueFont"] as? Number)?.toInt() ?: 38
+//                val columnGap = (layout["columnGap"] as? Number)?.toInt() ?: 210
+//                val bottomPadding = (layout["bottomPadding"] as? Number)?.toInt() ?: 120
+//                val barcodeHeight = (layout["barcodeHeight"] as? Number)?.toInt() ?: 55
+//
+//                val left = margin
+//                val top = margin
+//                val right = width - margin
+//                val bottom = height - margin
+//
+//                var yPos = top + 25
+//
+//                // ----------- HEADER (COMPANY NAME) -----------
+//                if (!isWhiteLabel) {
+//                    val titleFont = 46
+//
+//                    lp.PrintText(
+//                        left + 60,
+//                        yPos,
+//                        "0",
+//                        companyName,
+//                        0,
+//                        titleFont,
+//                        titleFont,
+//                        1
+//                    )
+//
+//                    yPos += 95   // large gap like handwritten layout
+//                }
+//
+//                // ----------- DATE TIME (OPTIONAL) -----------
+//                if (printTime) {
+//                    val dateFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
+//                    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+//
+//                    lp.PrintText(
+//                        right - 150,
+//                        top + 20,
+//                        "0",
+//                        dateFormat.format(Date()),
+//                        0,
+//                        20,
+//                        20,
+//                        0
+//                    )
+//
+//                    lp.PrintText(
+//                        right - 150,
+//                        top + 42,
+//                        "0",
+//                        timeFormat.format(Date()),
+//                        0,
+//                        20,
+//                        20,
+//                        0
+//                    )
+//                }
+//
+//                // ----------- ATTRIBUTES (KEY : VALUE) -----------
+//                if (attributes.isNotEmpty()) {
+//
+//                    val keyX = left + 30
+//                    val valueX = keyX + columnGap
+//
+//                    for (item in attributes.take(3)) { // 🔥 restrict to 2 for clean layout
+//                        if (yPos > bottom - bottomPadding) break
+//
+//                        val key = item["key"] ?: ""
+//                        val value = item["value"] ?: ""
+//
+//                        lp.PrintText(keyX, yPos, "0", "$key :", 0, keyFont, keyFont, 1)
+//                        lp.PrintText(valueX, yPos, "0", value, 0, valueFont, valueFont, 1)
+//
+//                        yPos += lineHeight
+//                    }
+//
+//                } else {
+//                   // lp.PrintText(left + 30, yPos, "0", "No Data", 0, 30, 30, 1)
+//                }
+//
+//                // ----------- BARCODE -----------
+//                val barcodeY = bottom - barcodeHeight - 75
+//                val barcodeX = left + 80
+//
+//                val barcodeStatus = lp.PrintBarcode1D(
+//                    barcodeX,
+//                    barcodeY,
+//                    1,
+//                    0,
+//                    barcodeData,
+//                    barcodeHeight,
+//                    1,
+//                    3,
+//                    3
+//                )
+//
+//                if (barcodeStatus != 0) {
+//                    mainHandler.post {
+//                        result.error("BARCODE_ERROR", "Failed: $barcodeStatus", null)
+//                    }
+//                    return@Thread
+//                }
+//
+//                // ----------- PRINT -----------
+//                val status = lp.PrintLabel(1, 1)
+//
+//                mainHandler.post {
+//                    if (status == 0) {
+//                        result.success("Tea sticker printed successfully!")
+//                    } else {
+//                        result.error("PRINT_FAILED", "PrintLabel returned: $status", null)
+//                    }
+//                }
+//
+//            } catch (e: Exception) {
+//                mainHandler.post {
+//                    result.error("EXCEPTION", e.message ?: "Unknown error", null)
+//                }
+//            }
+//        }.start()
+//    }
+
+    private fun printTeaSticker(
+        result: MethodChannel.Result,
+        width: Int = 600,
+        height: Int = 410,
+        margin: Int = 0,
+        companyName: String = "Majedar Tea Co.",
+        productName: String = "",
+        description: String = "",
+        grossWt: String = "",
+        barcodeData: String = "",
+        attributes: List<Map<String, String>> = emptyList(),
+        isGrid: Boolean = false,
+        isWhiteLabel: Boolean = false,
+        printTime: Boolean = false
+    ) {
+        Thread {
+            try {
+                val lp = printer ?: run {
+                    mainHandler.post {
+                        result.error("NO_PRINTER", "Printer not connected", null)
+                    }
+                    return@Thread
+                }
+
+                val setSize = lp.SetLabelSize(width, height)
+                if (setSize != 0) {
+                    mainHandler.post {
+                        result.error("SET_LABEL_ERROR", "Failed: $setSize", null)
+                    }
+                    return@Thread
+                }
+
+                lp.SetPrintDensity(15)
+
+                val left = margin
+                val right = width - margin
+
+//                // ---------- BORDER ----------
+//                lp.PrintBox(left, margin, right, height - margin, 3)
+
+                // ---------- HEADER ----------
+                val titleFont = 45
+                if (isWhiteLabel == false) {
+                    lp.PrintText(
+                        left + 35,
+                        35,
+                        "0",
+                        companyName,
+                        0,
+                        titleFont,
+                        titleFont,
+                        1
+                    )
+                    // ---------- PRODUCT ----------
+                    lp.PrintText(
+                        left + 25,
+                        100,
+                        "0",
+                        "Product :",
+                        0,
+                        36,
+                        36,
+                        1
+                    )
+
+                    lp.PrintText(
+                        left + 190,
+                        100,
+                        "0",
+                        productName,
+                        0,
+                        36,
+                        36,
+                        1
+                    )
+                    lp.PrintText(
+                        left + 25,
+                        160,
+                        "0",
+                        "Description :",
+                        0,
+                        36,
+                        36,
+                        1
+                    )
+
+                    lp.PrintText(
+                        left + 260,
+                        160,
+                        "0",
+                        description,
+                        0,
+                        36,
+                        36,
+                        1
+                    )
+
+                    // ---------- GROSS WT ----------
+                    lp.PrintText(
+                        left + 25,
+                        220,
+                        "0",
+                        "Gross Wt :",
+                        0,
+                        36,
+                        36,
+                        1
+                    )
+
+                    lp.PrintText(
+                        left + 260,
+                        220,
+                        "0",
+                        grossWt,
+                        0,
+                        36,
+                        36,
+                        1
+                    )
+
+                    // ---------- BARCODE ----------
+                    val barcodeHeight = 60
+                    val barcodeY = height - 130
+                    val barcodeX = left + 50
+
+                    lp.PrintBarcode1D(
+                        barcodeX,
+                        barcodeY,
+
+                        1,
+                        0,
+                        barcodeData,
+                        barcodeHeight,
+                        1,
+                        3,
+                        3
+                    )
+                }else {
+                    // ---------- PRODUCT ----------
+                    lp.PrintText(
+                        left + 25,
+                        50,
+                        "0",
+                        "Product :",
+                        0,
+                        45,
+                        45,
+                        1
+                    )
+
+                    lp.PrintText(
+                        left + 190,
+                        50,
+                        "0",
+                        productName,
+                        0,
+                        45,
+                        45,
+                        1
+                    )
+
+
+                // ---------- DESCRIPTION ----------
+                lp.PrintText(
+                    left + 25,
+                    120,
+                    "0",
+                    "Description :",
+                    0,
+                    40,
+                    40,
+                    1
+                )
+
+                lp.PrintText(
+                    left + 260,
+                    120,
+                    "0",
+                    description,
+                    0,
+                    40,
+                    40,
+                    1
+                )
+
+                // ---------- GROSS WT ----------
+                lp.PrintText(
+                    left + 25,
+                    180,
+                    "0",
+                    "Gross Wt :",
+                    0,
+                    40,
+                    40,
+                    1
+                )
+
+                lp.PrintText(
+                    left + 260,
+                    180,
+                    "0",
+                    grossWt,
+                    0,
+                    40,
+                    40,
+                    1
+                )
+
+                // ---------- BARCODE ----------
+                val barcodeHeight = 100
+                val barcodeY = height - 170
+                val barcodeX = left + 50
+
+                lp.PrintBarcode1D(
+                    barcodeX,
+                    barcodeY,
+
+                    1,
+                    0,
+                    barcodeData,
+                    barcodeHeight,
+                    1,
+                    3,
+                    3
+                )
+
+                }
+
+                // ---------- PRINT ----------
+                val status = lp.PrintLabel(1, 1)
+
+                mainHandler.post {
+                    if (status == 0) {
+                        result.success("Tea label printed successfully!")
+                    } else {
+                        result.error("PRINT_FAILED", "PrintLabel returned: $status", null)
+                    }
+                }
+
+            } catch (e: Exception) {
+                mainHandler.post {
+                    result.error("EXCEPTION", e.message ?: "Unknown error", null)
+                }
+            }
         }.start()
     }
 

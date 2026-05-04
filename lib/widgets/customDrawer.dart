@@ -5,11 +5,9 @@ import 'package:punit_label/constants/sizes.dart';
 import 'package:punit_label/features/dashboard/dashboardController.dart';
 import 'package:punit_label/features/dispatch/view/dispatchScreen.dart';
 import 'package:punit_label/features/inward/view/inwardScreen.dart';
-import 'package:punit_label/navigation/routesManagement.dart';
 
 import '../constants/colors.dart';
 import '../constants/styles.dart';
-import '../constants/utility.dart';
 import '../features/tare/tareView.dart';
 
 class CustomDrawer extends StatelessWidget {
@@ -27,7 +25,7 @@ class CustomDrawer extends StatelessWidget {
     final isTablet = width >= 600 && width < 1024;
     final isDesktop = width >= 1024;
     return Drawer(
-     // width: isTablet ? Dimens.twoHundredFifty : Dimens.hundredFifty,
+      // width: isTablet ? Dimens.twoHundredFifty : Dimens.hundredFifty,
       width: isMobile
           ? width * 0.75
           : isTablet
@@ -172,7 +170,7 @@ class CustomDrawer extends StatelessWidget {
                     "Logout",
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  onTap: () => RouteManagement.offToLogin(),
+                  onTap: () => {dashController.logout()},
                 ),
               ],
             ),

@@ -589,6 +589,16 @@ class BatchInwardController extends GetxController {
           noAttribute: labelFields.length,
         );
         break;
+      case LabelFormat.MajedarTea:
+        // TODO: Handle this case.
+        final double netWeight = double.parse(manualCtrl.manualNet.value ?? '0.0');
+        await dashboardController.printTeaSmallSticker(
+          barcodeString: barcodeString,
+          productName: productName,
+          noAttribute: noAttr,
+          labelFields: labelFields, netweight: netWeight,
+        );
+        break;
     }
   }
 

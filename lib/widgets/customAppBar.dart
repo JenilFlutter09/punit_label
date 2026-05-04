@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:punit_label/features/bluetooth_test/classic_serial_scale_test_sheet.dart';
 import 'package:punit_label/features/login/loginmodel.dart';
 import 'package:punit_label/widgets/usbSerial.dart';
 
-import '../apis/sharedPreference.dart';
 import '../constants/colors.dart';
-import '../constants/sizes.dart';
 import '../constants/strings.dart';
 import '../constants/styles.dart';
 import '../features/dashboard/dashboardController.dart';
@@ -126,6 +125,7 @@ Widget _detailRow(String label, String value) {
     ),
   );
 }
+
 class AppBarSizing {
   final double iconSize;
   final double badgeIconSize;
@@ -133,10 +133,10 @@ class AppBarSizing {
   final double titleFont;
 
   AppBarSizing(double width)
-      : iconSize = width > 600 ? 32 : 24,
-        badgeIconSize = width > 600 ? 20 : 15,
-        radius = width > 600 ? 26 : 20,
-        titleFont = width > 600 ? 22 : 16;
+    : iconSize = width > 600 ? 32 : 24,
+      badgeIconSize = width > 600 ? 20 : 15,
+      radius = width > 600 ? 26 : 20,
+      titleFont = width > 600 ? 22 : 16;
 }
 
 class StatusIconButton extends StatelessWidget {
@@ -176,6 +176,7 @@ class StatusIconButton extends StatelessWidget {
     );
   }
 }
+
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   CustomAppBar({
     super.key,
@@ -210,15 +211,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
       leading: showDrawer
           ? Builder(
-        builder: (context) => IconButton(
-          icon: const Icon(Icons.menu, color: Colors.white),
-          onPressed: () => Scaffold.of(context).openDrawer(),
-        ),
-      )
+              builder: (context) => IconButton(
+                icon: const Icon(Icons.menu, color: Colors.white),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
+            )
           : null,
 
       actions: [
-
         if (showScale) _scaleButton(sizing),
         if (showPrinter) _printerButton(sizing),
         Obx(() {
@@ -236,21 +236,37 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   // ---------------- Buttons ----------------
 
   Widget _scaleButton(AppBarSizing s) {
-    return Obx(() => StatusIconButton(
-      size: s,
-      icon: Icons.scale,
-      connected: dashboardController.isWeightScaleConnected.value,
-      onPressed: () {
-        dashboardController.isWeightScaleConnected.value
-            ? _disconnectDialog(
-            Get.context!, "Scale", dashboardController.disconnectDevice)
-            : showBluetoothSheet(
-          Get.context!,
-          dashboardController,
-          SStringConstants.role_scale,
-        );
-      },
-    ));
+    final classicScaleTestController =
+        ClassicSerialScaleTestController.ensureRegistered();
+
+    return Obx(
+      () => StatusIconButton(
+        size: s,
+        icon: Icons.scale,
+        connected: dashboardController.isWeightScaleConnected.value,
+        onPressed: () {
+          if (classicScaleTestController.isConnected.value) {
+            _disconnectDialog(
+              Get.context!,
+              "Scale",
+              () => classicScaleTestController.disconnect(dashboardController),
+            );
+            return;
+          }
+
+          dashboardController.isWeightScaleConnected.value
+              ? _disconnectDialog(
+                  Get.context!,
+                  "Scale",
+                  dashboardController.disconnectDevice,
+                )
+              : showClassicSerialScaleTestSheet(
+                  Get.context!,
+                  dashboardController,
+                );
+        },
+      ),
+    );
   }
 
   Widget _printerButton(AppBarSizing s) {
@@ -267,28 +283,28 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         onPressed: () {
           isLabelMode
               ? showBluetoothPrinterSheet(
-            Get.context!,
-            dashboardController,
-            SStringConstants.role_printer,
-          )
-              : dashboardController.bluetoothController
-              .openDeviceBottomSheet();
+                  Get.context!,
+                  dashboardController,
+                  SStringConstants.role_printer,
+                )
+              : dashboardController.bluetoothController.openDeviceBottomSheet();
         },
       );
     });
   }
 
   Widget _towerLightButton(AppBarSizing s) {
-    return Obx(() => StatusIconButton(
-      size: s,
-      icon: Icons.cell_tower,
-      connected:
-      dashboardController.tower_controller.isConnected.value,
-      onPressed: () => showTowerLightSheet(
-        Get.context!,
-        dashboardController.tower_controller,
+    return Obx(
+      () => StatusIconButton(
+        size: s,
+        icon: Icons.cell_tower,
+        connected: dashboardController.tower_controller.isConnected.value,
+        onPressed: () => showTowerLightSheet(
+          Get.context!,
+          dashboardController.tower_controller,
+        ),
       ),
-    ));
+    );
   }
 
   Widget _userButton(AppBarSizing s) {

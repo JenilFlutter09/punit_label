@@ -4,7 +4,8 @@ enum Request { get, post, put, patch, delete, awsUpload }
 enum UserRoles { production,dispatch,both }
 enum InwardState { idle, running, paused }
 // enum LabelFormat { Small, Medium, Large,ExtraLarge }
-enum LabelFormat { Small, Medium, Large, ExtraLarge, WholesalePack }
+enum LabelFormat { Small, Medium, Large, ExtraLarge, WholesalePack ,MajedarTea}
+//enum LabelFormat { Small, Medium, Large,ExtraLarge ,MajedarTea}
 enum TareState{ on , off , barcode}
 enum LabelState{ Label, Receipt}
 

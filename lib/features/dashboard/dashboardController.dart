@@ -33,6 +33,8 @@ class DashboardController extends GetxController {
   var isLabelPrinterMode = true.obs;
   var isTowerLight = false.obs;
   var isWeightScaleConnected = false.obs;
+  var isUniversalBleScaleConnected = false.obs;
+  var isExperimentalScaleConnected = false.obs;
   ConnectHelper connectHelper = ConnectHelper();
   var isPrinterConnected = false.obs;
   final Map<String, StreamSubscription<List<int>>> _charSubs = {};
@@ -399,6 +401,12 @@ class DashboardController extends GetxController {
     } else {
       labelFormats.value = [
         LabelFormatElement(
+          0,
+          "Majedar Tea Label Format",
+          1,
+          LabelFormat.MajedarTea,
+        ),
+        LabelFormatElement(
           1,
           "Small Label Select Max (3)",
           3,
@@ -624,6 +632,252 @@ class DashboardController extends GetxController {
     }
   }
 
+  Future<void> printTeaSmallSticker({
+    required String barcodeString,
+    required String productName,
+    required int noAttribute,
+    required double netweight,
+    Map<String, dynamic>? labelFields,
+  }) async {
+
+    print("printTeaLabel CALLED");
+    await printTeaLabel(
+      barcodeString: barcodeString,
+      productName: productName,
+      noAttribute: noAttribute,
+      netweight: netweight,
+      labelFields: labelFields,
+    );
+  }
+  // Future<void> printTeaLabel({
+  //   required String barcodeString,
+  //   required String productName,
+  //   required int noAttribute,
+  //   required double netweight,
+  //   Map<String, dynamic>? labelFields,
+  // }) async
+  // {
+  //   try {
+  //     final companyData = companyDetails.value?.data;
+  //     final companyName = companyData?.name ?? "Majedar Tea Co.";
+  //
+  //     final List<Map<String, dynamic>> dynamicAttributes = [];
+  //
+  //     if (labelFields != null) {
+  //       labelFields.forEach((key, value) {
+  //         dynamicAttributes.add({
+  //           "key": key,
+  //           "value": value.toString(),
+  //         });
+  //       });
+  //     }
+  //
+  //     if (isLabelPrinterMode.value == false) {
+  //       bluetoothController.printReceipt(
+  //         companyName: companyName,
+  //         companyContact: buildCompanyInfoLines(companyData),
+  //         items: dynamicAttributes,
+  //         barcodeData: barcodeString,
+  //       );
+  //     } else {
+  //       final result = await platform.invokeMethod("printTeaSticker", {
+  //         "width": 600,
+  //         "height": 410,
+  //         "margin": 0,
+  //
+  //         "companyName": companyName,
+  //         "productName": productName,
+  //
+  //         // fixed fields from your handwritten format
+  //         "description": "40 P / 10kg",
+  //         "grossWt": netweight.toString(),
+  //
+  //         "barcodeData": barcodeString,
+  //
+  //         // extra fields support
+  //         "attributes": dynamicAttributes,
+  //         "isGrid": noAttribute > 1,
+  //         "isWhiteLabel": isWhiteLabel.value,
+  //         "printTime": printTimeInLabel.value,
+  //       });
+  //
+  //       print(result);
+  //     }
+  //   } catch (e) {
+  //     print("Error printing tea sticker: $e");
+  //   }
+  // }
+
+  // Future<void> printTeaLabel({
+  //   required String barcodeString,
+  //   required String productName,
+  //   required int noAttribute,
+  //   required double netweight,
+  //   Map<String, dynamic>? labelFields,
+  // }) async {
+  //   try {
+  //     final companyData = companyDetails.value?.data;
+  //     final companyName = companyData?.name ?? "Majedar Tea Co.";
+  //
+  //     final List<Map<String, dynamic>> dynamicAttributes = [];
+  //
+  //     /// find the key "description" in label field and print it with description
+  //     String descriptionValue = "";
+  //
+  //     if (labelFields != null) {
+  //       descriptionValue = labelFields["description"]?.toString() ?? labelFields["desc"] ?? labelFields["Description"] ?? labelFields["Desc"] ??"";
+  //     }
+  //     if (isLabelPrinterMode.value == false) {
+  //       bluetoothController.printReceipt(
+  //         companyName: companyName,
+  //         companyContact: buildCompanyInfoLines(companyData),
+  //         items: dynamicAttributes,
+  //         barcodeData: barcodeString,
+  //       );
+  //     } else {
+  //
+  //       final result = await platform.invokeMethod("printTeaSticker", {
+  //         "width": 600,
+  //         "height": 410,
+  //         "margin": 0,
+  //         "companyName": companyName,
+  //         "barcodeData": barcodeString,
+  //         "productName": productName,
+  //         "grossWt": netweight.toString(),
+  //         // first value of labelfields
+  //         "description": labelFields.,
+  //        // "attributes": dynamicAttributes,
+  //         "isWhiteLabel": isWhiteLabel.value,
+  //         "printTime": printTimeInLabel.value,
+  //       });
+  //
+  //       print(result);
+  //     }
+  //   } catch (e) {
+  //     print("Error printing tea sticker: $e");
+  //   }
+  // }
+
+
+  Future<void> printTeaLabel({
+    required String barcodeString,
+    required String productName,
+    required int noAttribute,
+    required double netweight,
+    Map<String, dynamic>? labelFields,
+  }) async {
+    try {
+      final companyData = companyDetails.value?.data;
+      final companyName = companyData?.name ?? "Majedar Tea Co.";
+
+      /// ✅ Extract description safely (multi-key support)
+      String descriptionValue = "";
+
+
+        descriptionValue =
+            labelFields?["description"]?.toString() ??
+                labelFields?["desc"]?.toString() ??
+                labelFields?["Description"]?.toString() ?? labelFields?["DESCRIPTION"]?.toString() ??
+                labelFields?["Desc"]?.toString() ??
+                "";
+
+        print("description value ====> $descriptionValue");
+      // if (labelFields != null && labelFields.isNotEmpty) {
+      //   final firstEntry = labelFields.entries.first;
+      //   descriptionValue = firstEntry.value.toString();
+      // }
+
+      if (isLabelPrinterMode.value == false) {
+        bluetoothController.printReceipt(
+          companyName: companyName,
+          companyContact: buildCompanyInfoLines(companyData),
+          items: [
+            {"key": "Product", "value": productName},
+            {"key": "Description", "value": descriptionValue},
+            {"key": "Gross Wt", "value": "${netweight.toStringAsFixed(2)} kg"},
+          ],
+          barcodeData: barcodeString,
+        );
+      } else {
+        final result = await platform.invokeMethod("printTeaSticker", {
+          "width": 600,
+          "height": 410,
+          "margin": 0,
+          "companyName": companyName,
+          "barcodeData": barcodeString,
+
+          /// ✅ Send clean 3 values
+          "productName": productName,
+          "grossWt": netweight.toStringAsFixed(2),
+          "description": descriptionValue,
+
+          "isWhiteLabel": isWhiteLabel.value,
+          "printTime": printTimeInLabel.value,
+        });
+
+        print(result);
+      }
+    } catch (e) {
+      print("Error printing tea sticker: $e");
+    }
+  }
+  // Future<void> printTeaLabel({
+  //   required String barcodeString,
+  //   required String productName,
+  //   required int noAttribute,
+  //   required double netweight,
+  //   Map<String, dynamic>? labelFields,
+  // }) async {
+  //   try {
+  //     final companyData = companyDetails.value?.data;
+  //     final companyName = companyData?.name ?? "Majedar Tea Co.";
+  //
+  //     /// ✅ Extract description safely (multi-key support)
+  //     String descriptionValue = "";
+  //
+  //     if (labelFields != null && labelFields.isNotEmpty) {
+  //       descriptionValue =
+  //           labelFields["description"]?.toString() ??
+  //               labelFields["desc"]?.toString() ??
+  //               labelFields["Description"]?.toString() ??
+  //               labelFields["Desc"]?.toString() ??
+  //               "";
+  //     }
+  //
+  //     if (isLabelPrinterMode.value == false) {
+  //       bluetoothController.printReceipt(
+  //         companyName: companyName,
+  //         companyContact: buildCompanyInfoLines(companyData),
+  //         items: [
+  //           {"key": "Product", "value": productName},
+  //           {"key": "Description", "value": descriptionValue},
+  //           {"key": "Gross Wt", "value": "${netweight.toStringAsFixed(2)} kg"},
+  //         ],
+  //         barcodeData: barcodeString,
+  //       );
+  //     } else {
+  //       final result = await platform.invokeMethod("printTeaSticker", {
+  //         "width": 600,
+  //         "height": 410,
+  //         "margin": 0,
+  //         "companyName": companyName,
+  //         "barcodeData": barcodeString,
+  //
+  //         /// ✅ Send clean 3 values
+  //         "productName": productName,
+  //         "grossWt": netweight.toStringAsFixed(2),
+  //         "description": descriptionValue,
+  //
+  //         "isWhiteLabel": isWhiteLabel.value,
+  //         "printTime": printTimeInLabel.value,
+  //       });
+  //
+  //       print(result);
+  //     }
+  //   } catch (e) {
+  //     print("Error printing tea sticker: $e");
+  //   }
+  // }
   /// Print 50 X 75 Sticker
   Future<void> printSmallSticker({
     required String barcodeString,
@@ -845,7 +1099,7 @@ class DashboardController extends GetxController {
 
   void logout() {
     TokenStorage.clearAll();
-    isPrinterConnected.value = false;
+    //isPrinterConnected.value = false;
     RouteManagement.offToLogin();
   }
 
@@ -1055,6 +1309,8 @@ class DashboardController extends GetxController {
       await device.connect(autoConnect: false);
       connectedDevice.value = device;
       isWeightScaleConnected.value = true;
+      isUniversalBleScaleConnected.value = false;
+      isExperimentalScaleConnected.value = false;
       final services = await device.discoverServices();
       for (var service in services) {
         for (var characteristic in service.characteristics) {
@@ -1114,6 +1370,8 @@ class DashboardController extends GetxController {
     } catch (e) {
       debugPrint("Connection failed: $e");
       isWeightScaleConnected.value = false;
+      isUniversalBleScaleConnected.value = false;
+      isExperimentalScaleConnected.value = false;
       Get.snackbar("Error", "Failed to connect: $e");
     } finally {
       connectingDeviceId.value = null; // reset after attempt
@@ -1128,6 +1386,8 @@ class DashboardController extends GetxController {
     try {
       await connectedDevice.value?.disconnect();
       isWeightScaleConnected.value = false;
+      isUniversalBleScaleConnected.value = false;
+      isExperimentalScaleConnected.value = false;
     } catch (e) {
       debugPrint('Error while disconnecting: $e');
     }

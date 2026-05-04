@@ -579,6 +579,17 @@ class NonBatchInwardController extends GetxController {
           noAttribute: wholesaleFields.length,
         );
         break;
+      case LabelFormat.MajedarTea:
+        double netweight = double.tryParse(manualCtrl.manualNet.value ?? "0") ?? 0;
+        print("going to small tea");
+        // TODO: Handle this case.
+        await dashboardController.printTeaSmallSticker(
+            barcodeString: barcodeString,
+            productName: productName,
+            noAttribute: noAttr,
+            netweight: netweight,
+            labelFields: labelFields);
+        break;
     }
   }
 

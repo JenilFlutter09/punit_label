@@ -33,12 +33,13 @@ class NonBatchBluetoothWeightSection extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           /// 🔵 TARE ON → GROSS + TARE UI
-          if(tareState != TareState.off) ...[
+          if (tareState != TareState.off) ...[
             Row(
               children: [
-                Expanded(child: Text("Gross Weight", style: Styles.blackBold12)),
+                Expanded(
+                  child: Text("Gross Weight", style: Styles.blackBold12),
+                ),
                 Dimens.boxWidth10,
                 Expanded(child: Text("Tare Weight", style: Styles.blackBold12)),
               ],
@@ -52,13 +53,13 @@ class NonBatchBluetoothWeightSection extends StatelessWidget {
                 Expanded(
                   child: dashboardController.isWeightScaleConnected.value
                       ? _LiveGrossField(
-                    manualCtrl: controller.manualCtrl,
-                    isTablet: isTablet,
-                  )
+                          manualCtrl: controller.manualCtrl,
+                          isTablet: isTablet,
+                        )
                       : _ManualGrossField(
-                    manualCtrl: controller.manualCtrl,
-                    isTablet: isTablet,
-                  ),
+                          manualCtrl: controller.manualCtrl,
+                          isTablet: isTablet,
+                        ),
                 ),
 
                 Dimens.boxWidth5,
@@ -66,14 +67,14 @@ class NonBatchBluetoothWeightSection extends StatelessWidget {
                 Expanded(
                   child: tareState == TareState.on
                       ? _ManualTareField(
-                    manualCtrl: controller.manualCtrl,
-                    isTablet: isTablet,
-                  )
+                          manualCtrl: controller.manualCtrl,
+                          isTablet: isTablet,
+                        )
                       : _BarcodeTareField(
-                    manualCtrl: controller.manualCtrl,
-                    controller: controller,
-                    isTablet: isTablet,
-                  ),
+                          manualCtrl: controller.manualCtrl,
+                          controller: controller,
+                          isTablet: isTablet,
+                        ),
                 ),
               ],
             ),
@@ -85,15 +86,16 @@ class NonBatchBluetoothWeightSection extends StatelessWidget {
             isTablet: isTablet,
             netWeight: controller.manualCtrl.manualNet,
             isUnitConversion:
-            controller.selectedProduct.value?.unitConversion ?? false,
-            unitValue:
-            controller.selectedProduct.value?.unitValue ?? 1,
+                controller.selectedProduct.value?.unitConversion ?? false,
+            unitValue: controller.selectedProduct.value?.unitValue ?? 1,
 
             /// 👇 KEY LOGIC
             isEditable: dashboardController.tareState.value == TareState.off,
             isBluetoothConnected:
-            dashboardController.isWeightScaleConnected.value &&
-                dashboardController.connectedDevice.value != null,
+                dashboardController.isWeightScaleConnected.value &&
+                (dashboardController.connectedDevice.value != null ||
+                    dashboardController.isUniversalBleScaleConnected.value ||
+                    dashboardController.isExperimentalScaleConnected.value),
             manualCtrl: controller.manualCtrl,
           ),
         ],
@@ -124,7 +126,8 @@ class _LiveGrossField extends StatelessWidget {
         enabled: false,
         controller: manualCtrl.grossCtrl,
         suffix: Text('Kg'),
-        isTablet: isTablet, keyboard: TextInputType.number,
+        isTablet: isTablet,
+        keyboard: TextInputType.number,
         // suffixIcon: const Padding(
         //   padding: EdgeInsets.all(8.0),
         //   child: Icon(Icons.bluetooth_connected, color: Colors.green),
@@ -185,7 +188,11 @@ class _BarcodeTareField extends StatelessWidget {
   final ManualWeightController manualCtrl;
   final NonBatchInwardController controller;
   final bool isTablet;
-  const _BarcodeTareField({required this.manualCtrl, required this.isTablet, required this.controller});
+  const _BarcodeTareField({
+    required this.manualCtrl,
+    required this.isTablet,
+    required this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -195,26 +202,23 @@ class _BarcodeTareField extends StatelessWidget {
       enabled: true,
       readOnly: true,
       controller: manualCtrl.tareCtrl,
-      isTablet: isTablet, keyboard: TextInputType.text,
+      isTablet: isTablet,
+      keyboard: TextInputType.text,
       suffix: Text('Kg'),
-      onTapPrefixIcon:() async {
+      onTapPrefixIcon: () async {
         // TODO: Open barcode scanner
-        final result = await showBarcodeScannerDialog(
-          context,
-        );
+        final result = await showBarcodeScannerDialog(context);
         final scanned = result?.trim();
         if (result != null) {
-
           if (controller.tareProductsListModel.value?.data?.any(
                 (b) => b.barCodeString?.trim() == scanned,
-          ) ??
+              ) ??
               false) {
             controller.selectedBarcode.value = controller
-                .tareProductsListModel.value?.data
-                ?.firstWhere(
-                  (b) =>
-              b.barCodeString?.trim() == scanned,
-            );
+                .tareProductsListModel
+                .value
+                ?.data
+                ?.firstWhere((b) => b.barCodeString?.trim() == scanned);
             Get.snackbar(
               '',
               '',
@@ -227,8 +231,7 @@ class _BarcodeTareField extends StatelessWidget {
               snackStyle: SnackStyle.FLOATING,
             );
             var data = controller.selectedBarcode.value;
-            manualCtrl.manualTare.value =
-                data?.weight.toString();
+            manualCtrl.manualTare.value = data?.weight.toString();
             manualCtrl.tareCtrl.text = data?.weight.toString() ?? '0';
             manualCtrl.calculateManualNet();
           } else {
@@ -256,6 +259,7 @@ class _BarcodeTareField extends StatelessWidget {
     );
   }
 }
+
 class NetWeightDisplayCard extends StatelessWidget {
   final bool isTablet;
   final Rxn<String> netWeight;
@@ -284,111 +288,111 @@ class NetWeightDisplayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-   return IntrinsicHeight(
+    return IntrinsicHeight(
+      child: Obx(() {
+        final net = double.tryParse(netWeight.value ?? '0') ?? 0;
+        final converted = net * unitValue;
 
-     child: Obx((){
-       final net = double.tryParse(netWeight.value ?? '0') ?? 0;
-       final converted = net * unitValue;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Card(
+                margin: Dimens.edgeInsets10_0_0_0,
+                color: Colors.white,
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: Dimens.edgeInsets10,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "Net Weight (Kg)",
+                        style: TextStyle(
+                          fontSize: isTablet ? 22 : 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
 
-       return  Row(
-         crossAxisAlignment: CrossAxisAlignment.stretch,
-         children: [
-           Expanded(
-             child: Card(
-               margin: Dimens.edgeInsets10_0_0_0,
-               color: Colors.white,
-               elevation: 4,
-               shape: RoundedRectangleBorder(
-                 borderRadius: BorderRadius.circular(16),
-               ),
-               child: Padding(
-                 padding: Dimens.edgeInsets10,
-                 child: Column(
-                   mainAxisAlignment: MainAxisAlignment.center,
-                   children: [
-                     Text(
-                       "Net Weight (Kg)",
-                       style: TextStyle(
-                         fontSize: isTablet ? 22 : 18,
-                         fontWeight: FontWeight.w600,
-                       ),
-                     ),
+                      /// 🟢 EDITABLE MODE
+                      if (isEditable && !isBluetoothConnected)
+                        TextField(
+                          controller: manualCtrl.grossCtrl,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: isTablet ? 34 : 28,
+                            fontWeight: FontWeight.w900,
+                            color: ColorsValue.primaryColor,
+                          ),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            hintText: "0",
+                            // helperText: "0"
+                          ),
+                          onChanged: (v) {
+                            manualCtrl.manualGross.value = v;
+                            manualCtrl.manualNet.value = v;
+                          },
+                        )
+                      /// 🔵 DISPLAY MODE
+                      else
+                        Text(
+                          net.toStringAsFixed(2),
+                          style: TextStyle(
+                            fontSize: isTablet ? 34 : 28,
+                            fontWeight: FontWeight.w900,
+                            color: ColorsValue.primaryColor,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
-                     /// 🟢 EDITABLE MODE
-                     if (isEditable && !isBluetoothConnected)
-                       TextField(
-                         controller: manualCtrl.grossCtrl,
-                         keyboardType: TextInputType.number,
-                         textAlign: TextAlign.center,
-                         style: TextStyle(
-                           fontSize: isTablet ? 34 : 28,
-                           fontWeight: FontWeight.w900,
-                           color: ColorsValue.primaryColor,
-                         ),
-                         decoration: const InputDecoration(
-                           border: InputBorder.none,
-                           hintText: "0",
-                           // helperText: "0"
-                         ),
-                         onChanged: (v) {
-                           manualCtrl.manualGross.value = v;
-                           manualCtrl.manualNet.value = v;
-                         },
-                       )
+            /// 🟩 Converted Unit
+            if (isUnitConversion)
+              Expanded(
+                child: Card(
+                  margin: Dimens.edgeInsets10_0_10_0,
+                  elevation: 4,
+                  color: Colors.white,
+                  child: Padding(
+                    padding: Dimens.edgeInsets10,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Converted Unit",
+                          style: TextStyle(
+                            fontSize: isTablet ? 22 : 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
 
-                     /// 🔵 DISPLAY MODE
-                     else
-                       Text(
-                         net.toStringAsFixed(2),
-                         style: TextStyle(
-                           fontSize: isTablet ? 34 : 28,
-                           fontWeight: FontWeight.w900,
-                           color: ColorsValue.primaryColor,
-                         ),
-                       ),
-                   ],
-                 ),
-               ),
-             ),
-           ),
-
-           /// 🟩 Converted Unit
-           if (isUnitConversion)
-             Expanded(
-               child: Card(
-                 margin: Dimens.edgeInsets10_0_10_0,
-                 elevation: 4,
-                 color: Colors.white,
-                 child: Padding(
-                   padding: Dimens.edgeInsets10,
-                   child: Column(
-                     mainAxisAlignment: MainAxisAlignment.center,
-                     children: [
-                       Text("Converted Unit", style: TextStyle(
-                         fontSize: isTablet ? 22 : 18,
-                         fontWeight: FontWeight.w600,
-                       ),),
-
-                       Text(
-                         converted.toStringAsFixed(2),
-                         style: TextStyle(
-                           fontSize: isTablet ? 34 : 28,
-                           fontWeight: FontWeight.bold,
-                           color: Colors.green,
-                         ),
-                       ),
-                     ],
-                   ),
-                 ),
-               ),
-             ),
-         ],
-       );
-     })
-   );
+                        Text(
+                          converted.toStringAsFixed(2),
+                          style: TextStyle(
+                            fontSize: isTablet ? 34 : 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      }),
+    );
   }
 }
-
 
 /// Professional, Animated & Reusable Action Bar for Inward/Dispatch
 class NonBatchInwardActionBar extends StatelessWidget {
@@ -398,7 +402,8 @@ class NonBatchInwardActionBar extends StatelessWidget {
   const NonBatchInwardActionBar({
     super.key,
     required this.controller,
-    required this.isTablet, required this.context,
+    required this.isTablet,
+    required this.context,
   });
 
   // Define button config based on state
@@ -406,37 +411,44 @@ class NonBatchInwardActionBar extends StatelessWidget {
     final bool isAutoEnabled = controller.isBatchAutoWeightEnabled.value;
 
     if (!isAutoEnabled) {
-      final IconData mainIcon = controller.inwardState.value == InwardState.running
+      final IconData mainIcon =
+          controller.inwardState.value == InwardState.running
           ? Icons.pause_circle_filled
           : Icons.play_circle_filled;
 
-      final Color mainColor = controller.inwardState.value == InwardState.running
+      final Color mainColor =
+          controller.inwardState.value == InwardState.running
           ? Colors.orange
           : Colors.green;
 
-      final String mainLabel = controller.inwardState.value == InwardState.running
+      final String mainLabel =
+          controller.inwardState.value == InwardState.running
           ? "Pause"
-          : (controller.inwardState.value == InwardState.paused ? "Resume" : "Start");
+          : (controller.inwardState.value == InwardState.paused
+                ? "Resume"
+                : "Start");
       return [
         _ActionButtonConfig(
           icon: Icons.add_circle,
           color: ColorsValue.primaryColor,
           label: "Add Entry",
-          onTap:() async{
-            await controller.addToList();}
-        ), _ActionButtonConfig(
+          onTap: () async {
+            await controller.addToList();
+          },
+        ),
+        _ActionButtonConfig(
           icon: mainIcon,
           color: mainColor,
           label: mainLabel,
           onTap: () async {
             if (controller.inwardState.value == InwardState.running) {
-              if(!controller.validateTransactionName()) {
+              if (!controller.validateTransactionName()) {
                 return;
-              }else{
+              } else {
                 await controller.onPauseOrStop(pauseOrStop: 'pause');
               }
             }
-          }
+          },
         ),
         _ActionButtonConfig(
           icon: Icons.save,
@@ -448,7 +460,8 @@ class NonBatchInwardActionBar extends StatelessWidget {
     }
 
     // Auto mode: Dynamic play/pause based on state
-    final IconData mainIcon = controller.inwardState.value == InwardState.running
+    final IconData mainIcon =
+        controller.inwardState.value == InwardState.running
         ? Icons.pause_circle_filled
         : Icons.play_circle_filled;
 
@@ -458,7 +471,9 @@ class NonBatchInwardActionBar extends StatelessWidget {
 
     final String mainLabel = controller.inwardState.value == InwardState.running
         ? "Pause"
-        : (controller.inwardState.value == InwardState.paused ? "Resume" : "Start Auto");
+        : (controller.inwardState.value == InwardState.paused
+              ? "Resume"
+              : "Start Auto");
 
     return [
       _ActionButtonConfig(
@@ -466,7 +481,9 @@ class NonBatchInwardActionBar extends StatelessWidget {
         color: mainColor,
         label: mainLabel,
         onTap: controller.onTapMain,
-        pulse: controller.inwardState.value == InwardState.running, // Pulse when running
+        pulse:
+            controller.inwardState.value ==
+            InwardState.running, // Pulse when running
       ),
       _ActionButtonConfig(
         icon: Icons.stop_circle,
@@ -515,6 +532,7 @@ class _ActionButtonConfig {
     this.pulse = false,
   });
 }
+
 class AnimatedScaleButton extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -547,19 +565,19 @@ class AnimatedScaleButton extends StatelessWidget {
           curve: Curves.easeInOut,
           child: pulse
               ? _PulsingButton(
-            size: size,
-            iconSize: iconSize,
-            icon: icon,
-            color: color,
-            onTap: onTap,
-          )
+                  size: size,
+                  iconSize: iconSize,
+                  icon: icon,
+                  color: color,
+                  onTap: onTap,
+                )
               : _StaticButton(
-            size: size,
-            iconSize: iconSize,
-            icon: icon,
-            color: color,
-            onTap: onTap,
-          ),
+                  size: size,
+                  iconSize: iconSize,
+                  icon: icon,
+                  color: color,
+                  onTap: onTap,
+                ),
         ),
         const SizedBox(height: 8),
         Text(
@@ -608,9 +626,10 @@ class _PulsingButtonState extends State<_PulsingButton>
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
 
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.18).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.18,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
