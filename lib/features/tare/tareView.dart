@@ -4,8 +4,8 @@ import 'package:get/get.dart';
 import 'package:punit_label/constants/colors.dart';
 
 import 'package:punit_label/constants/styles.dart';
-import 'package:punit_label/features/dashboard/dashboardController.dart';
 import 'package:punit_label/features/tare/tareController.dart';
+import 'package:punit_label/features/tare/tareScaleConnection.dart';
 import 'package:punit_label/widgets/customAppBar.dart';
 
 import '../../constants/sizes.dart';
@@ -17,24 +17,8 @@ class AddTareProductsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tareCtrl = Get.put(TareProductController());
-    final dashCtrl = Get.find<DashboardController>();
+    final tareScaleCtrl = TareScaleConnectionController.ensureRegistered();
     final bool isTablet = MediaQuery.of(context).size.width > 600;
-
-    // Sync live weight only when scale is connected
-    ever(dashCtrl.isWeightScaleConnected, (bool connected) {
-      if (connected) {
-        tareCtrl.currentWeight.value = double.parse(
-          dashCtrl.manualTareWeights.manualTare.value ?? '0',
-        );
-      }
-    });
-
-    // Also listen to live weight changes when connected
-    ever(dashCtrl.manualTareWeights.manualTare, (weight) {
-      if (dashCtrl.isWeightScaleConnected.value) {
-        tareCtrl.currentWeight.value = double.tryParse(weight ?? '0')!;
-      }
-    });
 
     return Scaffold(
       appBar: CustomAppBar(
@@ -55,11 +39,20 @@ class AddTareProductsView extends StatelessWidget {
                 children: [
                   _buildProductSelector(tareCtrl, isTablet),
                   Dimens.boxHeight20,
+                  TareScaleConnectionCard(
+                    controller: tareScaleCtrl,
+                    isTablet: isTablet,
+                  ),
+                  Dimens.boxHeight20,
 
                   // Smart Weight Input: Auto or Manual
                   Obx(
-                    () => dashCtrl.isWeightScaleConnected.value
-                        ? _buildLiveWeightCard(tareCtrl, isTablet)
+                    () => tareScaleCtrl.isConnected
+                        ? _buildLiveWeightCard(
+                            tareCtrl,
+                            tareScaleCtrl,
+                            isTablet,
+                          )
                         : _buildManualWeightInput(tareCtrl, isTablet),
                   ),
 
@@ -165,7 +158,11 @@ class AddTareProductsView extends StatelessWidget {
   }
 
   // Live Weight Card (When Scale is Connected)
-  Widget _buildLiveWeightCard(TareProductController ctrl, bool isTablet) {
+  Widget _buildLiveWeightCard(
+    TareProductController ctrl,
+    TareScaleConnectionController scaleCtrl,
+    bool isTablet,
+  ) {
     return Card(
       elevation: 6,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -185,7 +182,7 @@ class AddTareProductsView extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
+                    color: Colors.green.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -212,11 +209,11 @@ class AddTareProductsView extends StatelessWidget {
             Dimens.boxHeight20,
             Obx(
               () => Text(
-                "${ctrl.currentWeight.value.toStringAsFixed(3)} kg",
+                "${scaleCtrl.liveWeight.value.toStringAsFixed(3)} kg",
                 style: TextStyle(
                   fontSize: isTablet ? 52 : 44,
                   fontWeight: FontWeight.w900,
-                  color: ctrl.currentWeight.value > 0
+                  color: scaleCtrl.liveWeight.value > 0
                       ? ColorsValue.primaryColor
                       : Colors.grey,
                 ),
@@ -224,7 +221,10 @@ class AddTareProductsView extends StatelessWidget {
             ),
             Dimens.boxHeight20,
             ElevatedButton.icon(
-              onPressed: ctrl.addCurrentWeightAsTare,
+              onPressed: () {
+                ctrl.currentWeight.value = scaleCtrl.liveWeight.value;
+                ctrl.addCurrentWeightAsTare();
+              },
               icon: const Icon(Icons.add_task),
               label: const Text("Add This Weight as Tare"),
               style: ElevatedButton.styleFrom(
@@ -251,7 +251,7 @@ class AddTareProductsView extends StatelessWidget {
         Expanded(
           child: Obx(
             () => DropdownButtonFormField<String>(
-              value: ctrl.selectedProductName.value.isEmpty
+              initialValue: ctrl.selectedProductName.value.isEmpty
                   ? null
                   : ctrl.selectedProductName.value,
               hint: const Text("Select Tare Product"),

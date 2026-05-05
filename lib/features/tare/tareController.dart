@@ -1,6 +1,4 @@
 // controllers/tare_product_controller.dart
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:punit_label/apis/connectHelper.dart';
@@ -45,7 +43,7 @@ class TareProductController extends GetxController {
       Get.snackbar(
         "Success",
         "New tare product added",
-        backgroundColor: Colors.green.withOpacity(0.2),
+        backgroundColor: Colors.green.withValues(alpha: 0.2),
       );
     }
   }
@@ -55,29 +53,39 @@ class TareProductController extends GetxController {
   }
 
   void addCurrentWeightAsTare() {
+    final liveScaleWeight = double.tryParse(
+      dashboardController.manualTareWeights.manualGross.value ?? '',
+    );
+    final weight = dashboardController.isWeightScaleConnected.value &&
+            liveScaleWeight != null &&
+            liveScaleWeight > 0
+        ? liveScaleWeight
+        : currentWeight.value;
+
     if (selectedProductName.value.isEmpty) {
       Get.snackbar(
         "Error",
         "Please select or add a product name",
-        backgroundColor: Colors.red.withOpacity(0.2),
+        backgroundColor: Colors.red.withValues(alpha: 0.2),
       );
       return;
     }
-    if (currentWeight.value <= 0) {
+    if (weight <= 0) {
       Get.snackbar(
         "Error",
         "No weight detected",
-        backgroundColor: Colors.orange.withOpacity(0.2),
+        backgroundColor: Colors.orange.withValues(alpha: 0.2),
       );
       return;
     }
+    currentWeight.value = weight;
     String barcodeString = Utility.generateBarcode(id: serialNumber.value);
     print('Tare barcode String = $barcodeString');
     addedTareItems.insert(
       0,
       TareProducts(
         productName: selectedProductName.value,
-        weight: currentWeight.value,
+        weight: weight,
         barCodeString: barcodeString,
       ),
     );
@@ -85,7 +93,7 @@ class TareProductController extends GetxController {
       productName: selectedProductName.value,
       barcodeString: barcodeString,
       labelFields: {
-        "Weight": currentWeight.value,
+        "Weight": weight,
       },
       noAttribute: 1,
     );
@@ -96,7 +104,7 @@ class TareProductController extends GetxController {
     Get.snackbar(
       "Removed",
       "${removed.productName}",
-      backgroundColor: Colors.red.withOpacity(0.2),
+      backgroundColor: Colors.red.withValues(alpha: 0.2),
     );
   }
 
@@ -105,7 +113,7 @@ class TareProductController extends GetxController {
       Get.snackbar(
         "Empty",
         "No tare items to submit",
-        backgroundColor: Colors.orange.withOpacity(0.2),
+        backgroundColor: Colors.orange.withValues(alpha: 0.2),
       );
       return;
     }
