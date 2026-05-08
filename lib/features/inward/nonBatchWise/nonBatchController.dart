@@ -114,7 +114,6 @@ class NonBatchInwardController extends GetxController {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getTareList(),
       isLoading: initLoading,
-
     );
     tareProductsListModel.value = TareProductListModel.fromJson(
       jsonDecode(response.data),
@@ -144,7 +143,7 @@ class NonBatchInwardController extends GetxController {
           grossWeight: b.grossWeight ?? 0.0,
           netWeight: b.netWeight ?? 0.0,
           time: b.time,
-          serialNo: b.serialNo
+          serialNo: b.serialNo,
         );
       }).toList(),
     );
@@ -154,7 +153,6 @@ class NonBatchInwardController extends GetxController {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getNonBatchDetails(batchId),
       isLoading: initLoading,
-
     );
     nonBatchDetailModel.value = NonBatchDetailModel.fromJson(
       jsonDecode(response.data),
@@ -182,7 +180,6 @@ class NonBatchInwardController extends GetxController {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getProductList(),
       isLoading: initLoading,
-
     );
 
     product_list_model.value = productListModel.fromJson(
@@ -228,7 +225,6 @@ class NonBatchInwardController extends GetxController {
     var response = await dashboardController.callApi(
       apiCall: () => connectHelper.getAttributeList(),
       isLoading: initLoading,
-
     );
     attributes_list_model.value = attributesListModel.fromJson(
       jsonDecode(response.data),
@@ -339,7 +335,7 @@ class NonBatchInwardController extends GetxController {
     }
     if (inwardState.value != InwardState.running) {
       inwardState.value = InwardState.running;
-    } 
+    }
     isTareWeightOff.value =
         dashboardController.tareState.value == TareState.off;
 
@@ -447,8 +443,7 @@ class NonBatchInwardController extends GetxController {
     required NonBatchBarcodes barcodeData,
     required NonBatchProducts productData,
     required int serialNumber,
-  }) async
-  {
+  }) async {
     final LabelFormat selected =
         selectedLabelFormatObj.value?.labelFormat ?? LabelFormat.Large;
 
@@ -463,14 +458,12 @@ class NonBatchInwardController extends GetxController {
     final Map<String, String> combinationFields = {};
 
     selectedAttributes.forEach((key, value) {
-      final isEnabled =
-          attributeEnabled[key]?.value ?? false;
+      final isEnabled = attributeEnabled[key]?.value ?? false;
 
       if (isEnabled && value.value.isNotEmpty) {
         combinationFields[key] = value.value;
       }
     });
-
 
     // -------------------------------------------------------------
     // 2️⃣ Add weight fields
@@ -487,9 +480,14 @@ class NonBatchInwardController extends GetxController {
     // -------------------------------------------------------------
     // 3️⃣ Merge all fields into one labelFields map
     // -------------------------------------------------------------
-    Map<String, String> labelFields = isTareWeightOff.value
+    Map<String, String> labelFields = selected == LabelFormat.neoLabel
+        ? {...combinationFields}
+        : isTareWeightOff.value
         ? {...combinationFields, ...manualNFields}
         : {...combinationFields, ...manualGTNFields};
+    // Map<String, String> labelFields = isTareWeightOff.value
+    //     ? {...combinationFields, ...manualNFields}
+    //     : {...combinationFields, ...manualGTNFields};
     if (dashboardController.printSerialNumberInLabel.value) {
       labelFields = {"Sr No ": serialNumber.toString(), ...labelFields};
     }
@@ -579,17 +577,18 @@ class NonBatchInwardController extends GetxController {
           noAttribute: wholesaleFields.length,
         );
         break;
-      case LabelFormat.MajedarTea:
-        double netweight = double.tryParse(manualCtrl.manualNet.value ?? "0") ?? 0;
-        print("going to small tea");
-        // TODO: Handle this case.
-        await dashboardController.printTeaSmallSticker(
-            barcodeString: barcodeString,
-            productName: productName,
-            noAttribute: noAttr,
-            netweight: netweight,
-            labelFields: labelFields);
+      case LabelFormat.neoLabel:
+        await dashboardController.printNeoLabelSticker(
+          barcodeString: barcodeString,
+          productName: productName,
+          labelFields: labelFields,
+        );
         break;
+      // case LabelFormat.MajedarTea:
+      // // TODO: Handle this case.
+      //   final double netWeight = double.parse(manualCtrl.manualNet.value ?? '0.0');
+      //   await dashboardController.printTeaSmallSticker(productName: productName, noAttribute: labelFields.length, netweight: netWeight, barcodeString: barcodeString);
+      //   break;
     }
   }
 
@@ -666,10 +665,9 @@ class NonBatchInwardController extends GetxController {
       apiCall: () =>
           connectHelper.nonBatchProductStore(non_batch_inward_model: data),
       isLoading: initLoading,
-
     );
     if (!response.hasError) {
-      if(pauseOrStop == 'stop') {
+      if (pauseOrStop == 'stop') {
         Get.snackbar(
           "Successful",
           "Transaction Saved Successfully",
@@ -678,7 +676,7 @@ class NonBatchInwardController extends GetxController {
           colorText: Colors.white,
           animationDuration: Duration(seconds: 3),
         );
-      }else{
+      } else {
         Get.snackbar(
           "Paused",
           "Transaction Paused Successfully",
@@ -697,7 +695,7 @@ class NonBatchInwardController extends GetxController {
     return DateFormat('dd-MM-yyyy hh:mm a').format(dt);
   }
 
-  Future<void> generatePdf() async{
+  Future<void> generatePdf() async {
     final now = DateTime.now();
 
     final uniqueSuffix =
@@ -714,7 +712,9 @@ class NonBatchInwardController extends GetxController {
       },
       headers: ["Sr No", "Name", "Gross", "Tare", "Net", "Created_at"],
       data: _flattenBarcodesForExport(),
-      email: dashboardController.companyDetails.value?.data?.email ?? 'shahjenil9977@gmail.com'
+      email:
+          dashboardController.companyDetails.value?.data?.email ??
+          'shahjenil9977@gmail.com',
     );
   }
 
@@ -735,7 +735,6 @@ class NonBatchInwardController extends GetxController {
         /// 📌 Table Headers
         headers: ["Sr No", "Item", "Gross", "Tare", "Net", "Created_at"],
         data: _flattenBarcodesForExport(),
-
       );
     }
   }
@@ -763,62 +762,58 @@ class NonBatchInwardController extends GetxController {
 
     return rows;
   }
+
   String formatAttributes(List<NonBatchAttributes>? attrs) {
     if (attrs == null || attrs.isEmpty) return "";
 
-    return attrs
-        .map((a) => "${a.attributeName}: ${a.optionName}")
-        .join(", "); ///If you want multi-line instead of comma: .join("\n");
+    return attrs.map((a) => "${a.attributeName}: ${a.optionName}").join(", ");
 
+    ///If you want multi-line instead of comma: .join("\n");
   }
+
   void _startAutoWeightMonitor() {
     autoWeightTimer?.cancel();
 
-    autoWeightTimer = Timer.periodic(
-      const Duration(seconds: 1),
-          (timer) async {
-        // 1️⃣ Auto mode enabled
-        if (!isBatchAutoWeightEnabled.value) return;
+    autoWeightTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      // 1️⃣ Auto mode enabled
+      if (!isBatchAutoWeightEnabled.value) return;
 
-        // 2️⃣ Product selected
-        if (selectedProduct.value == null) return;
+      // 2️⃣ Product selected
+      if (selectedProduct.value == null) return;
 
-        final product = selectedProduct.value!;
+      final product = selectedProduct.value!;
 
-        // 3️⃣ Parse weight safely
-        final double netWeight =
-            double.tryParse(manualCtrl.manualNet.value ?? '') ?? 0.0;
+      // 3️⃣ Parse weight safely
+      final double netWeight =
+          double.tryParse(manualCtrl.manualNet.value ?? '') ?? 0.0;
 
-        // 4️⃣ Range check
-        final bool isInRange =
-            netWeight >= product.minWeight &&
-                netWeight <= product.maxWeight;
+      // 4️⃣ Range check
+      final bool isInRange =
+          netWeight >= product.minWeight && netWeight <= product.maxWeight;
 
-        // 5️⃣ 🔥 TOWER LIGHT INTEGRATION
+      // 5️⃣ 🔥 TOWER LIGHT INTEGRATION
 
-        dashboardController.tower_controller.updateWeightStatus(
-          isInRange
-              ? WeightStatus.inRange   // sends "0"
-              : WeightStatus.outOfRange, // sends "1"
-        );
+      dashboardController.tower_controller.updateWeightStatus(
+        isInRange
+            ? WeightStatus
+                  .inRange // sends "0"
+            : WeightStatus.outOfRange, // sends "1"
+      );
 
-        // 6️⃣ Existing batch logic (unchanged)
-        if (!isInRange) {
-          continuousOutOfRangeSeconds = 0;
-          return;
-        }
+      // 6️⃣ Existing batch logic (unchanged)
+      if (!isInRange) {
+        continuousOutOfRangeSeconds = 0;
+        return;
+      }
 
-        continuousOutOfRangeSeconds++;
+      continuousOutOfRangeSeconds++;
 
-        if (continuousOutOfRangeSeconds >= product.seconds) {
-          await addToList();
-          print(
-            "✔ Auto weight added: ${product.name} | Net = $netWeight",
-          );
-          continuousOutOfRangeSeconds = 0;
-        }
-      },
-    );
+      if (continuousOutOfRangeSeconds >= product.seconds) {
+        await addToList();
+        print("✔ Auto weight added: ${product.name} | Net = $netWeight");
+        continuousOutOfRangeSeconds = 0;
+      }
+    });
   }
 
   void deleteBarcode(NonBatchProducts product, NonBatchBarcodes barcode) {
@@ -851,6 +846,7 @@ class NonBatchInwardController extends GetxController {
     Get.back();
     print("Stopped");
   }
+
   @override
   void onClose() {
     autoWeightTimer?.cancel();
@@ -858,5 +854,4 @@ class NonBatchInwardController extends GetxController {
     transactionName.dispose();
     super.onClose();
   }
-
 }

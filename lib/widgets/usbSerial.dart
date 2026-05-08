@@ -1,161 +1,220 @@
-// ble/ble_service.dart
 import 'dart:async';
-import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_bluetooth_classic_serial/flutter_bluetooth_classic.dart'
+    as classic;
 import 'package:get/get.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../apis/bluetooth_device_store.dart';
-import '../constants/bluetooth_device_display.dart';
 import '../constants/enums.dart';
 import '../constants/strings.dart';
 
 String buildPayload(WeightStatus status) {
-  return jsonEncode({"status": status == WeightStatus.inRange ? "0" : "1"});
-}
-
-class BleService {
-  BluetoothDevice? _device;
-  BluetoothCharacteristic? _writeChar;
-
-  Future<void> startScan({
-    required Function(ScanResult) onResult,
-    required Function() onDone,
-  }) async {
-    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
-
-    FlutterBluePlus.scanResults.listen((results) {
-      for (final r in results) {
-        onResult(r);
-      }
-    });
-
-    Future.delayed(const Duration(seconds: 5), () async {
-      await FlutterBluePlus.stopScan();
-      onDone();
-    });
-  }
-
-  Future<void> connect(BluetoothDevice device) async {
-    _device = device;
-    await _device!.connect(autoConnect: false);
-
-    final services = await _device!.discoverServices();
-    for (final service in services) {
-      if (service.uuid.toString() == BleConstants.serviceUUID) {
-        for (final c in service.characteristics) {
-          if (c.uuid.toString() == BleConstants.characteristicUUID) {
-            _writeChar = c;
-            return;
-          }
-        }
-      }
-    }
-    throw Exception("Write characteristic not found");
-  }
-
-  Future<void> write(String payload) async {
-    if (_writeChar == null) return;
-
-    await _writeChar!.write(payload.codeUnits, withoutResponse: true);
-  }
-
-  Future<void> disconnect() async {
-    await _device?.disconnect();
-  }
+  return status == WeightStatus.inRange ? "0" : "1";
 }
 
 class TowerLightController extends GetxController {
-  final BleService _ble = BleService();
+  final classic.FlutterBluetoothClassic _bluetooth =
+      classic.FlutterBluetoothClassic();
 
-  // UI state
   final RxBool isScanning = false.obs;
   final RxBool isConnected = false.obs;
-  final RxString connectingDeviceId = ''.obs;
-
-  // BLE scan results
-  final RxList<ScanResult> scanResults = <ScanResult>[].obs;
-
-  // Business state (ONLY thing that matters)
+  final RxnString connectingAddress = RxnString();
+  final RxnString connectedAddress = RxnString();
+  final RxList<classic.BluetoothDevice> devices =
+      <classic.BluetoothDevice>[].obs;
   final Rx<WeightStatus?> currentStatus = Rx<WeightStatus?>(null);
 
-  /// 🔍 Scan when bottom sheet opens
-  Future<void> startScan() async {
-    scanResults.clear();
-    isScanning.value = true;
+  StreamSubscription<classic.BluetoothConnectionState>? _connectionSub;
+  StreamSubscription<classic.BluetoothState>? _stateSub;
+  StreamSubscription<classic.BluetoothDevice>? _discoverySub;
+  final Map<String, classic.BluetoothDevice> _deviceMap = {};
 
-    await _ble.startScan(
-      onResult: (result) {
-        final exists = scanResults.any(
-          (r) =>
-              BluetoothDeviceDisplay.deviceIdFromResult(r) ==
-              BluetoothDeviceDisplay.deviceIdFromResult(result),
-        );
-        if (!exists) {
-          scanResults.add(result);
-        }
-      },
-      onDone: () {
-        isScanning.value = false;
-      },
-    );
+  @override
+  void onInit() {
+    super.onInit();
+    _ensureListeners();
   }
 
-  /// 🔗 Connect to selected tower light
-  Future<void> connectToDevice(ScanResult result) async {
+  Future<void> _ensureListeners() async {
+    _connectionSub ??= _bluetooth.onConnectionChanged.listen((state) {
+      final connected = state.isConnected;
+      isConnected.value = connected;
+      connectedAddress.value = connected ? state.deviceAddress : null;
+
+      if (!connected) {
+        currentStatus.value = null;
+        connectingAddress.value = null;
+      }
+    });
+
+    _stateSub ??= _bluetooth.onStateChanged.listen((state) {
+      if (!state.isEnabled) {
+        isScanning.value = false;
+        isConnected.value = false;
+        connectedAddress.value = null;
+        currentStatus.value = null;
+      }
+    });
+  }
+
+  Future<void> prepareBluetooth() async {
+    await _ensureListeners();
+
+    final permissions = [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.location,
+    ];
+
+    for (final permission in permissions) {
+      final status = await permission.request();
+      if (!status.isGranted) {
+        throw Exception(
+          '${permission.toString().split(".").last} permission is required.',
+        );
+      }
+    }
+
+    final supported = await _bluetooth.isBluetoothSupported();
+    if (!supported) {
+      throw Exception('Bluetooth is not supported.');
+    }
+
+    var enabled = await _bluetooth.isBluetoothEnabled();
+    if (!enabled) {
+      enabled = await _bluetooth.enableBluetooth();
+    }
+
+    if (!enabled) {
+      throw Exception('Bluetooth is off.');
+    }
+  }
+
+  Future<void> startScan() async {
+    await prepareBluetooth();
+
+    devices.clear();
+    _deviceMap.clear();
+    isScanning.value = true;
+
+    final pairedDevices = await _bluetooth.getPairedDevices();
+    for (final device in pairedDevices) {
+      _deviceMap[device.address] = device;
+    }
+    _publishDevices();
+
+    await _discoverySub?.cancel();
+
+    try {
+      final discoveryStarted = await _bluetooth.startDiscovery();
+      if (!discoveryStarted) {
+        isScanning.value = false;
+        return;
+      }
+
+      _discoverySub = _bluetooth.onDeviceDiscovered.listen((device) {
+        _deviceMap[device.address] = device;
+        _publishDevices();
+      });
+
+      await Future.delayed(const Duration(seconds: 5));
+    } finally {
+      try {
+        await _bluetooth.stopDiscovery();
+      } catch (_) {}
+      isScanning.value = false;
+    }
+  }
+
+  Future<void> connectToDevice(classic.BluetoothDevice device) async {
     await connectToDeviceWithOptions(
-      result,
+      device,
       closeBottomSheetOnSuccess: true,
       showErrorSnackbar: true,
     );
   }
 
   Future<void> connectToDeviceWithOptions(
-    ScanResult result, {
+    classic.BluetoothDevice device, {
     required bool closeBottomSheetOnSuccess,
     required bool showErrorSnackbar,
   }) async {
-    connectingDeviceId.value = BluetoothDeviceDisplay.deviceIdFromResult(
-      result,
-    );
-
     try {
-      await _ble.connect(result.device);
-      isConnected.value = true;
-      await BluetoothDeviceStore.saveDevice(
-        BluetoothDeviceStore.towerLightKey,
-        BluetoothDeviceDisplay.deviceIdFromResult(result),
-      );
-      if (closeBottomSheetOnSuccess && (Get.isBottomSheetOpen ?? false)) {
-        Get.back(); // close sheet on success
-      }
+      await prepareBluetooth();
     } catch (e) {
       if (showErrorSnackbar) {
-        Get.snackbar('Connection Failed', e.toString());
+        Get.snackbar(
+          'Connection Failed',
+          _userFacingReason(
+            e,
+            fallback: 'Unable to prepare Bluetooth for tower light.',
+          ),
+        );
+      }
+      return;
+    }
+
+    connectingAddress.value = device.address;
+
+    try {
+      await _bluetooth.stopDiscovery();
+    } catch (_) {}
+    isScanning.value = false;
+
+    try {
+      final connected = await _bluetooth.connect(device.address);
+      if (!connected) {
+        throw Exception('Device rejected the connection.');
+      }
+
+      isConnected.value = true;
+      connectedAddress.value = device.address;
+      currentStatus.value = null;
+
+      await BluetoothDeviceStore.saveDevice(
+        BluetoothDeviceStore.towerLightKey,
+        device.address,
+      );
+
+      if (closeBottomSheetOnSuccess && (Get.isBottomSheetOpen ?? false)) {
+        Get.back();
+      }
+    } catch (e) {
+      isConnected.value = false;
+      connectedAddress.value = null;
+      currentStatus.value = null;
+
+      if (showErrorSnackbar) {
+        Get.snackbar(
+          'Connection Failed',
+          _userFacingReason(
+            e,
+            fallback: 'Unable to connect to the tower light.',
+          ),
+        );
       }
     } finally {
-      connectingDeviceId.value = '';
+      connectingAddress.value = null;
     }
   }
 
   Future<void> tryAutoReconnectFromSaved() async {
     if (isConnected.value) return;
 
-    final savedDeviceId = await BluetoothDeviceStore.getDevice(
+    final savedAddress = await BluetoothDeviceStore.getDevice(
       BluetoothDeviceStore.towerLightKey,
     );
-    if (savedDeviceId == null || savedDeviceId.isEmpty) return;
+    if (savedAddress == null || savedAddress.isEmpty) return;
 
-    await startScan();
-
-    ScanResult? matched;
-    for (final result in scanResults) {
-      if (BluetoothDeviceDisplay.deviceIdFromResult(result) == savedDeviceId) {
-        matched = result;
-        break;
-      }
+    try {
+      await startScan();
+    } catch (_) {
+      return;
     }
 
+    final matched = _deviceMap[savedAddress];
     if (matched == null) return;
 
     await connectToDeviceWithOptions(
@@ -165,29 +224,102 @@ class TowerLightController extends GetxController {
     );
   }
 
-  /// ⚖️ THIS is what your weighing logic should call
   Future<void> updateWeightStatus(WeightStatus newStatus) async {
     if (!isConnected.value) return;
-
-    // Send ONLY if status changes (PDF requirement)
     if (currentStatus.value == newStatus) return;
 
     final payload = buildPayload(newStatus);
-    await _ble.write(payload);
 
-    currentStatus.value = newStatus;
+    try {
+      final sent = await _bluetooth.sendString(payload);
+      if (!sent) {
+        throw Exception('Tower light did not accept payload.');
+      }
+
+      currentStatus.value = newStatus;
+    } catch (e) {
+      debugPrint('Tower light write failed: $e');
+      isConnected.value = false;
+      connectedAddress.value = null;
+      currentStatus.value = null;
+    }
   }
 
-  Future<void> disconnect() async {
-    await _ble.disconnect();
+  Future<void> disconnect({bool clearSavedDevice = true}) async {
+    try {
+      await _bluetooth.disconnect();
+    } catch (_) {}
+
     isConnected.value = false;
-    connectingDeviceId.value = '';
-    await BluetoothDeviceStore.clearDevice(BluetoothDeviceStore.towerLightKey);
+    connectingAddress.value = null;
+    connectedAddress.value = null;
+    currentStatus.value = null;
+
+    if (clearSavedDevice) {
+      await BluetoothDeviceStore.clearDevice(
+        BluetoothDeviceStore.towerLightKey,
+      );
+    }
+  }
+
+  String displayName(classic.BluetoothDevice device) {
+    final name = device.name.trim();
+    if (name.isNotEmpty) return name;
+
+    final suffix = device.address.length > 5
+        ? device.address.substring(device.address.length - 5)
+        : device.address;
+    return 'Unknown Device ($suffix)';
+  }
+
+  void _publishDevices() {
+    final filtered = _deviceMap.values.where((device) {
+      final name = device.name.trim();
+      if (name.isEmpty) return true;
+      return name.toLowerCase().contains(BleConstants.deviceName.toLowerCase());
+    }).toList();
+
+    final sorted = filtered
+      ..sort((a, b) {
+        final aPaired = a.paired ? 0 : 1;
+        final bPaired = b.paired ? 0 : 1;
+        if (aPaired != bPaired) return aPaired.compareTo(bPaired);
+
+        final aName = a.name.trim().toLowerCase();
+        final bName = b.name.trim().toLowerCase();
+        return aName.compareTo(bName);
+      });
+
+    devices.assignAll(sorted);
+  }
+
+  String _userFacingReason(Object error, {required String fallback}) {
+    final raw = error.toString().trim();
+    final cleaned = raw
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .replaceFirst(RegExp(r'^BluetoothException:\s*'), '')
+        .replaceFirst(RegExp(r'^PlatformException\([^,]+,\s*'), '')
+        .replaceFirst(RegExp(r',\s*null,\s*null\)$'), '')
+        .trim();
+
+    final lower = cleaned.toLowerCase();
+    if (lower.contains('timed out') || lower.contains('timeout')) {
+      return 'Timed out while connecting.';
+    }
+
+    if (cleaned.isEmpty || cleaned.length > 80) {
+      return fallback;
+    }
+
+    return cleaned;
   }
 
   @override
   void onClose() {
-    _ble.disconnect();
+    _connectionSub?.cancel();
+    _stateSub?.cancel();
+    _discoverySub?.cancel();
+    _bluetooth.dispose();
     super.onClose();
   }
 }
@@ -196,7 +328,18 @@ Future<void> showTowerLightSheet(
   BuildContext context,
   TowerLightController controller,
 ) async {
-  await controller.startScan();
+  try {
+    await controller.startScan();
+  } catch (e) {
+    controller.isScanning.value = false;
+    Get.snackbar(
+      'Scan Failed',
+      controller._userFacingReason(
+        e,
+        fallback: 'Unable to scan for tower lights.',
+      ),
+    );
+  }
 
   Get.bottomSheet(
     Container(
@@ -218,18 +361,16 @@ Future<void> showTowerLightSheet(
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-
             const Text(
               "Nearby Tower Lights",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-
-            if (!controller.isScanning.value && controller.scanResults.isEmpty)
+            if (!controller.isScanning.value && controller.devices.isEmpty)
               Column(
                 children: [
                   const Text(
-                    "No devices found\nMake sure Bluetooth is ON",
+                    "No tower lights found\nCheck if the device is paired and nearby",
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -239,43 +380,52 @@ Future<void> showTowerLightSheet(
                   ),
                 ],
               ),
-
             Flexible(
               child: ListView.separated(
-                itemCount: controller.scanResults.length,
+                itemCount: controller.devices.length,
                 separatorBuilder: (_, __) => const Divider(),
                 itemBuilder: (context, i) {
-                  final result = controller.scanResults[i];
-                  final deviceName = BluetoothDeviceDisplay.displayName(result);
-                  final deviceId = BluetoothDeviceDisplay.deviceIdFromResult(
-                    result,
-                  );
+                  final device = controller.devices[i];
+                  final address = device.address;
+                  final isConnectingNow =
+                      controller.connectingAddress.value == address;
+                  final isConnectedNow =
+                      controller.connectedAddress.value == address &&
+                      controller.isConnected.value;
 
                   return ListTile(
                     leading: const Icon(Icons.bluetooth, color: Colors.blue),
-                    title: Text(deviceName),
-                    subtitle: Text(deviceId),
-                    trailing: Obx(() {
-                      if (controller.connectingDeviceId.value == deviceId) {
-                        return const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        );
-                      }
+                    title: Text(controller.displayName(device)),
+                    subtitle: Text(
+                      device.paired ? '$address • Paired' : address,
+                    ),
+                    trailing: isConnectingNow
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : ElevatedButton(
+                            onPressed: () async {
+                              if (isConnectedNow) {
+                                await controller.disconnect();
+                                return;
+                              }
 
-                      return ElevatedButton(
-                        onPressed: () => controller.connectToDevice(result),
-                        child: const Text("Connect"),
-                      );
-                    }),
+                              await controller.connectToDevice(device);
+                            },
+                            child: Text(
+                              isConnectedNow ? "Disconnect" : "Connect",
+                            ),
+                          ),
                   );
                 },
               ),
             ),
-
-            if (controller.isScanning.value)
-              Center(child: CircularProgressIndicator()),
+            if (controller.isScanning.value) ...[
+              const SizedBox(height: 16),
+              const CircularProgressIndicator(),
+            ],
           ],
         ),
       ),

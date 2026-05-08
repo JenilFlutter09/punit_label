@@ -101,13 +101,22 @@ class DashboardController extends GetxController {
   final wholesalePackLayout = LabelLayout(
     maxAttributes: 10,
     lineHeight: 60,
-    keyFont: 40,      // 5mm
-    valueFont: 40,    // 5mm
+    keyFont: 40, // 5mm
+    valueFont: 40, // 5mm
     bottomPadding: 180,
     columnGap: 400,
     barcodeHeight: 90,
-);
+  );
 
+  final neoLabelLayout = LabelLayout(
+    maxAttributes: 3,
+    lineHeight: 40,
+    keyFont: 36,
+    valueFont: 40,
+    bottomPadding: 25,
+    columnGap: 245,
+    barcodeHeight: 85,
+  );
 
   final tower_controller = Get.put(TowerLightController());
 
@@ -367,6 +376,8 @@ class DashboardController extends GetxController {
   void loadLabelFormats() {
     if (isWhiteLabel.value) {
       labelFormats.value = [
+       // LabelFormatElement(0, "Majedar tea Label Format", 1, LabelFormat.MajedarTea),
+        LabelFormatElement(0, "Neo Label Format", 1, LabelFormat.neoLabel),
         LabelFormatElement(
           1,
           "Small Label Select Max (3)",
@@ -391,21 +402,12 @@ class DashboardController extends GetxController {
           9,
           LabelFormat.ExtraLarge,
         ),
-        LabelFormatElement(
-          5,
-          "Wholesale Pack",
-          10, 
-          LabelFormat.WholesalePack),
-
+        LabelFormatElement(5, "Wholesale Pack", 10, LabelFormat.WholesalePack),
       ];
     } else {
       labelFormats.value = [
-        LabelFormatElement(
-          0,
-          "Majedar Tea Label Format",
-          1,
-          LabelFormat.MajedarTea,
-        ),
+     //   LabelFormatElement(0, "Majedar tea Label Format", 1, LabelFormat.MajedarTea),
+    LabelFormatElement(0, "Neo Label Format", 1, LabelFormat.neoLabel),
         LabelFormatElement(
           1,
           "Small Label Select Max (3)",
@@ -430,11 +432,7 @@ class DashboardController extends GetxController {
           7,
           LabelFormat.ExtraLarge,
         ),
-        LabelFormatElement(
-          5,
-          "Wholesale Pack",
-          10, 
-          LabelFormat.WholesalePack),
+        LabelFormatElement(5, "Wholesale Pack", 10, LabelFormat.WholesalePack),
       ];
     }
   }
@@ -569,6 +567,36 @@ class DashboardController extends GetxController {
     return lines;
   }
 
+  List<Map<String, dynamic>> buildNeoLabelAttributes(
+    Map<String, dynamic>? labelFields,
+  ) {
+    if (labelFields == null || labelFields.isEmpty) return [];
+
+    const excludedKeys = {
+      "weight",
+      "gross weight",
+      "tare weight",
+      "net weight",
+      "sr no",
+      "sr no.",
+    };
+
+    final attributes = <Map<String, dynamic>>[];
+    labelFields.forEach((key, value) {
+      if (attributes.length >= 3) return;
+
+      final normalizedKey = key.trim().toLowerCase();
+      final normalizedValue = value?.toString().trim() ?? "";
+      if (excludedKeys.contains(normalizedKey) || normalizedValue.isEmpty) {
+        return;
+      }
+
+      attributes.add({"key": key.trim(), "value": normalizedValue});
+    });
+
+    return attributes;
+  }
+
   Future<void> printOneSticker({
     required int stickerHeight,
     required int stickerWidth,
@@ -639,7 +667,6 @@ class DashboardController extends GetxController {
     required double netweight,
     Map<String, dynamic>? labelFields,
   }) async {
-
     print("printTeaLabel CALLED");
     await printTeaLabel(
       barcodeString: barcodeString,
@@ -648,6 +675,69 @@ class DashboardController extends GetxController {
       netweight: netweight,
       labelFields: labelFields,
     );
+  }
+
+  Future<void> printNeoLabelSticker({
+    required String barcodeString,
+    required String productName,
+    Map<String, dynamic>? labelFields,
+  }) async {
+    try {
+      final companyData = companyDetails.value?.data;
+      final companyName = companyData?.name ?? "";
+      final address = companyData?.address?.trim() ?? "";
+      final phone = companyData?.contactNo?.trim() ?? "";
+      final email = companyData?.email?.trim() ?? "";
+      final dynamicAttributes = buildNeoLabelAttributes(labelFields);
+      final serialNumber = printSerialNumberInLabel.value
+          ? ((labelFields?["Sr No "] ?? labelFields?["Sr No"])
+                    ?.toString()
+                    .trim() ??
+                "")
+          : "";
+
+      if (isLabelPrinterMode.value == false) {
+        final items = <Map<String, dynamic>>[
+          if (serialNumber.isNotEmpty) {"key": "Sr No", "value": serialNumber},
+          ...dynamicAttributes,
+        ];
+
+        final companyContact = <String?>[
+          if (address.isNotEmpty) address,
+          if (phone.isNotEmpty) "Phone: $phone",
+          if (email.isNotEmpty) "Email: $email",
+        ];
+
+        bluetoothController.printReceipt(
+          companyName: companyName,
+          companyContact: companyContact,
+          items: items,
+          barcodeData: barcodeString,
+        );
+      } else {
+        final result = await platform.invokeMethod("printNeoLabelSticker", {
+          "width": 700,
+          "height": 600,
+          "margin": 0,
+          "companyName": companyName,
+          "address": address,
+          "phone": phone,
+          "email": email,
+          "productName": productName,
+          "barcodeData": barcodeString,
+          "attributes": dynamicAttributes,
+          "serialNumber": serialNumber,
+          "printSerialNumber": printSerialNumberInLabel.value,
+          "layout": neoLabelLayout.toMap(),
+          "isWhiteLabel": isWhiteLabel.value,
+          "printTime": printTimeInLabel.value,
+        });
+
+        print(result);
+      }
+    } catch (e) {
+      print("Error printing neo label sticker: $e");
+    }
   }
   // Future<void> printTeaLabel({
   //   required String barcodeString,
@@ -758,7 +848,6 @@ class DashboardController extends GetxController {
   //   }
   // }
 
-
   Future<void> printTeaLabel({
     required String barcodeString,
     required String productName,
@@ -773,15 +862,15 @@ class DashboardController extends GetxController {
       /// ✅ Extract description safely (multi-key support)
       String descriptionValue = "";
 
+      descriptionValue =
+          labelFields?["description"]?.toString() ??
+          labelFields?["desc"]?.toString() ??
+          labelFields?["Description"]?.toString() ??
+          labelFields?["DESCRIPTION"]?.toString() ??
+          labelFields?["Desc"]?.toString() ??
+          "";
 
-        descriptionValue =
-            labelFields?["description"]?.toString() ??
-                labelFields?["desc"]?.toString() ??
-                labelFields?["Description"]?.toString() ?? labelFields?["DESCRIPTION"]?.toString() ??
-                labelFields?["Desc"]?.toString() ??
-                "";
-
-        print("description value ====> $descriptionValue");
+      print("description value ====> $descriptionValue");
       // if (labelFields != null && labelFields.isNotEmpty) {
       //   final firstEntry = labelFields.entries.first;
       //   descriptionValue = firstEntry.value.toString();
@@ -794,7 +883,7 @@ class DashboardController extends GetxController {
           items: [
             {"key": "Product", "value": productName},
             {"key": "Description", "value": descriptionValue},
-            {"key": "Gross Wt", "value": "${netweight.toStringAsFixed(2)} kg"},
+            {"key": "Gross Wt", "value": "${netweight.toStringAsFixed(3)} kg"},
           ],
           barcodeData: barcodeString,
         );
@@ -821,6 +910,7 @@ class DashboardController extends GetxController {
       print("Error printing tea sticker: $e");
     }
   }
+
   // Future<void> printTeaLabel({
   //   required String barcodeString,
   //   required String productName,
@@ -1021,7 +1111,7 @@ class DashboardController extends GetxController {
       );
     }
   }
- 
+
   /// Print 100 X 150mm Wholesale Pack Sticker
   Future<void> printWholesalePackSticker({
     required String barcodeString,
@@ -1041,7 +1131,6 @@ class DashboardController extends GetxController {
       format: LabelFormat.WholesalePack,
       label_layout: wholesalePackLayout,
       businessHours: "On working day 11:00AM - 6:00PM",
-
     );
   }
 

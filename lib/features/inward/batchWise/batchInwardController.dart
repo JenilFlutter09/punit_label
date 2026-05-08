@@ -225,7 +225,12 @@ class BatchInwardController extends GetxController {
     final rawScaleName = connectedDevice?.platformName ?? '';
     final scaleName = rawScaleName.trim().isEmpty ? null : rawScaleName;
     final scaleMac = connectedDevice?.remoteId.str;
-    final data = batchInwardModel(status: pauseOrStop,scaleName: scaleName,scaleMac: scaleMac, products: apiProducts);
+    final data = batchInwardModel(
+      status: pauseOrStop,
+      scaleName: scaleName,
+      scaleMac: scaleMac,
+      products: apiProducts,
+    );
 
     print(jsonEncode(data.toJson())); // DEBUG PRINT
 
@@ -384,48 +389,44 @@ class BatchInwardController extends GetxController {
   void _startAutoWeightMonitor() {
     autoWeightTimer?.cancel(); // reset existing timer
 
-    autoWeightTimer = Timer.periodic(
-      const Duration(seconds: 1),
-          (timer) async {
+    autoWeightTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      // 1️⃣ Auto mode must be enabled
+      if (!isBatchAutoWeightEnabled.value) return;
 
-        // 1️⃣ Auto mode must be enabled
-        if (!isBatchAutoWeightEnabled.value) return;
+      // 2️⃣ Product must be selected
+      if (selectedModuleProduct.value == null) return;
 
-        // 2️⃣ Product must be selected
-        if (selectedModuleProduct.value == null) return;
+      final module product = selectedModuleProduct.value!;
 
-        final module product = selectedModuleProduct.value!;
+      // 3️⃣ Parse weight safely
+      final double netWeight =
+          double.tryParse(manualCtrl.manualNet.value ?? '') ?? 0.0;
 
-        // 3️⃣ Parse weight safely
-        final double netWeight =
-            double.tryParse(manualCtrl.manualNet.value ?? '') ?? 0.0;
+      // 4️⃣ Correct range check
+      final bool isInRange =
+          netWeight >= product.minWeight && netWeight <= product.maxWeight;
 
-        // 4️⃣ Correct range check
-        final bool isInRange =
-            netWeight >= product.minWeight &&
-                netWeight <= product.maxWeight;
+      // 5️⃣ 🔥 TOWER LIGHT INTEGRATION
+      dashboardController.tower_controller.updateWeightStatus(
+        isInRange
+            ? WeightStatus
+                  .inRange // sends "0"
+            : WeightStatus.outOfRange, // sends "1"
+      );
+      print('tower controller => ' + isInRange.toString());
 
-        // 5️⃣ 🔥 TOWER LIGHT INTEGRATION
-        dashboardController.tower_controller.updateWeightStatus(
-          isInRange
-              ? WeightStatus.inRange   // sends "0"
-              : WeightStatus.outOfRange, // sends "1"
-        );
-        print('tower controller => ' + isInRange.toString());
+      // 6️⃣ Existing batch logic (unchanged)
+      if (!isInRange) {
+        continuousOutOfRangeSeconds++;
 
-        // 6️⃣ Existing batch logic (unchanged)
-        if (!isInRange) {
-          continuousOutOfRangeSeconds++;
-
-          if (continuousOutOfRangeSeconds >= product.seconds) {
-            await addToList();
-            continuousOutOfRangeSeconds = 0;
-          }
-        } else {
+        if (continuousOutOfRangeSeconds >= product.seconds) {
+          await addToList();
           continuousOutOfRangeSeconds = 0;
         }
-      },
-    );
+      } else {
+        continuousOutOfRangeSeconds = 0;
+      }
+    });
   }
 
   Future<void> addToList() async {
@@ -502,6 +503,10 @@ class BatchInwardController extends GetxController {
     number = int.tryParse(selectedModelProduct.value?.labelId ?? '3') ?? 3;
     print('Label Format Number ----------> $number');
     switch (number) {
+      case 0:
+        selectedLabelFormat = LabelFormat.neoLabel;
+        labelFields = {...combinationFields};
+        break;
       case 1:
         selectedLabelFormat = LabelFormat.Small;
         labelFields = {"Weight": manualCtrl.manualNet.value ?? '0'};
@@ -518,8 +523,8 @@ class BatchInwardController extends GetxController {
       case 5:
         selectedLabelFormat = LabelFormat.WholesalePack;
         labelFields = {
-          ...combinationFields,              // Net Weight from printable attribute
-          "Gross Weight": manualCtrl.manualGross.value ?? '0',  // Measured
+          ...combinationFields, // Net Weight from printable attribute
+          "Gross Weight": manualCtrl.manualGross.value ?? '0', // Measured
         };
         break;
     }
@@ -592,17 +597,21 @@ class BatchInwardController extends GetxController {
           noAttribute: labelFields.length,
         );
         break;
-      case LabelFormat.MajedarTea:
-        // TODO: Handle this case.
-        final double netWeight = double.parse(manualCtrl.manualNet.value ?? '0.0');
-        await dashboardController.printTeaSmallSticker(
+      case LabelFormat.neoLabel:
+        await dashboardController.printNeoLabelSticker(
           barcodeString: barcodeString,
           productName: productName,
-          noAttribute: noAttr,
-          labelFields: labelFields, netweight: netWeight,
+          labelFields: labelFields,
         );
         break;
+    //
+    //   case LabelFormat.MajedarTea:
+    // // TODO: Handle this case.
+    //   final double netWeight = double.parse(manualCtrl.manualNet.value ?? '0.0');
+    //   await dashboardController.printTeaSmallSticker(productName: productName, noAttribute: labelFields.length, netweight: netWeight, barcodeString: barcodeString);
+    //   break;
     }
+    
   }
 
   Future<void> onTapStop() async {
@@ -610,8 +619,7 @@ class BatchInwardController extends GetxController {
 
     autoWeightTimer?.cancel();
     dashboardController.tower_controller.updateWeightStatus(
-
-           WeightStatus.outOfRange, // sends "1"
+      WeightStatus.outOfRange, // sends "1"
     );
     continuousOutOfRangeSeconds = 0;
 
