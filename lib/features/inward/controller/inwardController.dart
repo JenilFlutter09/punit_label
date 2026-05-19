@@ -14,6 +14,8 @@ class InwardController extends GetxController {
   ConnectHelper connectHelper = ConnectHelper();
   Rxn<batchListModel> batchModel = Rxn<batchListModel>();
   RxList<batch> batchList = RxList<batch>();
+  final searchController = TextEditingController();
+  final searchQuery = ''.obs;
   final dashboardController = Get.find<DashboardController>();
   @override
   Future<void> onInit() async {
@@ -30,8 +32,23 @@ class InwardController extends GetxController {
     super.onReady();
     await _fetchBatchlist();
   }
+
   Future<void> refreshList() async {
     await _fetchBatchlist();
+  }
+
+  List<batch> get filteredBatchList {
+    final query = searchQuery.value.trim().toLowerCase();
+    if (query.isEmpty) return batchList;
+
+    return batchList.where((item) {
+      final batchName = item.batchName?.toLowerCase() ?? '';
+      return batchName.contains(query);
+    }).toList();
+  }
+
+  void updateSearchQuery(String value) {
+    searchQuery.value = value;
   }
 
   /// Fetch Order List
@@ -51,6 +68,12 @@ class InwardController extends GetxController {
       Utility.showApiErrorSnackbar(response);
     }
   }
+
+  @override
+  void onClose() {
+    searchController.dispose();
+    super.onClose();
+  }
 }
 
 class NonInwardController extends GetxController {
@@ -59,6 +82,8 @@ class NonInwardController extends GetxController {
   Rxn<NonBatchListModel> batchListModel = Rxn<NonBatchListModel>();
   RxList<Entity> batchList = RxList<Entity>();
   Rxn<Entity> selectedTransaction = Rxn<Entity>();
+  final searchController = TextEditingController();
+  final searchQuery = ''.obs;
   final dashboardController = Get.find<DashboardController>();
   @override
   Future<void> onInit() async {
@@ -75,10 +100,24 @@ class NonInwardController extends GetxController {
     super.onReady();
 
     await fetchNonBatchlist();
-
   }
+
   Future<void> refreshList() async {
     await fetchNonBatchlist();
+  }
+
+  List<Entity> get filteredBatchList {
+    final query = searchQuery.value.trim().toLowerCase();
+    if (query.isEmpty) return batchList;
+
+    return batchList.where((item) {
+      final name = item.name?.toLowerCase() ?? '';
+      return name.contains(query);
+    }).toList();
+  }
+
+  void updateSearchQuery(String value) {
+    searchQuery.value = value;
   }
 
   /// Fetch Order List
@@ -99,5 +138,11 @@ class NonInwardController extends GetxController {
     } else if (response.hasError) {
       Utility.showApiErrorSnackbar(response);
     }
+  }
+
+  @override
+  void onClose() {
+    searchController.dispose();
+    super.onClose();
   }
 }

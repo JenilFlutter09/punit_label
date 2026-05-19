@@ -834,7 +834,7 @@ class _SearchCustomerContent extends StatelessWidget {
     return StatefulBuilder(
       builder: (context, setState) {
         final filtered = items.where((e) {
-          final name = e.name ?? "";
+          final name = (e.name ?? "").toLowerCase();
           return name.contains(search.toLowerCase());
         }).toList();
 

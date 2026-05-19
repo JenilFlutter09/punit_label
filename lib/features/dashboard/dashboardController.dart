@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:punit_label/constants/enums.dart';
 import 'package:punit_label/constants/utility.dart';
+import 'package:punit_label/features/bluetooth_test/classic_serial_scale_test_sheet.dart';
 import 'package:punit_label/features/dashboard/dashboardModel.dart';
 import 'package:punit_label/features/login/loginmodel.dart';
 
@@ -27,7 +28,7 @@ import 'companyModel.dart';
 
 typedef ApiCall = Future<ResponseModel> Function();
 
-class DashboardController extends GetxController {
+class DashboardController extends GetxController with WidgetsBindingObserver {
   static const platform = MethodChannel('label_printer');
   var selectedIndex = 0.obs;
   var isLabelPrinterMode = true.obs;
@@ -45,6 +46,7 @@ class DashboardController extends GetxController {
   var isWhiteLabel = false.obs;
   var printSerialNumberInLabel = false.obs;
   var printTimeInLabel = false.obs;
+  var printCopies = 1.obs;
   RxBool enableInward = false.obs;
   RxBool enableDispatch = false.obs;
   var connectedDevice = Rxn<BluetoothDevice>();
@@ -67,6 +69,7 @@ class DashboardController extends GetxController {
   var statusMessage = ''.obs;
   Timer? printerTimer;
   bool _autoReconnectStarted = false;
+  bool _isResumeRecoveryRunning = false;
   RxBool isLoading = false.obs;
 
   RxInt totalProducts = 0.obs;
@@ -78,6 +81,14 @@ class DashboardController extends GetxController {
   RxList<LowStockProducts> lowStockProducts = <LowStockProducts>[].obs;
 
   RxList<LabelFormatElement> labelFormats = <LabelFormatElement>[].obs;
+  bool get isAnyScaleConnected =>
+      isWeightScaleConnected.value ||
+      isUniversalBleScaleConnected.value ||
+      isExperimentalScaleConnected.value;
+
+  bool get isActivePrinterConnected => isLabelPrinterMode.value
+      ? isPrinterConnected.value
+      : bluetoothController.isConnected.value;
   final smallLabelLayout = LabelLayout(
     maxAttributes: 6,
     lineHeight: 40,
@@ -118,6 +129,16 @@ class DashboardController extends GetxController {
     barcodeHeight: 85,
   );
 
+  final smallSevenLabelLayout = LabelLayout(
+    maxAttributes: 7,
+    lineHeight: 40,
+    keyFont: 28,
+    valueFont: 30,
+    bottomPadding: 25,
+    columnGap: 190,
+    barcodeHeight: 45,
+  );
+
   final tower_controller = Get.put(TowerLightController());
 
   // Example triggers
@@ -127,8 +148,8 @@ class DashboardController extends GetxController {
 
   @override
   void onInit() {
-    // TODO: implement onInit
     super.onInit();
+    WidgetsBinding.instance.addObserver(this);
 
     // // react to white label toggle
     // ever(isWhiteLabel, (_) {
@@ -137,6 +158,23 @@ class DashboardController extends GetxController {
     //
     // // initial load
     // loadLabelFormats();
+  }
+
+  int get normalizedPrintCopies => printCopies.value.clamp(1, 10).toInt();
+
+  void setPrintCopies(int value) {
+    printCopies.value = value.clamp(1, 10).toInt();
+  }
+
+  Future<dynamic> _invokeLabelPrintRepeated(
+    String method,
+    Map<String, dynamic> arguments,
+  ) async {
+    dynamic result;
+    for (int i = 0; i < normalizedPrintCopies; i++) {
+      result = await platform.invokeMethod(method, arguments);
+    }
+    return result;
   }
 
   @override
@@ -162,10 +200,30 @@ class DashboardController extends GetxController {
 
   @override
   void onClose() {
-    // TODO: implement onClose
+    WidgetsBinding.instance.removeObserver(this);
     _cancelAllCharSubs();
     printerTimer?.cancel();
     super.onClose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_recoverScaleConnectionOnResume());
+    }
+  }
+
+  Future<void> _recoverScaleConnectionOnResume() async {
+    if (_isResumeRecoveryRunning) return;
+    _isResumeRecoveryRunning = true;
+
+    try {
+      final classicScaleController =
+          ClassicSerialScaleTestController.ensureRegistered();
+      await classicScaleController.handleAppResumed(this);
+    } finally {
+      _isResumeRecoveryRunning = false;
+    }
   }
 
   Future<ResponseModel> callApi({
@@ -376,8 +434,13 @@ class DashboardController extends GetxController {
   void loadLabelFormats() {
     if (isWhiteLabel.value) {
       labelFormats.value = [
-       // LabelFormatElement(0, "Majedar tea Label Format", 1, LabelFormat.MajedarTea),
-        LabelFormatElement(0, "Neo Label Format", 1, LabelFormat.neoLabel),
+        LabelFormatElement(
+          0,
+          "Majedar tea Label Format",
+          1,
+          LabelFormat.MajedarTea,
+        ),
+        // LabelFormatElement(0, "Neo Label Format", 3, LabelFormat.neoLabel),
         LabelFormatElement(
           1,
           "Small Label Select Max (3)",
@@ -403,11 +466,17 @@ class DashboardController extends GetxController {
           LabelFormat.ExtraLarge,
         ),
         LabelFormatElement(5, "Wholesale Pack", 10, LabelFormat.WholesalePack),
+        LabelFormatElement(6, "Small Seven (5)", 5, LabelFormat.SmallSeven),
       ];
     } else {
       labelFormats.value = [
-     //   LabelFormatElement(0, "Majedar tea Label Format", 1, LabelFormat.MajedarTea),
-    LabelFormatElement(0, "Neo Label Format", 1, LabelFormat.neoLabel),
+        LabelFormatElement(
+          0,
+          "Majedar tea Label Format",
+          1,
+          LabelFormat.MajedarTea,
+        ),
+        // LabelFormatElement(0, "Neo Label Format", 3, LabelFormat.neoLabel),
         LabelFormatElement(
           1,
           "Small Label Select Max (3)",
@@ -433,6 +502,7 @@ class DashboardController extends GetxController {
           LabelFormat.ExtraLarge,
         ),
         LabelFormatElement(5, "Wholesale Pack", 10, LabelFormat.WholesalePack),
+        LabelFormatElement(6, "Small Seven (5)", 5, LabelFormat.SmallSeven),
       ];
     }
   }
@@ -446,7 +516,9 @@ class DashboardController extends GetxController {
   Future<void> getUserDetails() async {
     userDetails.value = await TokenStorage.getUser();
     enableInward.value = userDetails.value?.inventoryUser ?? false;
-    enableDispatch.value = userDetails.value?.dispatchUser ?? false;
+
+    ///enableDispatch.value = userDetails.value?.dispatchUser ?? false;
+    enableDispatch.value = true;
   }
 
   Future<void> getCompanyDetails() async {
@@ -597,6 +669,29 @@ class DashboardController extends GetxController {
     return attributes;
   }
 
+  List<Map<String, dynamic>> buildSmallSevenLabelAttributes(
+    Map<String, dynamic>? labelFields,
+  ) {
+    if (labelFields == null || labelFields.isEmpty) return [];
+
+    const excludedKeys = {"weight", "sr no", "sr no."};
+
+    final attributes = <Map<String, dynamic>>[];
+    labelFields.forEach((key, value) {
+      if (attributes.length >= 8) return;
+
+      final normalizedKey = key.trim().toLowerCase();
+      final normalizedValue = value?.toString().trim() ?? "";
+      if (excludedKeys.contains(normalizedKey) || normalizedValue.isEmpty) {
+        return;
+      }
+
+      attributes.add({"key": key.trim(), "value": normalizedValue});
+    });
+
+    return attributes;
+  }
+
   Future<void> printOneSticker({
     required int stickerHeight,
     required int stickerWidth,
@@ -634,7 +729,7 @@ class DashboardController extends GetxController {
         );
       } else {
         // CALLING PLATFORM
-        final result = await platform.invokeMethod("printTestSticker", {
+        final payload = {
           "width": stickerWidth,
           "height": stickerHeight,
           //"fontSize": fontSizeForFormat(format),
@@ -650,7 +745,11 @@ class DashboardController extends GetxController {
           "attributes": dynamicAttributes,
           "layout": label_layout.toMap(), // 👈 KEY
           "businessHours": businessHours ?? "",
-        });
+        };
+        final result = await _invokeLabelPrintRepeated(
+          "printTestSticker",
+          payload,
+        );
 
         print(result);
       }
@@ -715,7 +814,7 @@ class DashboardController extends GetxController {
           barcodeData: barcodeString,
         );
       } else {
-        final result = await platform.invokeMethod("printNeoLabelSticker", {
+        final payload = {
           "width": 700,
           "height": 600,
           "margin": 0,
@@ -731,7 +830,11 @@ class DashboardController extends GetxController {
           "layout": neoLabelLayout.toMap(),
           "isWhiteLabel": isWhiteLabel.value,
           "printTime": printTimeInLabel.value,
-        });
+        };
+        final result = await _invokeLabelPrintRepeated(
+          "printNeoLabelSticker",
+          payload,
+        );
 
         print(result);
       }
@@ -739,114 +842,73 @@ class DashboardController extends GetxController {
       print("Error printing neo label sticker: $e");
     }
   }
-  // Future<void> printTeaLabel({
-  //   required String barcodeString,
-  //   required String productName,
-  //   required int noAttribute,
-  //   required double netweight,
-  //   Map<String, dynamic>? labelFields,
-  // }) async
-  // {
-  //   try {
-  //     final companyData = companyDetails.value?.data;
-  //     final companyName = companyData?.name ?? "Majedar Tea Co.";
-  //
-  //     final List<Map<String, dynamic>> dynamicAttributes = [];
-  //
-  //     if (labelFields != null) {
-  //       labelFields.forEach((key, value) {
-  //         dynamicAttributes.add({
-  //           "key": key,
-  //           "value": value.toString(),
-  //         });
-  //       });
-  //     }
-  //
-  //     if (isLabelPrinterMode.value == false) {
-  //       bluetoothController.printReceipt(
-  //         companyName: companyName,
-  //         companyContact: buildCompanyInfoLines(companyData),
-  //         items: dynamicAttributes,
-  //         barcodeData: barcodeString,
-  //       );
-  //     } else {
-  //       final result = await platform.invokeMethod("printTeaSticker", {
-  //         "width": 600,
-  //         "height": 410,
-  //         "margin": 0,
-  //
-  //         "companyName": companyName,
-  //         "productName": productName,
-  //
-  //         // fixed fields from your handwritten format
-  //         "description": "40 P / 10kg",
-  //         "grossWt": netweight.toString(),
-  //
-  //         "barcodeData": barcodeString,
-  //
-  //         // extra fields support
-  //         "attributes": dynamicAttributes,
-  //         "isGrid": noAttribute > 1,
-  //         "isWhiteLabel": isWhiteLabel.value,
-  //         "printTime": printTimeInLabel.value,
-  //       });
-  //
-  //       print(result);
-  //     }
-  //   } catch (e) {
-  //     print("Error printing tea sticker: $e");
-  //   }
-  // }
 
-  // Future<void> printTeaLabel({
-  //   required String barcodeString,
-  //   required String productName,
-  //   required int noAttribute,
-  //   required double netweight,
-  //   Map<String, dynamic>? labelFields,
-  // }) async {
-  //   try {
-  //     final companyData = companyDetails.value?.data;
-  //     final companyName = companyData?.name ?? "Majedar Tea Co.";
-  //
-  //     final List<Map<String, dynamic>> dynamicAttributes = [];
-  //
-  //     /// find the key "description" in label field and print it with description
-  //     String descriptionValue = "";
-  //
-  //     if (labelFields != null) {
-  //       descriptionValue = labelFields["description"]?.toString() ?? labelFields["desc"] ?? labelFields["Description"] ?? labelFields["Desc"] ??"";
-  //     }
-  //     if (isLabelPrinterMode.value == false) {
-  //       bluetoothController.printReceipt(
-  //         companyName: companyName,
-  //         companyContact: buildCompanyInfoLines(companyData),
-  //         items: dynamicAttributes,
-  //         barcodeData: barcodeString,
-  //       );
-  //     } else {
-  //
-  //       final result = await platform.invokeMethod("printTeaSticker", {
-  //         "width": 600,
-  //         "height": 410,
-  //         "margin": 0,
-  //         "companyName": companyName,
-  //         "barcodeData": barcodeString,
-  //         "productName": productName,
-  //         "grossWt": netweight.toString(),
-  //         // first value of labelfields
-  //         "description": labelFields.,
-  //        // "attributes": dynamicAttributes,
-  //         "isWhiteLabel": isWhiteLabel.value,
-  //         "printTime": printTimeInLabel.value,
-  //       });
-  //
-  //       print(result);
-  //     }
-  //   } catch (e) {
-  //     print("Error printing tea sticker: $e");
-  //   }
-  // }
+  Future<void> printSmallSevenLabelSticker({
+    required String barcodeString,
+    required String productName,
+    Map<String, dynamic>? labelFields,
+  }) async {
+    try {
+      final companyData = companyDetails.value?.data;
+      final companyName = companyData?.name ?? "";
+      final address = companyData?.address?.trim() ?? "";
+      final phone = companyData?.contactNo?.trim() ?? "";
+      final email = companyData?.email?.trim() ?? "";
+      final dynamicAttributes = buildSmallSevenLabelAttributes(labelFields);
+      final serialNumber = printSerialNumberInLabel.value
+          ? ((labelFields?["Sr No "] ?? labelFields?["Sr No"])
+                    ?.toString()
+                    .trim() ??
+                "")
+          : "";
+
+      if (isLabelPrinterMode.value == false) {
+        final items = <Map<String, dynamic>>[
+          if (serialNumber.isNotEmpty) {"key": "Sr No", "value": serialNumber},
+          ...dynamicAttributes,
+        ];
+
+        final companyContact = <String?>[
+          if (address.isNotEmpty) address,
+          if (phone.isNotEmpty) "Phone: $phone",
+          if (email.isNotEmpty) "Email: $email",
+        ];
+
+        bluetoothController.printReceipt(
+          companyName: companyName,
+          companyContact: companyContact,
+          items: items,
+          barcodeData: barcodeString,
+        );
+      } else {
+        final payload = {
+          "width": 600,
+          "height": 410,
+          "margin": 0,
+          "companyName": companyName,
+          "address": address,
+          "phone": phone,
+          "email": email,
+          "productName": productName,
+          "barcodeData": barcodeString,
+          "attributes": dynamicAttributes,
+          "serialNumber": serialNumber,
+          "printSerialNumber": printSerialNumberInLabel.value,
+          "layout": smallSevenLabelLayout.toMap(),
+          "isWhiteLabel": isWhiteLabel.value,
+          "printTime": printTimeInLabel.value,
+        };
+        final result = await _invokeLabelPrintRepeated(
+          "printSmallSevenLabelSticker",
+          payload,
+        );
+
+        print(result);
+      }
+    } catch (e) {
+      print("Error printing small seven label sticker: $e");
+    }
+  }
 
   Future<void> printTeaLabel({
     required String barcodeString,
@@ -858,23 +920,29 @@ class DashboardController extends GetxController {
     try {
       final companyData = companyDetails.value?.data;
       final companyName = companyData?.name ?? "Majedar Tea Co.";
+      const ignoredKeys = {
+        "sr no",
+        "gross weight",
+        "tare weight",
+        "net weight",
+        "weight",
+      };
+      String attributeLabel = "";
+      String attributeValue = "";
 
-      /// ✅ Extract description safely (multi-key support)
-      String descriptionValue = "";
+      labelFields?.forEach((key, value) {
+        if (attributeLabel.isNotEmpty) return;
 
-      descriptionValue =
-          labelFields?["description"]?.toString() ??
-          labelFields?["desc"]?.toString() ??
-          labelFields?["Description"]?.toString() ??
-          labelFields?["DESCRIPTION"]?.toString() ??
-          labelFields?["Desc"]?.toString() ??
-          "";
+        final normalizedKey = key.trim().toLowerCase();
+        final normalizedValue = value.toString().trim();
 
-      print("description value ====> $descriptionValue");
-      // if (labelFields != null && labelFields.isNotEmpty) {
-      //   final firstEntry = labelFields.entries.first;
-      //   descriptionValue = firstEntry.value.toString();
-      // }
+        if (normalizedValue.isEmpty || ignoredKeys.contains(normalizedKey)) {
+          return;
+        }
+
+        attributeLabel = key.trim();
+        attributeValue = normalizedValue;
+      });
 
       if (isLabelPrinterMode.value == false) {
         bluetoothController.printReceipt(
@@ -882,13 +950,16 @@ class DashboardController extends GetxController {
           companyContact: buildCompanyInfoLines(companyData),
           items: [
             {"key": "Product", "value": productName},
-            {"key": "Description", "value": descriptionValue},
+            {
+              "key": attributeLabel.isNotEmpty ? attributeLabel : "Description",
+              "value": attributeValue,
+            },
             {"key": "Gross Wt", "value": "${netweight.toStringAsFixed(3)} kg"},
           ],
           barcodeData: barcodeString,
         );
       } else {
-        final result = await platform.invokeMethod("printTeaSticker", {
+        final payload = {
           "width": 600,
           "height": 410,
           "margin": 0,
@@ -897,12 +968,17 @@ class DashboardController extends GetxController {
 
           /// ✅ Send clean 3 values
           "productName": productName,
-          "grossWt": netweight.toStringAsFixed(2),
-          "description": descriptionValue,
+          "grossWt": netweight.toStringAsFixed(3),
+          "attributeLabel": attributeLabel,
+          "description": attributeValue,
 
           "isWhiteLabel": isWhiteLabel.value,
           "printTime": printTimeInLabel.value,
-        });
+        };
+        final result = await _invokeLabelPrintRepeated(
+          "printTeaSticker",
+          payload,
+        );
 
         print(result);
       }
@@ -911,63 +987,6 @@ class DashboardController extends GetxController {
     }
   }
 
-  // Future<void> printTeaLabel({
-  //   required String barcodeString,
-  //   required String productName,
-  //   required int noAttribute,
-  //   required double netweight,
-  //   Map<String, dynamic>? labelFields,
-  // }) async {
-  //   try {
-  //     final companyData = companyDetails.value?.data;
-  //     final companyName = companyData?.name ?? "Majedar Tea Co.";
-  //
-  //     /// ✅ Extract description safely (multi-key support)
-  //     String descriptionValue = "";
-  //
-  //     if (labelFields != null && labelFields.isNotEmpty) {
-  //       descriptionValue =
-  //           labelFields["description"]?.toString() ??
-  //               labelFields["desc"]?.toString() ??
-  //               labelFields["Description"]?.toString() ??
-  //               labelFields["Desc"]?.toString() ??
-  //               "";
-  //     }
-  //
-  //     if (isLabelPrinterMode.value == false) {
-  //       bluetoothController.printReceipt(
-  //         companyName: companyName,
-  //         companyContact: buildCompanyInfoLines(companyData),
-  //         items: [
-  //           {"key": "Product", "value": productName},
-  //           {"key": "Description", "value": descriptionValue},
-  //           {"key": "Gross Wt", "value": "${netweight.toStringAsFixed(2)} kg"},
-  //         ],
-  //         barcodeData: barcodeString,
-  //       );
-  //     } else {
-  //       final result = await platform.invokeMethod("printTeaSticker", {
-  //         "width": 600,
-  //         "height": 410,
-  //         "margin": 0,
-  //         "companyName": companyName,
-  //         "barcodeData": barcodeString,
-  //
-  //         /// ✅ Send clean 3 values
-  //         "productName": productName,
-  //         "grossWt": netweight.toStringAsFixed(2),
-  //         "description": descriptionValue,
-  //
-  //         "isWhiteLabel": isWhiteLabel.value,
-  //         "printTime": printTimeInLabel.value,
-  //       });
-  //
-  //       print(result);
-  //     }
-  //   } catch (e) {
-  //     print("Error printing tea sticker: $e");
-  //   }
-  // }
   /// Print 50 X 75 Sticker
   Future<void> printSmallSticker({
     required String barcodeString,
@@ -1186,9 +1205,60 @@ class DashboardController extends GetxController {
     selectedIndex.value = index;
   }
 
-  void logout() {
-    TokenStorage.clearAll();
-    //isPrinterConnected.value = false;
+  Future<void> logout() async {
+    try {
+      if (Get.isRegistered<ClassicSerialScaleTestController>()) {
+        final classicScaleController =
+            Get.find<ClassicSerialScaleTestController>();
+        await classicScaleController.disconnect(
+          this,
+          clearSavedDevice: true,
+          showSnackbar: false,
+        );
+      }
+    } catch (_) {}
+
+    try {
+      if (connectedDevice.value != null) {
+        await disconnectDevice();
+      }
+    } catch (_) {}
+
+    try {
+      if (bluetoothController.connectedDevice != null) {
+        await bluetoothController.disconnect();
+      }
+    } catch (_) {}
+
+    try {
+      if (isPrinterConnected.value) {
+        await disconnectPrinter();
+      }
+    } catch (_) {}
+
+    try {
+      await tower_controller.disconnect();
+    } catch (_) {}
+
+    await BluetoothDeviceStore.clearDevice(BluetoothDeviceStore.scaleKey);
+    await BluetoothDeviceStore.clearDevice(BluetoothDeviceStore.printerKey);
+    await BluetoothDeviceStore.clearDevice(
+      BluetoothDeviceStore.receiptPrinterKey,
+    );
+    await BluetoothDeviceStore.clearDevice(BluetoothDeviceStore.towerLightKey);
+    await TokenStorage.clearAll();
+
+    isWeightScaleConnected.value = false;
+    isUniversalBleScaleConnected.value = false;
+    isExperimentalScaleConnected.value = false;
+    isPrinterConnected.value = false;
+    receivedData.value = '';
+    statusMessage.value = '';
+
+    if (Get.isRegistered<ClassicSerialScaleTestController>()) {
+      Get.delete<ClassicSerialScaleTestController>(force: true);
+    }
+
     RouteManagement.offToLogin();
   }
 
@@ -1199,6 +1269,35 @@ class DashboardController extends GetxController {
     await _runReconnectSafely(tower_controller.tryAutoReconnectFromSaved);
   }
 
+  Future<void> disconnectActiveScale() async {
+    final classicScaleController =
+        Get.isRegistered<ClassicSerialScaleTestController>()
+        ? Get.find<ClassicSerialScaleTestController>()
+        : null;
+
+    if (classicScaleController?.isConnected.value == true) {
+      await classicScaleController!.disconnect(this);
+      return;
+    }
+
+    if (connectedDevice.value != null || isAnyScaleConnected) {
+      await disconnectDevice();
+    }
+  }
+
+  Future<void> disconnectActivePrinter() async {
+    if (isLabelPrinterMode.value) {
+      if (isPrinterConnected.value) {
+        await disconnectPrinter();
+      }
+      return;
+    }
+
+    if (bluetoothController.isConnected.value) {
+      await bluetoothController.disconnect();
+    }
+  }
+
   Future<void> _runReconnectSafely(Future<void> Function() fn) async {
     try {
       await fn().timeout(const Duration(seconds: 12));
@@ -1207,39 +1306,9 @@ class DashboardController extends GetxController {
 
   Future<void> _tryAutoReconnectScale() async {
     if (isWeightScaleConnected.value) return;
-
-    final savedScaleId = await BluetoothDeviceStore.getDevice(
-      BluetoothDeviceStore.scaleKey,
-    );
-    if (savedScaleId == null || savedScaleId.isEmpty) return;
-
-    await startScan(roles: SStringConstants.role_scale);
-
-    final device = await _findScannedDeviceById(
-      savedScaleId,
-      timeout: const Duration(seconds: 7),
-    );
-    if (device == null) return;
-
-    await connectToDevice(device);
-  }
-
-  Future<BluetoothDevice?> _findScannedDeviceById(
-    String deviceId, {
-    required Duration timeout,
-  }) async {
-    final until = DateTime.now().add(timeout);
-
-    while (DateTime.now().isBefore(until)) {
-      for (final result in scanResults) {
-        final id = BluetoothDeviceDisplay.deviceIdFromResult(result);
-        if (id == deviceId) {
-          return result.device;
-        }
-      }
-      await Future.delayed(const Duration(milliseconds: 250));
-    }
-    return null;
+    final classicScaleController =
+        ClassicSerialScaleTestController.ensureRegistered();
+    await classicScaleController.tryAutoReconnectFromSaved(this);
   }
 
   Future<void> _tryAutoReconnectLabelPrinter() async {
@@ -1414,7 +1483,7 @@ class DashboardController extends GetxController {
               // final sub = characteristic.value.listen((value) {
               //   receivedData.value = String.fromCharCodes(value);
               // });
-              final sub = characteristic.value.listen((value) {
+              final sub = characteristic.lastValueStream.listen((value) {
                 final raw = String.fromCharCodes(value);
 
                 // 1. Update raw data
@@ -1431,13 +1500,13 @@ class DashboardController extends GetxController {
 
                     /// Inward
                     manualBatchWeights.manualGross.value = weight
-                        .toStringAsFixed(2);
+                        .toStringAsFixed(3);
                     manualBatchWeights.calculateManualNet();
                     manualNonBatchWeights.manualGross.value = weight
-                        .toStringAsFixed(2);
+                        .toStringAsFixed(3);
                     manualNonBatchWeights.calculateManualNet();
                     manualTareWeights.manualGross.value = weight
-                        .toStringAsFixed(2);
+                        .toStringAsFixed(3);
                   } catch (e) {
                     debugPrint("ManualWeightController not found for tag");
                   }
@@ -1542,7 +1611,7 @@ class ManualWeightController extends GetxController {
   void calculateManualNet() {
     final gross = double.tryParse(manualGross.value ?? '') ?? 0.0;
     final tare = double.tryParse(manualTare.value ?? '') ?? 0.0;
-    manualNet.value = (gross - tare).toStringAsFixed(2);
+    manualNet.value = (gross - tare).toStringAsFixed(3);
   }
 }
 

@@ -53,13 +53,18 @@ class SplashController extends GetxController{
   }
   Future<void> checkLoginStatus() async {
     await Future.delayed(const Duration(seconds: 2));
-    String? token = await TokenStorage.getToken();
-    if (token != null && token.isNotEmpty) {
-      // Token exists → user already logged in
-      RouteManagement.goToDashboardScreen();
-    } else {
-      // No token → go to login screen
+
+    try {
+      final token = await TokenStorage.getToken();
+      if (token != null && token.isNotEmpty) {
+        RouteManagement.goToDashboardScreen();
+      } else {
+        RouteManagement.goToLogin();
+      }
+    } catch (_) {
+      await TokenStorage.clearAll();
       RouteManagement.goToLogin();
     }
   }
+
 }

@@ -119,5 +119,6 @@ class LoginController extends GetxController {
       backgroundColor: Colors.redAccent,
       colorText: Colors.white,
     );
+    print("error login -----> "+message);
   }
 }

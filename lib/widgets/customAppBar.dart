@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:punit_label/features/bluetooth_test/classic_serial_scale_test_sheet.dart';
 import 'package:punit_label/features/login/loginmodel.dart';
 import 'package:punit_label/widgets/usbSerial.dart';
 
 import '../constants/colors.dart';
-import '../constants/strings.dart';
 import '../constants/styles.dart';
 import '../features/dashboard/dashboardController.dart';
 import 'bluetooth_bottomsheet.dart';
@@ -18,9 +16,9 @@ void _disconnectDialog(BuildContext context, String title, Function onConfirm) {
     backgroundColor: Colors.white,
     radius: 10,
     confirm: ElevatedButton.icon(
-      onPressed: () {
+      onPressed: () async {
         Get.back();
-        onConfirm();
+        await onConfirm();
       },
       label: const Text("Yes", style: TextStyle(color: Colors.white)),
       icon: const Icon(Icons.check, color: Colors.white),
@@ -131,12 +129,14 @@ class AppBarSizing {
   final double badgeIconSize;
   final double radius;
   final double titleFont;
+  final double toolbarHeight;
 
   AppBarSizing(double width)
-    : iconSize = width > 600 ? 32 : 24,
-      badgeIconSize = width > 600 ? 20 : 15,
-      radius = width > 600 ? 26 : 20,
-      titleFont = width > 600 ? 22 : 16;
+    : iconSize = width > 600 ? 24 : 20,
+      badgeIconSize = width > 600 ? 16 : 13,
+      radius = width > 600 ? 22 : 18,
+      titleFont = width > 600 ? 22 : 17,
+      toolbarHeight = width > 600 ? 72 : 64;
 }
 
 class StatusIconButton extends StatelessWidget {
@@ -144,6 +144,7 @@ class StatusIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
   final AppBarSizing size;
+  final String tooltip;
 
   const StatusIconButton({
     super.key,
@@ -151,12 +152,14 @@ class StatusIconButton extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     required this.size,
+    required this.tooltip,
   });
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      iconSize: size.iconSize,
+      tooltip: tooltip,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       onPressed: onPressed,
       icon: Badge(
         alignment: Alignment.topRight,
@@ -167,9 +170,14 @@ class StatusIconButton extends StatelessWidget {
           color: Colors.white,
           size: size.badgeIconSize,
         ),
-        child: CircleAvatar(
-          radius: size.radius,
-          backgroundColor: Colors.white12,
+        child: Container(
+          width: size.radius * 2,
+          height: size.radius * 2,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+          ),
           child: Icon(icon, color: Colors.white, size: size.iconSize),
         ),
       ),
@@ -200,9 +208,31 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     final sizing = AppBarSizing(MediaQuery.of(context).size.width);
 
     return AppBar(
+      toolbarHeight: sizing.toolbarHeight,
       backgroundColor: ColorsValue.primaryColor,
       elevation: 0,
       automaticallyImplyLeading: false,
+      surfaceTintColor: Colors.transparent,
+      titleSpacing: showDrawer ? 4 : 16,
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              ColorsValue.primaryColor,
+              ColorsValue.primaryColor.withValues(alpha: 0.92),
+            ],
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 14,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+      ),
 
       title: Text(
         title.toUpperCase(),
@@ -229,6 +259,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         }),
         if (showUser) _userButton(sizing),
         _logoutButton(sizing),
+        const SizedBox(width: 8),
       ],
     );
   }
@@ -236,34 +267,23 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   // ---------------- Buttons ----------------
 
   Widget _scaleButton(AppBarSizing s) {
-    final classicScaleTestController =
-        ClassicSerialScaleTestController.ensureRegistered();
-
     return Obx(
       () => StatusIconButton(
         size: s,
-        icon: Icons.scale,
-        connected: dashboardController.isWeightScaleConnected.value,
+        tooltip: 'Scale',
+        icon: Icons.scale_rounded,
+        connected: dashboardController.isAnyScaleConnected,
         onPressed: () {
-          if (classicScaleTestController.isConnected.value) {
+          if (dashboardController.isAnyScaleConnected) {
             _disconnectDialog(
               Get.context!,
-              "Scale",
-              () => classicScaleTestController.disconnect(dashboardController),
+              "disconnect scale",
+              dashboardController.disconnectActiveScale,
             );
             return;
           }
 
-          dashboardController.isWeightScaleConnected.value
-              ? _disconnectDialog(
-                  Get.context!,
-                  "Scale",
-                  dashboardController.disconnectDevice,
-                )
-              : showClassicSerialScaleTestSheet(
-                  Get.context!,
-                  dashboardController,
-                );
+          showScaleConnectionSheet(Get.context!, dashboardController);
         },
       ),
     );
@@ -278,15 +298,21 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
       return StatusIconButton(
         size: s,
-        icon: isLabelMode ? Icons.print : Icons.receipt_long,
+        tooltip: isLabelMode ? 'Printer' : 'Receipt Printer',
+        icon: isLabelMode ? Icons.print_rounded : Icons.receipt_long_rounded,
         connected: isConnected,
         onPressed: () {
+          if (isConnected) {
+            _disconnectDialog(
+              Get.context!,
+              isLabelMode ? "disconnect printer" : "disconnect receipt printer",
+              dashboardController.disconnectActivePrinter,
+            );
+            return;
+          }
+
           isLabelMode
-              ? showBluetoothPrinterSheet(
-                  Get.context!,
-                  dashboardController,
-                  SStringConstants.role_printer,
-                )
+              ? showPrinterConnectionSheet(Get.context!, dashboardController)
               : dashboardController.bluetoothController.openDeviceBottomSheet();
         },
       );
@@ -297,6 +323,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     return Obx(
       () => StatusIconButton(
         size: s,
+        tooltip: 'Tower Light',
         icon: Icons.cell_tower,
         connected: dashboardController.tower_controller.isConnected.value,
         onPressed: () => showTowerLightSheet(
@@ -309,14 +336,20 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   Widget _userButton(AppBarSizing s) {
     return IconButton(
+      tooltip: 'User Details',
       iconSize: s.iconSize,
       onPressed: () => _showUserDetailsDialog(
         Get.context!,
         dashboardController.userDetails.value,
       ),
-      icon: CircleAvatar(
-        radius: s.radius,
-        backgroundColor: Colors.white12,
+      icon: Container(
+        width: s.radius * 2,
+        height: s.radius * 2,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+        ),
         child: Icon(
           Icons.account_circle_sharp,
           color: Colors.white,
@@ -328,13 +361,27 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   Widget _logoutButton(AppBarSizing s) {
     return IconButton(
+      tooltip: 'Logout',
       iconSize: s.iconSize,
-      icon: const Icon(Icons.logout, color: Colors.white),
+      icon: Container(
+        width: s.radius * 2,
+        height: s.radius * 2,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+        ),
+        child: Icon(
+          Icons.logout_rounded,
+          color: Colors.white,
+          size: s.iconSize,
+        ),
+      ),
       onPressed: () =>
-          _disconnectDialog(Get.context!, "Logout", dashboardController.logout),
+          _disconnectDialog(Get.context!, "logout", dashboardController.logout),
     );
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(56);
+  Size get preferredSize => const Size.fromHeight(64);
 }

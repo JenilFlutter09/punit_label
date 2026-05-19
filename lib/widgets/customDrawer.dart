@@ -9,6 +9,7 @@ import 'package:punit_label/features/inward/view/inwardScreen.dart';
 import '../constants/colors.dart';
 import '../constants/styles.dart';
 import '../features/tare/tareView.dart';
+import 'bluetooth_bottomsheet.dart';
 
 class CustomDrawer extends StatelessWidget {
   CustomDrawer({super.key});
@@ -23,7 +24,6 @@ class CustomDrawer extends StatelessWidget {
 
     final isMobile = width < 600;
     final isTablet = width >= 600 && width < 1024;
-    final isDesktop = width >= 1024;
     return Drawer(
       // width: isTablet ? Dimens.twoHundredFifty : Dimens.hundredFifty,
       width: isMobile
@@ -40,7 +40,6 @@ class CustomDrawer extends StatelessWidget {
       child: Column(
         children: [
           _header(dashboardController: dashController),
-
           Expanded(
             child: ListView(
               padding: Dimens.edgeInsets8_0_8_0,
@@ -83,10 +82,69 @@ class CustomDrawer extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                // Divider(),
                 Dimens.boxHeight10,
+                _sectionTitle("Device Connections"),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Column(
+                    children: [
+                      Obx(
+                        () => _connectionTile(
+                          icon: Icons.scale_rounded,
+                          title: "Scale",
+                          subtitle: dashController.isAnyScaleConnected
+                              ? "Connected and streaming live weight"
+                              : "Tap to connect a weighing scale",
+                          connected: dashController.isAnyScaleConnected,
+                          onTap: () async {
+                            Get.back();
+                            if (dashController.isAnyScaleConnected) {
+                              await dashController.disconnectActiveScale();
+                            } else {
+                              await showScaleConnectionSheet(
+                                context,
+                                dashController,
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Obx(
+                        () => _connectionTile(
+                          icon: dashController.isLabelPrinterMode.value
+                              ? Icons.print_rounded
+                              : Icons.receipt_long_rounded,
+                          title: dashController.isLabelPrinterMode.value
+                              ? "Printer"
+                              : "Receipt Printer",
+                          subtitle: dashController.isActivePrinterConnected
+                              ? "Connected and ready to print"
+                              : "Tap to connect a printer",
+                          connected: dashController.isActivePrinterConnected,
+                          onTap: () async {
+                            Get.back();
+                            if (dashController.isActivePrinterConnected) {
+                              await dashController.disconnectActivePrinter();
+                              return;
+                            }
 
+                            if (dashController.isLabelPrinterMode.value) {
+                              await showPrinterConnectionSheet(
+                                context,
+                                dashController,
+                              );
+                            } else {
+                              dashController.bluetoothController
+                                  .openDeviceBottomSheet();
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Dimens.boxHeight10,
                 _sectionTitle("Label Configuration"),
                 _switchTile(
                   icon: Icons.label_off,
@@ -103,6 +161,18 @@ class CustomDrawer extends StatelessWidget {
                   icon: Icons.timer_rounded,
                   title: "Time Stamp",
                   value: dashController.printTimeInLabel,
+                ),
+                _counterTile(
+                  icon: Icons.copy_rounded,
+                  title: "Sticker Copies",
+                  subtitle: "Print each label this many times",
+                  value: dashController.printCopies,
+                  onDecrement: () => dashController.setPrintCopies(
+                    dashController.printCopies.value - 1,
+                  ),
+                  onIncrement: () => dashController.setPrintCopies(
+                    dashController.printCopies.value + 1,
+                  ),
                 ),
                 //  Divider(),
                 Dimens.boxHeight10,
@@ -162,17 +232,29 @@ class CustomDrawer extends StatelessWidget {
                     },
                   ),
                 ),
-                // Divider(),
-                Dimens.boxHeight10,
-                ListTile(
-                  leading: const Icon(Icons.logout),
-                  title: const Text(
-                    "Logout",
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  onTap: () => {dashController.logout()},
-                ),
               ],
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: dashController.logout,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ColorsValue.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text("Logout"),
+                ),
+              ),
             ),
           ),
         ],
@@ -188,7 +270,14 @@ class CustomDrawer extends StatelessWidget {
       padding: Dimens.edgeInsets0_0_0_20,
       alignment: Alignment.bottomCenter,
       decoration: BoxDecoration(
-        color: ColorsValue.primaryColor,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            ColorsValue.primaryColor,
+            ColorsValue.primaryColor.withValues(alpha: 0.88),
+          ],
+        ),
         borderRadius: const BorderRadius.only(topRight: Radius.circular(24)),
       ),
       child: Column(
@@ -212,24 +301,19 @@ class CustomDrawer extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
+          const SizedBox(height: 6),
+          Text(
+            dashboardController.userDetails.value?.companyCode ??
+                'Operator Console',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.82),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 18),
         ],
       ),
-    );
-  }
-
-  /// 🔹 Drawer item
-  Widget _drawerItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: ColorsValue.primaryColor),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      onTap: () {
-        Get.back();
-        onTap();
-      },
     );
   }
 
@@ -238,6 +322,75 @@ class CustomDrawer extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Text(text.toUpperCase(), style: Styles.primaryBold14),
+    );
+  }
+
+  Widget _connectionTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool connected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: ColorsValue.shadowColor),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: ColorsValue.primaryColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: ColorsValue.primaryColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Styles.blackBold14),
+                    const SizedBox(height: 4),
+                    Text(subtitle, style: Styles.black12),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: connected
+                      ? Colors.green.withValues(alpha: 0.12)
+                      : Colors.orange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  connected ? "Connected" : "Connect",
+                  style: TextStyle(
+                    color: connected ? Colors.green[700] : Colors.orange[800],
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -253,6 +406,52 @@ class CustomDrawer extends StatelessWidget {
         title: Text(title),
         value: value.value,
         onChanged: (v) => value.value = v,
+      ),
+    );
+  }
+
+  Widget _counterTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required RxInt value,
+    required VoidCallback onDecrement,
+    required VoidCallback onIncrement,
+  }) {
+    return Obx(
+      () => ListTile(
+        leading: Icon(icon, color: ColorsValue.primaryColor),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                onPressed: value.value > 1 ? onDecrement : null,
+                icon: const Icon(Icons.remove),
+                visualDensity: VisualDensity.compact,
+              ),
+              Container(
+                constraints: const BoxConstraints(minWidth: 24),
+                alignment: Alignment.center,
+                child: Text(
+                  "${value.value}",
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              IconButton(
+                onPressed: value.value < 10 ? onIncrement : null,
+                icon: const Icon(Icons.add),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -307,10 +506,6 @@ class ThreeLevelSelector extends StatelessWidget {
     );
   }
 
-  Widget _divider() {
-    return Container(height: 24, width: 1.5, color: Colors.grey.shade300);
-  }
-
   Widget _option({
     required String label,
     required TareState level,
@@ -326,7 +521,7 @@ class ThreeLevelSelector extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: selected
-              ? ColorsValue.primaryColor.withOpacity(0.8)
+              ? ColorsValue.primaryColor.withValues(alpha: 0.8)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
@@ -386,10 +581,6 @@ class TwoLevelSelector extends StatelessWidget {
     );
   }
 
-  Widget _divider() {
-    return Container(height: 24, width: 1.5, color: Colors.grey.shade300);
-  }
-
   Widget _option({
     required String label,
     required LabelState level,
@@ -405,7 +596,7 @@ class TwoLevelSelector extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: selected
-              ? ColorsValue.primaryColor.withOpacity(0.8)
+              ? ColorsValue.primaryColor.withValues(alpha: 0.8)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
@@ -476,7 +667,7 @@ class TowerLevelSelector extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: selected
-              ? ColorsValue.primaryColor.withOpacity(0.8)
+              ? ColorsValue.primaryColor.withValues(alpha: 0.8)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
@@ -518,7 +709,7 @@ class DrawerQuickAction extends StatelessWidget {
             CircleAvatar(
               radius: 24,
               backgroundColor: enabled
-                  ? ColorsValue.primaryColor.withOpacity(0.1)
+                  ? ColorsValue.primaryColor.withValues(alpha: 0.1)
                   : Colors.grey.shade200,
               child: Icon(
                 icon,

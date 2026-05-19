@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_classic_serial/flutter_bluetooth_classic.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:synchronized/synchronized.dart';
 
 import '../../apis/bluetooth_device_store.dart';
 import '../../constants/colors.dart';
@@ -27,6 +28,11 @@ class ClassicSerialScaleTestController extends GetxController {
   StreamSubscription<BluetoothState>? _stateSub;
   StreamSubscription<BluetoothDevice>? _discoverySub;
   final Map<String, BluetoothDevice> _deviceMap = {};
+  final Lock _operationLock = Lock(reentrant: true);
+  DashboardController? _dashboardController;
+  bool _listenersInitialized = false;
+  String? _pendingConnectedAddress;
+  Completer<void>? _firstPacketCompleter;
 
   static ClassicSerialScaleTestController ensureRegistered() {
     if (Get.isRegistered<ClassicSerialScaleTestController>()) {
@@ -36,25 +42,36 @@ class ClassicSerialScaleTestController extends GetxController {
   }
 
   Future<void> initialize(DashboardController dashboardController) async {
-    await _connectionSub?.cancel();
-    await _dataSub?.cancel();
-    await _stateSub?.cancel();
-    await _discoverySub?.cancel();
+    _dashboardController = dashboardController;
+    if (_listenersInitialized) return;
 
     _connectionSub = _bluetooth.onConnectionChanged.listen((state) {
+      final controller = _dashboardController;
       final connected = state.isConnected;
-      isConnected.value = connected;
-      connectedAddress.value = connected ? state.deviceAddress : null;
+      if (connected) {
+        connectedAddress.value = state.deviceAddress;
+      } else {
+        isConnected.value = false;
+        connectedAddress.value = null;
+      }
 
-      if (!connected) {
-        dashboardController.isWeightScaleConnected.value = false;
-        dashboardController.isExperimentalScaleConnected.value = false;
-        dashboardController.receivedData.value = '';
+      if (!connected && controller != null) {
+        controller.isWeightScaleConnected.value = false;
+        controller.isExperimentalScaleConnected.value = false;
+        controller.receivedData.value = '';
+        _pendingConnectedAddress = null;
+        if (_firstPacketCompleter?.isCompleted == false) {
+          _firstPacketCompleter?.completeError(
+            Exception('Scale disconnected before data was received.'),
+          );
+        }
       }
     });
 
     _dataSub = _bluetooth.onDataReceived.listen((data) {
-      _syncScaleData(data.asString(), dashboardController);
+      final controller = _dashboardController;
+      if (controller == null) return;
+      _syncScaleData(data.asString(), controller);
     });
 
     _stateSub = _bluetooth.onStateChanged.listen((state) {
@@ -62,6 +79,8 @@ class ClassicSerialScaleTestController extends GetxController {
         isScanning.value = false;
       }
     });
+
+    _listenersInitialized = true;
   }
 
   Future<void> prepareBluetooth() async {
@@ -95,89 +114,184 @@ class ClassicSerialScaleTestController extends GetxController {
   }
 
   Future<void> refreshDevices(DashboardController dashboardController) async {
-    await initialize(dashboardController);
-    await prepareBluetooth();
+    await _operationLock.synchronized(() async {
+      await initialize(dashboardController);
+      await prepareBluetooth();
 
-    isScanning.value = true;
-    _deviceMap.clear();
+      isScanning.value = true;
+      _deviceMap.clear();
 
-    final pairedDevices = await _bluetooth.getPairedDevices();
-    for (final device in pairedDevices) {
-      _deviceMap[device.address] = device;
-    }
-    _publishDevices();
+      final pairedDevices = await _bluetooth.getPairedDevices();
+      for (final device in pairedDevices) {
+        _deviceMap[device.address] = device;
+      }
+      _publishDevices();
 
-    await _discoverySub?.cancel();
-    try {
-      final discoveryStarted = await _bluetooth.startDiscovery();
-      if (discoveryStarted) {
-        _discoverySub = _bluetooth.onDeviceDiscovered.listen((device) {
-          _deviceMap[device.address] = device;
-          _publishDevices();
-        });
+      await _discoverySub?.cancel();
+      try {
+        final discoveryStarted = await _bluetooth.startDiscovery();
+        if (discoveryStarted) {
+          _discoverySub = _bluetooth.onDeviceDiscovered.listen((device) {
+            _deviceMap[device.address] = device;
+            _publishDevices();
+          });
 
-        Future.delayed(const Duration(seconds: 5), () async {
-          try {
-            await _bluetooth.stopDiscovery();
-          } catch (_) {}
+          Future.delayed(const Duration(seconds: 5), () async {
+            try {
+              await _bluetooth.stopDiscovery();
+            } catch (_) {}
+            isScanning.value = false;
+          });
+        } else {
           isScanning.value = false;
-        });
-      } else {
+        }
+      } catch (_) {
         isScanning.value = false;
       }
-    } catch (_) {
-      isScanning.value = false;
-    }
+    });
   }
 
   Future<void> connect(
     BluetoothDevice device,
     DashboardController dashboardController,
   ) async {
-    try {
-      await initialize(dashboardController);
-      await prepareBluetooth();
-    } catch (e) {
-      Get.snackbar(
-        'Connection Failed',
-        _userFacingReason(e, fallback: 'Unable to connect to the scale.'),
-      );
-      return;
-    }
-
-    connectingAddress.value = device.address;
-
-    try {
-      await _bluetooth.stopDiscovery();
-    } catch (_) {}
-    isScanning.value = false;
-
-    try {
-      final connected = await _bluetooth.connect(device.address);
-      if (!connected) {
-        throw Exception('Device rejected the connection.');
+    await _operationLock.synchronized(() async {
+      try {
+        await initialize(dashboardController);
+        await prepareBluetooth();
+      } catch (e) {
+        Get.snackbar(
+          'Connection Failed',
+          _userFacingReason(e, fallback: 'Unable to connect to the scale.'),
+        );
+        return;
       }
 
-      isConnected.value = true;
-      connectedAddress.value = device.address;
-      dashboardController.isWeightScaleConnected.value = true;
-      dashboardController.isExperimentalScaleConnected.value = true;
-      dashboardController.isUniversalBleScaleConnected.value = false;
+      connectingAddress.value = device.address;
 
-      await BluetoothDeviceStore.saveDevice(savedDeviceKey, device.address);
-    } catch (e) {
-      isConnected.value = false;
-      connectedAddress.value = null;
-      dashboardController.isWeightScaleConnected.value = false;
-      dashboardController.isExperimentalScaleConnected.value = false;
-      dashboardController.receivedData.value = '';
-      Get.snackbar(
-        'Connection Failed',
-        _userFacingReason(e, fallback: 'Unable to connect to the scale.'),
-      );
-    } finally {
-      connectingAddress.value = null;
-    }
+      try {
+        await _bluetooth.stopDiscovery();
+      } catch (_) {}
+      isScanning.value = false;
+
+      try {
+        _pendingConnectedAddress = device.address;
+        _firstPacketCompleter = Completer<void>();
+
+        final connected = await _bluetooth.connect(device.address);
+        if (!connected) {
+          throw Exception('Device rejected the connection.');
+        }
+        await _firstPacketCompleter!.future.timeout(const Duration(seconds: 5));
+        await BluetoothDeviceStore.saveDevice(savedDeviceKey, device.address);
+      } catch (e) {
+        isConnected.value = false;
+        connectedAddress.value = null;
+        dashboardController.isWeightScaleConnected.value = false;
+        dashboardController.isExperimentalScaleConnected.value = false;
+        dashboardController.receivedData.value = '';
+        _pendingConnectedAddress = null;
+        _firstPacketCompleter = null;
+        await disconnect(
+          dashboardController,
+          clearSavedDevice: false,
+          showSnackbar: false,
+        );
+        Get.snackbar(
+          'Connection Failed',
+          _userFacingReason(e, fallback: 'Unable to connect to the scale.'),
+        );
+      } finally {
+        connectingAddress.value = null;
+      }
+    });
+  }
+
+  Future<void> tryAutoReconnectFromSaved(
+    DashboardController dashboardController,
+    {bool force = false}
+  ) async {
+    await _operationLock.synchronized(() async {
+      if (isConnected.value && !force) return;
+
+      final savedAddress = await BluetoothDeviceStore.getDevice(savedDeviceKey);
+      if (savedAddress == null || savedAddress.isEmpty) return;
+
+      if (force) {
+        await disconnect(
+          dashboardController,
+          clearSavedDevice: false,
+          showSnackbar: false,
+        );
+      }
+
+      try {
+        await initialize(dashboardController);
+        await prepareBluetooth();
+      } catch (_) {
+        return;
+      }
+
+      isScanning.value = true;
+      _deviceMap.clear();
+
+      final pairedDevices = await _bluetooth.getPairedDevices();
+      for (final device in pairedDevices) {
+        _deviceMap[device.address] = device;
+      }
+      _publishDevices();
+
+      var matched = _deviceMap[savedAddress];
+      if (matched != null) {
+        isScanning.value = false;
+        await connect(matched, dashboardController);
+        return;
+      }
+
+      await _discoverySub?.cancel();
+      try {
+        final discoveryStarted = await _bluetooth.startDiscovery();
+        if (!discoveryStarted) {
+          isScanning.value = false;
+          return;
+        }
+
+        _discoverySub = _bluetooth.onDeviceDiscovered.listen((device) {
+          _deviceMap[device.address] = device;
+          _publishDevices();
+        });
+
+        final until = DateTime.now().add(const Duration(seconds: 5));
+        while (DateTime.now().isBefore(until)) {
+          matched = _deviceMap[savedAddress];
+          if (matched != null) break;
+          await Future.delayed(const Duration(milliseconds: 250));
+        }
+      } catch (_) {
+        isScanning.value = false;
+        return;
+      } finally {
+        try {
+          await _bluetooth.stopDiscovery();
+        } catch (_) {}
+        isScanning.value = false;
+      }
+
+      if (matched != null) {
+        await connect(matched, dashboardController);
+      }
+    });
+  }
+
+  Future<void> handleAppResumed(
+    DashboardController dashboardController,
+  ) async {
+    await initialize(dashboardController);
+
+    final savedAddress = await BluetoothDeviceStore.getDevice(savedDeviceKey);
+    if (savedAddress == null || savedAddress.isEmpty) return;
+
+    await tryAutoReconnectFromSaved(dashboardController, force: true);
   }
 
   Future<void> disconnect(
@@ -205,12 +319,26 @@ class ClassicSerialScaleTestController extends GetxController {
   }
 
   void _syncScaleData(String raw, DashboardController dashboardController) {
+    final packetAddress = _pendingConnectedAddress;
+    if (packetAddress != null) {
+      isConnected.value = true;
+      connectedAddress.value = packetAddress;
+      dashboardController.isWeightScaleConnected.value = true;
+      dashboardController.isExperimentalScaleConnected.value = true;
+      dashboardController.isUniversalBleScaleConnected.value = false;
+      _pendingConnectedAddress = null;
+      if (_firstPacketCompleter?.isCompleted == false) {
+        _firstPacketCompleter?.complete();
+      }
+      _firstPacketCompleter = null;
+    }
+
     dashboardController.receivedData.value = raw;
 
     final weight = dashboardController.parseWeight(raw);
     if (weight == null) return;
 
-    final formatted = weight.toStringAsFixed(2);
+    final formatted = weight.toStringAsFixed(3);
     dashboardController.manualBatchWeights.manualGross.value = formatted;
     dashboardController.manualBatchWeights.calculateManualNet();
     dashboardController.manualNonBatchWeights.manualGross.value = formatted;
@@ -273,6 +401,8 @@ class ClassicSerialScaleTestController extends GetxController {
     _dataSub?.cancel();
     _stateSub?.cancel();
     _discoverySub?.cancel();
+    _dashboardController = null;
+    _listenersInitialized = false;
     super.onClose();
   }
 }

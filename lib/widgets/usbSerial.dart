@@ -8,7 +8,6 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../apis/bluetooth_device_store.dart';
 import '../constants/enums.dart';
-import '../constants/strings.dart';
 
 String buildPayload(WeightStatus status) {
   return status == WeightStatus.inRange ? "0" : "1";
@@ -273,13 +272,7 @@ class TowerLightController extends GetxController {
   }
 
   void _publishDevices() {
-    final filtered = _deviceMap.values.where((device) {
-      final name = device.name.trim();
-      if (name.isEmpty) return true;
-      return name.toLowerCase().contains(BleConstants.deviceName.toLowerCase());
-    }).toList();
-
-    final sorted = filtered
+    final sorted = _deviceMap.values.toList()
       ..sort((a, b) {
         final aPaired = a.paired ? 0 : 1;
         final bPaired = b.paired ? 0 : 1;
@@ -328,19 +321,6 @@ Future<void> showTowerLightSheet(
   BuildContext context,
   TowerLightController controller,
 ) async {
-  try {
-    await controller.startScan();
-  } catch (e) {
-    controller.isScanning.value = false;
-    Get.snackbar(
-      'Scan Failed',
-      controller._userFacingReason(
-        e,
-        fallback: 'Unable to scan for tower lights.',
-      ),
-    );
-  }
-
   Get.bottomSheet(
     Container(
       height: Get.height / 2,
@@ -431,5 +411,21 @@ Future<void> showTowerLightSheet(
       ),
     ),
     isScrollControlled: true,
+  );
+
+  controller.devices.clear();
+  controller.isScanning.value = true;
+
+  unawaited(
+    controller.startScan().catchError((e) {
+      controller.isScanning.value = false;
+      Get.snackbar(
+        'Scan Failed',
+        controller._userFacingReason(
+          e,
+          fallback: 'Unable to scan for tower lights.',
+        ),
+      );
+    }),
   );
 }

@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:punit_label/constants/colors.dart';
-import 'package:punit_label/features/inward/batchWise/models/batchList.dart';
 
-import 'package:punit_label/features/inward/batchWise/batchInwardScreen.dart';
 import 'package:punit_label/features/inward/nonBatchWise/models/nonBatchList.dart';
 import 'package:punit_label/features/inward/nonBatchWise/nonBatchInwardScreen.dart';
 import 'package:punit_label/widgets/customAppBar.dart';
 
 import '../../../widgets/customDrawer.dart';
 import '../controller/inwardController.dart';
-import 'nonBatchController.dart';
-
-
 
 class NonBatchListScreen extends StatelessWidget {
   NonBatchListScreen({super.key});
@@ -47,42 +42,75 @@ class NonBatchListScreen extends StatelessWidget {
             children: [
               _sectionHeader("Select Transaction", isTablet),
               SizedBox(height: isTablet ? 14 : 10),
+              TextField(
+                controller: controller.searchController,
+                onChanged: controller.updateSearchQuery,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'Search transaction name',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: Obx(() {
+                    if (controller.searchQuery.value.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return IconButton(
+                      onPressed: () {
+                        controller.searchController.clear();
+                        controller.updateSearchQuery('');
+                      },
+                      icon: const Icon(Icons.close),
+                    );
+                  }),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: isTablet ? 16 : 14,
+                    vertical: isTablet ? 14 : 12,
+                  ),
+                ),
+              ),
+              SizedBox(height: isTablet ? 14 : 10),
 
               Expanded(
                 child: Obx(() {
+                  final filteredBatchList = controller.filteredBatchList;
                   if (controller.initLoading.value) {
                     return Center(child: CircularProgressIndicator());
                   }
 
-                  return controller.batchList.isEmpty
+                  return filteredBatchList.isEmpty
                       ? ListView(
-                    children: [
-                      SizedBox(height: 200),
-                      Center(child: Text("No Transaction Found")),
-                    ],
-                  )
+                          children: [
+                            SizedBox(height: 200),
+                            Center(child: Text("No Transaction Found")),
+                          ],
+                        )
                       : ListView.separated(
-                    itemCount: controller.batchList.length,
-                    separatorBuilder: (_, __) =>
-                        SizedBox(height: isTablet ? 12 : 10),
-                    itemBuilder: (context, index) {
-                      var data = controller.batchList[index];
+                          itemCount: filteredBatchList.length,
+                          separatorBuilder: (_, __) =>
+                              SizedBox(height: isTablet ? 12 : 10),
+                          itemBuilder: (context, index) {
+                            var data = filteredBatchList[index];
 
-                      return GestureDetector(
-                        onTap: () {
-                          controller.selectedTransaction.value = data;
-                          Get.to(() => NonBatchInwardScreen())!.then((_) {
-                            // Refresh when coming back
-                            controller.fetchNonBatchlist();
-                          });
-                        },
-                        child: _batchTile(index, isTablet, data),
-                      );
-                    },
-                  );
+                            return GestureDetector(
+                              onTap: () {
+                                controller.selectedTransaction.value = data;
+                                Get.to(() => NonBatchInwardScreen())!.then((_) {
+                                  // Refresh when coming back
+                                  controller.fetchNonBatchlist();
+                                });
+                              },
+                              child: _batchTile(index, isTablet, data),
+                            );
+                          },
+                        );
                 }),
               ),
-
             ],
           ),
         ),
@@ -90,9 +118,10 @@ class NonBatchListScreen extends StatelessWidget {
 
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: ColorsValue.primaryColor,
-        onPressed: (){
+        onPressed: () {
           controller.selectedTransaction.value = null;
-          Get.to(()=>NonBatchInwardScreen());},
+          Get.to(() => NonBatchInwardScreen());
+        },
         icon: Icon(Icons.add, color: Colors.white),
         label: Text(
           'New Transaction Inward',
@@ -139,7 +168,7 @@ class NonBatchListScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${batchData.name}-${batchData.id}' ?? 'Batch-Name',
+                    '${batchData.name ?? 'Transaction'}-${batchData.id ?? ''}',
                     style: TextStyle(
                       fontSize: isTablet ? 17 : 14,
                       fontWeight: FontWeight.w700,
@@ -195,9 +224,8 @@ class NonBatchListScreen extends StatelessWidget {
             color: Colors.blueAccent,
             borderRadius: BorderRadius.circular(2),
           ),
-        )
+        ),
       ],
     );
   }
 }
-

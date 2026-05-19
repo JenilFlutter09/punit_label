@@ -1,17 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:punit_label/constants/utility.dart';
 import 'package:punit_label/features/inward/batchWise/models/batchDetails.dart';
-import 'package:punit_label/features/inward/batchWise/models/batchInwardModel.dart'
-    hide Products;
-import 'package:punit_label/features/inward/models/singleProduct.dart';
+import 'package:punit_label/features/inward/batchWise/models/batchInwardModel.dart';
 import 'package:punit_label/features/tare/tareListModel.dart';
+import 'package:punit_label/widgets/searchableDropdown.dart';
 
 import '../../../apis/connectHelper.dart';
 import '../../../constants/enums.dart';
@@ -35,6 +32,8 @@ class BatchInwardController extends GetxController {
   final String batchId;
   final manualCtrl = Get.find<ManualWeightController>(tag: 'batch');
   BatchInwardController(this.batchId);
+  Rxn<LabelFormatElement> selectedLabelFormatObj = Rxn<LabelFormatElement>();
+  RxString selectedLabelFormat = "".obs;
   Timer? autoWeightTimer;
   int continuousOutOfRangeSeconds = 0;
   Rxn<TareProductListModel> tareProductsListModel = Rxn<TareProductListModel>();
@@ -86,7 +85,7 @@ class BatchInwardController extends GetxController {
         ?.map(
           (p) => module(
             id: p.batchProductId ?? 0,
-            name: p.productName.toString() ?? "",
+            name: p.productName ?? "",
             autoWeight: p.autoWeight ?? false,
             minWeight: p.minAutoWeight ?? 0,
             maxWeight: p.maxAutoWeight ?? 0,
@@ -105,6 +104,7 @@ class BatchInwardController extends GetxController {
     if (dropdownProducts.isNotEmpty) {
       selectedModuleProduct.value = dropdownProducts.first;
       selectedModelProduct.value = batchModel.value?.data?.products?.first;
+      _syncSelectedLabelFormatForProduct(selectedModelProduct.value);
       isBatchAutoWeightEnabled.value = dropdownProducts.first.autoWeight;
       manualCtrl.manualTare.value = selectedModelProduct.value?.tareWeight
           .toString();
@@ -134,6 +134,7 @@ class BatchInwardController extends GetxController {
 
     if (product == null || product.batchProductId == null) return;
     selectedModelProduct.value = product;
+    _syncSelectedLabelFormatForProduct(product);
     selectedModuleProduct.value = module(
       id: product.batchProductId ?? 0,
       name: product.productName ?? 'name',
@@ -158,6 +159,16 @@ class BatchInwardController extends GetxController {
     if (inwardState.value == InwardState.running) {
       _startAutoWeightMonitor();
     }
+  }
+
+  void _syncSelectedLabelFormatForProduct(Products? product) {
+    final int labelId = int.tryParse(product?.labelId ?? '') ?? 3;
+    final LabelFormatElement? matched = dashboardController.labelFormats
+        .cast<LabelFormatElement?>()
+        .firstWhere((element) => element?.id == labelId, orElse: () => null);
+
+    selectedLabelFormatObj.value = matched;
+    selectedLabelFormat.value = matched?.nameOfLabel ?? "";
   }
 
   Future<void> onTapMain() async {
@@ -500,11 +511,15 @@ class BatchInwardController extends GetxController {
         : {...combinationFields, ...manualGTNFields};
 
     LabelFormat selectedLabelFormat = LabelFormat.Large;
-    number = int.tryParse(selectedModelProduct.value?.labelId ?? '3') ?? 3;
+    number =
+        selectedLabelFormatObj.value?.id ??
+        int.tryParse(selectedModelProduct.value?.labelId ?? '3') ??
+        3;
     print('Label Format Number ----------> $number');
     switch (number) {
       case 0:
-        selectedLabelFormat = LabelFormat.neoLabel;
+        //selectedLabelFormat = LabelFormat.neoLabel;
+        selectedLabelFormat = LabelFormat.MajedarTea;
         labelFields = {...combinationFields};
         break;
       case 1:
@@ -526,6 +541,12 @@ class BatchInwardController extends GetxController {
           ...combinationFields, // Net Weight from printable attribute
           "Gross Weight": manualCtrl.manualGross.value ?? '0', // Measured
         };
+        break;
+      case 6:
+        selectedLabelFormat = LabelFormat.SmallSeven;
+        labelFields = isTareWeightOff.value
+            ? {...combinationFields, ...manualNFields}
+            : {...combinationFields, ...manualGTNFields};
         break;
     }
     if (dashboardController.printSerialNumberInLabel.value) {
@@ -597,21 +618,35 @@ class BatchInwardController extends GetxController {
           noAttribute: labelFields.length,
         );
         break;
-      case LabelFormat.neoLabel:
-        await dashboardController.printNeoLabelSticker(
+      // case LabelFormat.neoLabel:
+      //   await dashboardController.printNeoLabelSticker(
+      //     barcodeString: barcodeString,
+      //     productName: productName,
+      //     labelFields: labelFields,
+      //   );
+      //   break;
+
+      case LabelFormat.MajedarTea:
+        // TODO: Handle this case.
+        final double netWeight = double.parse(
+          manualCtrl.manualNet.value ?? '0.0',
+        );
+        await dashboardController.printTeaSmallSticker(
+          productName: productName,
+          noAttribute: labelFields.length,
+          netweight: netWeight,
+          barcodeString: barcodeString,
+        );
+        break;
+
+      case LabelFormat.SmallSeven:
+        await dashboardController.printSmallSevenLabelSticker(
           barcodeString: barcodeString,
           productName: productName,
           labelFields: labelFields,
         );
         break;
-    //
-    //   case LabelFormat.MajedarTea:
-    // // TODO: Handle this case.
-    //   final double netWeight = double.parse(manualCtrl.manualNet.value ?? '0.0');
-    //   await dashboardController.printTeaSmallSticker(productName: productName, noAttribute: labelFields.length, netweight: netWeight, barcodeString: barcodeString);
-    //   break;
     }
-    
   }
 
   Future<void> onTapStop() async {

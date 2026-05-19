@@ -4,14 +4,11 @@ import 'package:punit_label/constants/colors.dart';
 import 'package:punit_label/features/inward/batchWise/models/batchList.dart';
 
 import 'package:punit_label/features/inward/batchWise/batchInwardScreen.dart';
-import 'package:punit_label/features/inward/nonBatchWise/nonBatchInwardScreen.dart';
 import 'package:punit_label/widgets/customAppBar.dart';
 
 import '../../../widgets/customDrawer.dart';
 import '../controller/inwardController.dart';
 import '../nonBatchWise/nonBatchListScreen.dart';
-
-
 
 class InwardScreen extends StatelessWidget {
   InwardScreen({super.key});
@@ -46,29 +43,68 @@ class InwardScreen extends StatelessWidget {
             children: [
               _sectionHeader("Select Batch", isTablet),
               SizedBox(height: isTablet ? 14 : 10),
+              TextField(
+                controller: controller.searchController,
+                onChanged: controller.updateSearchQuery,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'Search batch name',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: Obx(() {
+                    if (controller.searchQuery.value.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return IconButton(
+                      onPressed: () {
+                        controller.searchController.clear();
+                        controller.updateSearchQuery('');
+                      },
+                      icon: const Icon(Icons.close),
+                    );
+                  }),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: isTablet ? 16 : 14,
+                    vertical: isTablet ? 14 : 12,
+                  ),
+                ),
+              ),
+              SizedBox(height: isTablet ? 14 : 10),
 
               Expanded(
-                child: Obx((){
-                  if(controller.initLoading.value){
-                      return Container(
-                          alignment: Alignment.center,
-                          child: CircularProgressIndicator());
-                  }
-                  else if(controller.batchList.isEmpty){
-                    return Center(child: Text('No Batch Found'),);
+                child: Obx(() {
+                  final filteredBatchList = controller.filteredBatchList;
+                  if (controller.initLoading.value) {
+                    return Container(
+                      alignment: Alignment.center,
+                      child: CircularProgressIndicator(),
+                    );
+                  } else if (filteredBatchList.isEmpty) {
+                    return Center(child: Text('No Batch Found'));
                   }
                   return ListView.separated(
-                    itemCount: controller.batchList.length,
-                    separatorBuilder: (_, __) => SizedBox(height: isTablet ? 12 : 10),
+                    itemCount: filteredBatchList.length,
+                    separatorBuilder: (_, __) =>
+                        SizedBox(height: isTablet ? 12 : 10),
                     itemBuilder: (context, index) {
-                      var data = controller.batchList[index];
+                      var data = filteredBatchList[index];
                       return GestureDetector(
-                        onTap: () => Get.to(()=>BatchInwardScreen(selectedBatchId: data.id.toString(),)),
-                        child: _batchTile(index, isTablet,data),
+                        onTap: () => Get.to(
+                          () => BatchInwardScreen(
+                            selectedBatchId: data.id.toString(),
+                          ),
+                        ),
+                        child: _batchTile(index, isTablet, data),
                       );
                     },
                   );
-                })
+                }),
               ),
             ],
           ),
@@ -77,7 +113,7 @@ class InwardScreen extends StatelessWidget {
 
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: ColorsValue.primaryColor,
-        onPressed: () => Get.to(()=>NonBatchListScreen()),
+        onPressed: () => Get.to(() => NonBatchListScreen()),
         icon: Icon(Icons.add, color: Colors.white),
         label: Text(
           'Non Batch Wise Inward',
@@ -177,9 +213,8 @@ class InwardScreen extends StatelessWidget {
             color: Colors.blueAccent,
             borderRadius: BorderRadius.circular(2),
           ),
-        )
+        ),
       ],
     );
   }
 }
-

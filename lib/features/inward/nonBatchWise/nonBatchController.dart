@@ -480,7 +480,8 @@ class NonBatchInwardController extends GetxController {
     // -------------------------------------------------------------
     // 3️⃣ Merge all fields into one labelFields map
     // -------------------------------------------------------------
-    Map<String, String> labelFields = selected == LabelFormat.neoLabel
+      //Map<String, String> labelFields = selected == LabelFormat.neoLabel
+     Map<String, String> labelFields = selected == LabelFormat.MajedarTea
         ? {...combinationFields}
         : isTareWeightOff.value
         ? {...combinationFields, ...manualNFields}
@@ -577,18 +578,34 @@ class NonBatchInwardController extends GetxController {
           noAttribute: wholesaleFields.length,
         );
         break;
-      case LabelFormat.neoLabel:
-        await dashboardController.printNeoLabelSticker(
+      // case LabelFormat.neoLabel:
+      //   await dashboardController.printNeoLabelSticker(
+      //     barcodeString: barcodeString,
+      //     productName: productName,
+      //     labelFields: labelFields,
+      //   );
+      //   break;
+      case LabelFormat.MajedarTea:
+        // TODO: Handle this case.
+        final double netWeight = double.parse(
+          manualCtrl.manualNet.value ?? '0.0',
+        );
+        await dashboardController.printTeaSmallSticker(
+          productName: productName,
+          noAttribute: labelFields.length,
+          netweight: netWeight,
+          barcodeString: barcodeString,
+          labelFields: labelFields,
+        );
+        break;
+
+      case LabelFormat.SmallSeven:
+        await dashboardController.printSmallSevenLabelSticker(
           barcodeString: barcodeString,
           productName: productName,
           labelFields: labelFields,
         );
         break;
-      // case LabelFormat.MajedarTea:
-      // // TODO: Handle this case.
-      //   final double netWeight = double.parse(manualCtrl.manualNet.value ?? '0.0');
-      //   await dashboardController.printTeaSmallSticker(productName: productName, noAttribute: labelFields.length, netweight: netWeight, barcodeString: barcodeString);
-      //   break;
     }
   }
 

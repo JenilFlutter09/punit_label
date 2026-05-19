@@ -4,8 +4,9 @@ import 'package:get/get.dart';
 import '../../constants/colors.dart';
 import '../../constants/sizes.dart';
 import '../../constants/styles.dart';
-import '../bluetooth_test/classic_serial_scale_test_sheet.dart';
 import '../dashboard/dashboardController.dart';
+import '../../widgets/bluetooth_bottomsheet.dart';
+import '../bluetooth_test/classic_serial_scale_test_sheet.dart';
 
 class TareScaleConnectionController extends GetxController {
   final DashboardController dashboardController =
@@ -37,16 +38,15 @@ class TareScaleConnectionController extends GetxController {
       dashboardController.manualTareWeights.manualGross,
       _syncLiveWeight,
     );
-    _connectionWorker = ever<bool>(
-      dashboardController.isWeightScaleConnected,
-      (connected) {
-        if (!connected) {
-          liveWeight.value = 0.0;
-          return;
-        }
-        _syncLiveWeight(dashboardController.manualTareWeights.manualGross.value);
-      },
-    );
+    _connectionWorker = ever<bool>(dashboardController.isWeightScaleConnected, (
+      connected,
+    ) {
+      if (!connected) {
+        liveWeight.value = 0.0;
+        return;
+      }
+      _syncLiveWeight(dashboardController.manualTareWeights.manualGross.value);
+    });
   }
 
   void _syncLiveWeight(String? rawWeight) {
@@ -54,7 +54,7 @@ class TareScaleConnectionController extends GetxController {
   }
 
   Future<void> connect(BuildContext context) async {
-    await showClassicSerialScaleTestSheet(context, dashboardController);
+    await showScaleConnectionSheet(context, dashboardController);
   }
 
   Future<void> disconnect() async {

@@ -1,152 +1,288 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../constants/colors.dart';
 import '../constants/bluetooth_device_display.dart';
+import '../constants/colors.dart';
 import '../constants/sizes.dart';
 import '../constants/strings.dart';
 import '../constants/styles.dart';
+import '../features/bluetooth_test/classic_serial_scale_test_sheet.dart';
 import '../features/dashboard/dashboardController.dart';
+
+enum BluetoothDeviceSheetType { scale, printer }
+
+Future<void> showScaleConnectionSheet(
+  BuildContext context,
+  DashboardController controller,
+) async {
+  final classicController = ClassicSerialScaleTestController.ensureRegistered();
+
+  try {
+    await classicController.refreshDevices(controller);
+  } catch (e) {
+    classicController.isScanning.value = false;
+    Get.snackbar(
+      'Scan Failed',
+      _userFacingReason(e, fallback: 'Unable to scan for scales.'),
+    );
+  }
+
+  return _showDeviceConnectionSheet(
+    context: context,
+    title: 'Scale Connection',
+    subtitle: 'Connect a paired scale to stream live weight into the app.',
+    rescan: () => classicController.refreshDevices(controller),
+    statusBanner: Obx(
+      () => classicController.devices.isEmpty
+          ? _emptyInfoBanner(
+              'No paired scale found.\nMake sure the device is paired and nearby.',
+            )
+          : const SizedBox.shrink(),
+    ),
+    child: Obx(
+      () => _ConnectionListShell(
+        isScanning: classicController.isScanning.value,
+        hasItems: classicController.devices.isNotEmpty,
+        emptyActionLabel: 'Scan Again',
+        emptyAction: () => classicController.refreshDevices(controller),
+        emptyMessage:
+            'No paired scale found.\nMake sure the device is paired and nearby.',
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: classicController.devices.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final device = classicController.devices[index];
+            final address = device.address;
+            final isConnectingNow =
+                classicController.connectingAddress.value == address;
+            final isConnectedNow =
+                classicController.connectedAddress.value == address &&
+                classicController.isConnected.value;
+
+            return _ConnectionTile(
+              title: classicController.displayName(device),
+              subtitle: device.paired ? '$address • Paired' : address,
+              icon: Icons.scale_rounded,
+              connected: isConnectedNow,
+              loading: isConnectingNow,
+              actionLabel: isConnectedNow ? 'Disconnect' : 'Connect',
+              actionColor: isConnectedNow ? Colors.red : Colors.green,
+              onPressed: () async {
+                if (isConnectedNow) {
+                  await classicController.disconnect(controller);
+                  return;
+                }
+
+                await classicController.connect(device, controller);
+                if (classicController.connectedAddress.value == address &&
+                    classicController.isConnected.value) {
+                  Get.back();
+                }
+              },
+            );
+          },
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> showPrinterConnectionSheet(
+  BuildContext context,
+  DashboardController controller,
+) async {
+  await controller.startScan(roles: SStringConstants.role_printer);
+
+  return _showDeviceConnectionSheet(
+    context: context,
+    title: controller.isLabelPrinterMode.value
+        ? 'Printer Connection'
+        : 'Receipt Printer Connection',
+    subtitle: controller.isLabelPrinterMode.value
+        ? 'Choose a paired printer. Use Bluetooth password 1234 if prompted.'
+        : 'Choose a paired receipt printer for non-label mode.',
+    rescan: () => controller.startScan(roles: SStringConstants.role_printer),
+    statusBanner: Obx(
+      () => controller.scanResults.isEmpty
+          ? _emptyInfoBanner(
+              'No printers found.\nTurn Bluetooth on and keep the printer nearby.',
+            )
+          : const SizedBox.shrink(),
+    ),
+    child: Obx(
+      () => _ConnectionListShell(
+        isScanning: controller.isScanning.value,
+        hasItems: controller.scanResults.isNotEmpty,
+        emptyActionLabel: 'Scan Again',
+        emptyAction: () =>
+            controller.startScan(roles: SStringConstants.role_printer),
+        emptyMessage:
+            'No printers found.\nTurn Bluetooth on and keep the printer nearby.',
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: controller.scanResults.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final result = controller.scanResults[index];
+            final deviceName = BluetoothDeviceDisplay.displayName(result);
+            final deviceId = BluetoothDeviceDisplay.deviceIdFromResult(result);
+
+            return _ConnectionTile(
+              title: deviceName,
+              subtitle: deviceId,
+              icon: controller.isLabelPrinterMode.value
+                  ? Icons.print_rounded
+                  : Icons.receipt_long_rounded,
+              connected: false,
+              loading: controller.connectingDeviceId.value == deviceId,
+              actionLabel: 'Connect',
+              actionColor: Colors.green,
+              onPressed: () async {
+                controller.connectingDeviceId.value = deviceId;
+                try {
+                  if (controller.isLabelPrinterMode.value) {
+                    await controller.connectPrinterWithMac(deviceId);
+                    if (controller.isPrinterConnected.value) {
+                      Get.back();
+                    } else {
+                      Get.snackbar('Printer', controller.statusMessage.value);
+                    }
+                  } else {
+                    await controller.bluetoothController.connectToDevice(
+                      result.device,
+                    );
+                    if (controller.bluetoothController.isConnected.value) {
+                      Get.back();
+                    }
+                  }
+                } catch (e) {
+                  Get.snackbar('Connection Failed', e.toString());
+                } finally {
+                  controller.connectingDeviceId.value = null;
+                }
+              },
+            );
+          },
+        ),
+      ),
+    ),
+  );
+}
+
+String _userFacingReason(Object error, {required String fallback}) {
+  final raw = error.toString().trim();
+  final cleaned = raw
+      .replaceFirst(RegExp(r'^Exception:\s*'), '')
+      .replaceFirst(RegExp(r'^BluetoothException:\s*'), '')
+      .replaceFirst(RegExp(r'^PlatformException\([^,]+,\s*'), '')
+      .replaceFirst(RegExp(r',\s*null,\s*null\)$'), '')
+      .trim();
+
+  final lower = cleaned.toLowerCase();
+  if (lower.contains('timed out') || lower.contains('timeout')) {
+    return 'Timed out while connecting.';
+  }
+
+  if (cleaned.isEmpty || cleaned.length > 80) {
+    return fallback;
+  }
+
+  return cleaned;
+}
 
 Future<void> showBluetoothSheet(
   BuildContext context,
   DashboardController controller,
   String role,
 ) async {
-  await controller.startScan(roles: role);
+  if (role == SStringConstants.role_scale) {
+    return showScaleConnectionSheet(context, controller);
+  }
 
-  Get.bottomSheet(
+  return showPrinterConnectionSheet(context, controller);
+}
+
+Future<void> showBluetoothPrinterSheet(
+  BuildContext context,
+  DashboardController controller,
+  String role,
+) async {
+  return showPrinterConnectionSheet(context, controller);
+}
+
+Future<void> _showDeviceConnectionSheet({
+  required BuildContext context,
+  required String title,
+  required String subtitle,
+  required Future<void> Function() rescan,
+  required Widget child,
+  Widget? statusBanner,
+}) async {
+  await Get.bottomSheet(
     Container(
-      height: Get.height / 2,
-      padding: const EdgeInsets.all(16),
+      constraints: BoxConstraints(
+        maxHeight: Get.height * 0.72,
+        minHeight: Get.height * 0.42,
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      child: Obx(
-        () => Column(
+      child: SafeArea(
+        top: false,
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 50,
+              width: 52,
               height: 5,
-              margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(999),
               ),
-            ),
-            Text(
-              "Nearby Devices",
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-
-            // List / Loader / No devices
-            if (!controller.isScanning.value && controller.scanResults.isEmpty)
-              Column(
-                children: [
-                  const Text(
-                    "No devices found \n Check If your Location service is ON \n Check your Bluetooth should also be ON",
-                    textAlign: TextAlign.center,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: ColorsValue.primaryColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  Dimens.boxHeight20,
-                  ElevatedButton(
-                    onPressed: () async =>
-                        await controller.startScan(roles: role),
-                    style: ButtonStyle(
-                      backgroundColor: MaterialStatePropertyAll(
-                        ColorsValue.primaryColor,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.refresh, color: Colors.white),
-                        Dimens.boxWidth8,
-                        Text(
-                          'Re-Scan',
-                          style: TextStyle(color: Colors.white),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
+                  child: Icon(
+                    Icons.bluetooth_searching_rounded,
+                    color: ColorsValue.primaryColor,
                   ),
-                ],
-              ),
-
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: controller.scanResults.length,
-                separatorBuilder: (_, __) => const Divider(),
-                itemBuilder: (context, i) {
-                  final result = controller.scanResults[i];
-                  final deviceName = BluetoothDeviceDisplay.displayName(result);
-                  final deviceId = BluetoothDeviceDisplay.deviceIdFromResult(
-                    result,
-                  );
-                  return ListTile(
-                    leading: const Icon(Icons.bluetooth, color: Colors.blue),
-                    title: Text(deviceName),
-                    subtitle: Text(deviceId),
-
-                    /* trailing: ElevatedButton(
-                      onPressed: () {
-                        controller.connectToDevice(result.device);
-                        Get.back();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        "Connect",
-                        style: Styles.primary14.copyWith(color: Colors.white),
-                      ),
-                    ),*/
-                    trailing: Obx(() {
-                      if (controller.connectingDeviceId.value == deviceId) {
-                        return const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        );
-                      }
-
-                      return ElevatedButton(
-                        onPressed: () async {
-                          await controller.connectToDevice(result.device);
-                          if (controller.connectedDevice.value?.remoteId ==
-                              result.device.remoteId) {
-                            Get.back(); // close only if connected ✅
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          "Connect",
-                          style: Styles.primary14.copyWith(color: Colors.white),
-                        ),
-                      );
-                    }),
-                  );
-                },
-              ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: Styles.blackBold18),
+                      const SizedBox(height: 4),
+                      Text(subtitle, style: Styles.black12),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Scan Again',
+                  onPressed: rescan,
+                  icon: Icon(
+                    Icons.refresh_rounded,
+                    color: ColorsValue.primaryColor,
+                  ),
+                ),
+              ],
             ),
-
-            if (controller.isScanning.value) ...[
-              const SizedBox(height: 16),
-              const CircularProgressIndicator(),
-            ],
+            const SizedBox(height: 16),
+            if (statusBanner != null) statusBanner,
+            Flexible(child: child),
           ],
         ),
       ),
@@ -155,151 +291,202 @@ Future<void> showBluetoothSheet(
   );
 }
 
-Future<void> showBluetoothPrinterSheet(
-  BuildContext context,
-  DashboardController controller,
-  String role,
-) async {
-  await controller.startScan(roles: SStringConstants.role_printer);
-
-  Get.bottomSheet(
-    Container(
-      height: Get.height / 2,
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+Widget _emptyInfoBanner(String message) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F8FC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ColorsValue.shadowColor),
       ),
-      child: Obx(
-        () => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 50,
-              height: 5,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            Text(
-              "Nearby Devices",
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: ColorsValue.primaryColor,
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(message, style: Styles.black12)),
+        ],
+      ),
+    ),
+  );
+}
 
-            // List / Loader / No devices
-            if (!controller.isScanning.value && controller.scanResults.isEmpty)
-              Column(
+class _ConnectionListShell extends StatelessWidget {
+  const _ConnectionListShell({
+    required this.isScanning,
+    required this.hasItems,
+    required this.emptyActionLabel,
+    required this.emptyAction,
+    required this.emptyMessage,
+    required this.child,
+  });
+
+  final bool isScanning;
+  final bool hasItems;
+  final String emptyActionLabel;
+  final Future<void> Function() emptyAction;
+  final String emptyMessage;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isScanning && !hasItems) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Text(
+                emptyMessage,
+                style: Styles.black12,
+                textAlign: TextAlign.center,
+              ),
+              Dimens.boxHeight20,
+              ElevatedButton.icon(
+                onPressed: emptyAction,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ColorsValue.primaryColor,
+                ),
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                label: Text(
+                  emptyActionLabel,
+                  style: Styles.whiteBold12.copyWith(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(child: child),
+        if (isScanning)
+          Positioned(
+            right: 12,
+            bottom: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    "No devices found \n Check If your location service is ON \n Connect printer to your device using password 1234 ",
-                    textAlign: TextAlign.center,
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
                   ),
-                  Dimens.boxHeight20,
-                  ElevatedButton(
-                    onPressed: () async => await controller.startScan(
-                      roles: SStringConstants.role_printer,
-                    ),
-                    style: ButtonStyle(
-                      backgroundColor: MaterialStatePropertyAll(
-                        ColorsValue.primaryColor,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.refresh, color: Colors.white),
-                        Dimens.boxWidth8,
-                        Text(
-                          'Re-Scan',
-                          style: TextStyle(color: Colors.white),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                  SizedBox(width: 10),
+                  Text(
+                    'Scanning...',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
-
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: controller.scanResults.length,
-                separatorBuilder: (_, __) => const Divider(),
-                itemBuilder: (context, i) {
-                  final result = controller.scanResults[i];
-                  final deviceName = BluetoothDeviceDisplay.displayName(result);
-                  final deviceId = BluetoothDeviceDisplay.deviceIdFromResult(
-                    result,
-                  );
-                  return ListTile(
-                    leading: const Icon(Icons.bluetooth, color: Colors.blue),
-                    title: Text(deviceName),
-                    subtitle: Text(deviceId),
-
-                    trailing: Obx(() {
-                      if (controller.connectingDeviceId.value == deviceId) {
-                        return const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        );
-                      }
-
-                      return ElevatedButton(
-                        onPressed: () async {
-                          String mac = deviceId; // MAC address
-                          Get.snackbar('Mac Address', mac);
-
-                          try {
-                            //await controller.initPrinter(); // make sure SDK is ready
-                            await controller.connectPrinterWithMac(mac);
-                            //controller.connectedPrinter.value = result.device;
-
-                            // wait a bit or listen to SDK event for connection
-                            Future.delayed(Duration(seconds: 2), () {
-                              if (controller.isPrinterConnected.value) {
-                                Get.back(); // close sheet only on success
-                              } else {
-                                Get.snackbar(
-                                  'Status',
-                                  controller.statusMessage.value,
-                                );
-                              }
-                            });
-                          } catch (e) {
-                            Get.snackbar('Error', e.toString());
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          "Connect",
-                          style: Styles.primary14.copyWith(color: Colors.white),
-                        ),
-                      );
-                    }),
-                  );
-                },
-              ),
             ),
+          ),
+      ],
+    );
+  }
+}
 
-            if (controller.isScanning.value) ...[
-              const SizedBox(height: 16),
-              const CircularProgressIndicator(),
-            ],
-          ],
-        ),
+class _ConnectionTile extends StatelessWidget {
+  const _ConnectionTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.connected,
+    required this.loading,
+    required this.actionLabel,
+    required this.actionColor,
+    required this.onPressed,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool connected;
+  final bool loading;
+  final String actionLabel;
+  final Color actionColor;
+  final Future<void> Function() onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: ColorsValue.shadowColor),
+        color: connected ? Colors.green.withValues(alpha: 0.06) : Colors.white,
       ),
-    ),
-    isScrollControlled: true,
-  );
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: ColorsValue.primaryColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: ColorsValue.primaryColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Styles.blackBold14),
+                const SizedBox(height: 4),
+                Text(subtitle, style: Styles.black11),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (loading)
+            const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            ElevatedButton(
+              onPressed: onPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: actionColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(actionLabel),
+            ),
+        ],
+      ),
+    );
+  }
 }

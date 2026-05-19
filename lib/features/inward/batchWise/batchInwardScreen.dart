@@ -52,14 +52,16 @@ class BatchInwardScreen extends StatelessWidget {
                 isTablet: isTablet,
                 controller: controller.serialNumberTextController,
                 onChanged: controller.validateSerial,
-                suffix: Obx(() => Icon(
-                  controller.isSerialVerified.value
-                      ? Icons.check_circle
-                      : Icons.cancel,
-                  color: controller.isSerialVerified.value
-                      ? Colors.green
-                      : Colors.red,
-                )),
+                suffix: Obx(
+                  () => Icon(
+                    controller.isSerialVerified.value
+                        ? Icons.check_circle
+                        : Icons.cancel,
+                    color: controller.isSerialVerified.value
+                        ? Colors.green
+                        : Colors.red,
+                  ),
+                ),
               ),
               Dimens.boxHeight8,
               Card(
@@ -74,7 +76,6 @@ class BatchInwardScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
                       CustomTitle(
                         title: "Select Product",
                         titleAlign: TextAlign.left,
@@ -89,6 +90,41 @@ class BatchInwardScreen extends StatelessWidget {
                               controller.changeSelectedProductId(val.id),
                         ),
                       ),
+                      SizedBox(height: 12),
+                      Obx(() {
+                        if (dashboardController.labelFormats.isEmpty) {
+                          return SizedBox.shrink();
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "LABEL FORMAT",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            SearchableStringDropdown(
+                              label: "Select Label Format",
+                              items: dashboardController.labelFormats
+                                  .map((e) => e.nameOfLabel)
+                                  .toList(),
+                              selectedValue: controller.selectedLabelFormat,
+                              onItemSelected: (selectedName) {
+                                controller.selectedLabelFormat.value =
+                                    selectedName;
+                                controller.selectedLabelFormatObj.value =
+                                    dashboardController.labelFormats.firstWhere(
+                                      (e) => e.nameOfLabel == selectedName,
+                                    );
+                              },
+                            ),
+                          ],
+                        );
+                      }),
                       Obx(() {
                         final selected = controller.selectedModuleProduct.value;
                         if (selected == null) return SizedBox();
@@ -104,7 +140,8 @@ class BatchInwardScreen extends StatelessWidget {
                             );
 
                         if (product == null) return SizedBox();
-                        if(product.combinations?.isEmpty == true) return SizedBox.shrink();
+                        if (product.combinations?.isEmpty == true)
+                          return SizedBox.shrink();
                         return ProductInfoCard(
                           productName: product.productName ?? '',
                           combinations: product.combinations ?? [],
