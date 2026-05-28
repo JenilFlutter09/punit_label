@@ -1577,27 +1577,14 @@ if (businessHours.isNotEmpty()) {
 
                 val printableAttributes = attributes.filter {
                     (it["key"] ?: "").isNotBlank() && (it["value"] ?: "").isNotBlank()
-                }.take(8)
+                }.take(10)
 
-                val productLabel = "Product : "
-                val productLabelFont = keyFont
                 val productValueFont = valueFont
                 val productLineHeight = lineHeight + 6
                 val productBlockHeight = productLineHeight
-                val productValueX = headerLeft + columnGap
+                val productValueX = headerLeft
 
-                lp.PrintText(
-                    headerLeft,
-                    yPos,
-                    "0",
-                    productLabel,
-                    0,
-                    productLabelFont,
-                    productLabelFont,
-                    1
-                )
-
-                for ((index, line) in splitByLength(productName, 18).take(2).withIndex()) {
+                for ((index, line) in splitByLength(productName, 28).take(2).withIndex()) {
                     lp.PrintText(
                         productValueX,
                         yPos + (index * productLineHeight),

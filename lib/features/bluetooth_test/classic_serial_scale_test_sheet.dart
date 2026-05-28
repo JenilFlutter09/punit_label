@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bluetooth_classic_serial/flutter_bluetooth_classic.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:synchronized/synchronized.dart';
@@ -10,6 +9,7 @@ import '../../apis/bluetooth_device_store.dart';
 import '../../constants/colors.dart';
 import '../../constants/sizes.dart';
 import '../../constants/styles.dart';
+import '../../services/classic_bluetooth_bridge.dart';
 import '../dashboard/dashboardController.dart';
 
 class ClassicSerialScaleTestController extends GetxController {
@@ -31,8 +31,6 @@ class ClassicSerialScaleTestController extends GetxController {
   final Lock _operationLock = Lock(reentrant: true);
   DashboardController? _dashboardController;
   bool _listenersInitialized = false;
-  String? _pendingConnectedAddress;
-  Completer<void>? _firstPacketCompleter;
 
   static ClassicSerialScaleTestController ensureRegistered() {
     if (Get.isRegistered<ClassicSerialScaleTestController>()) {
@@ -48,8 +46,8 @@ class ClassicSerialScaleTestController extends GetxController {
     _connectionSub = _bluetooth.onConnectionChanged.listen((state) {
       final controller = _dashboardController;
       final connected = state.isConnected;
-      if (connected) {
-        connectedAddress.value = state.deviceAddress;
+      if (connected && controller != null) {
+        _markConnected(state.deviceAddress, controller);
       } else {
         isConnected.value = false;
         connectedAddress.value = null;
@@ -59,12 +57,6 @@ class ClassicSerialScaleTestController extends GetxController {
         controller.isWeightScaleConnected.value = false;
         controller.isExperimentalScaleConnected.value = false;
         controller.receivedData.value = '';
-        _pendingConnectedAddress = null;
-        if (_firstPacketCompleter?.isCompleted == false) {
-          _firstPacketCompleter?.completeError(
-            Exception('Scale disconnected before data was received.'),
-          );
-        }
       }
     });
 
@@ -156,6 +148,13 @@ class ClassicSerialScaleTestController extends GetxController {
     DashboardController dashboardController,
   ) async {
     await _operationLock.synchronized(() async {
+      if (isConnected.value && connectedAddress.value == device.address) {
+        return;
+      }
+      if (connectingAddress.value == device.address) {
+        return;
+      }
+
       try {
         await initialize(dashboardController);
         await prepareBluetooth();
@@ -175,14 +174,11 @@ class ClassicSerialScaleTestController extends GetxController {
       isScanning.value = false;
 
       try {
-        _pendingConnectedAddress = device.address;
-        _firstPacketCompleter = Completer<void>();
-
         final connected = await _bluetooth.connect(device.address);
         if (!connected) {
           throw Exception('Device rejected the connection.');
         }
-        await _firstPacketCompleter!.future.timeout(const Duration(seconds: 5));
+        _markConnected(device.address, dashboardController);
         await BluetoothDeviceStore.saveDevice(savedDeviceKey, device.address);
       } catch (e) {
         isConnected.value = false;
@@ -190,8 +186,6 @@ class ClassicSerialScaleTestController extends GetxController {
         dashboardController.isWeightScaleConnected.value = false;
         dashboardController.isExperimentalScaleConnected.value = false;
         dashboardController.receivedData.value = '';
-        _pendingConnectedAddress = null;
-        _firstPacketCompleter = null;
         await disconnect(
           dashboardController,
           clearSavedDevice: false,
@@ -208,11 +202,12 @@ class ClassicSerialScaleTestController extends GetxController {
   }
 
   Future<void> tryAutoReconnectFromSaved(
-    DashboardController dashboardController,
-    {bool force = false}
-  ) async {
+    DashboardController dashboardController, {
+    bool force = false,
+  }) async {
     await _operationLock.synchronized(() async {
       if (isConnected.value && !force) return;
+      if (force && isConnected.value) return;
 
       final savedAddress = await BluetoothDeviceStore.getDevice(savedDeviceKey);
       if (savedAddress == null || savedAddress.isEmpty) return;
@@ -283,15 +278,19 @@ class ClassicSerialScaleTestController extends GetxController {
     });
   }
 
-  Future<void> handleAppResumed(
-    DashboardController dashboardController,
-  ) async {
+  Future<void> handleAppResumed(DashboardController dashboardController) async {
     await initialize(dashboardController);
 
     final savedAddress = await BluetoothDeviceStore.getDevice(savedDeviceKey);
     if (savedAddress == null || savedAddress.isEmpty) return;
+    if (isConnected.value && connectedAddress.value == savedAddress) {
+      dashboardController.isWeightScaleConnected.value = true;
+      dashboardController.isExperimentalScaleConnected.value = true;
+      dashboardController.isUniversalBleScaleConnected.value = false;
+      return;
+    }
 
-    await tryAutoReconnectFromSaved(dashboardController, force: true);
+    await tryAutoReconnectFromSaved(dashboardController);
   }
 
   Future<void> disconnect(
@@ -319,18 +318,9 @@ class ClassicSerialScaleTestController extends GetxController {
   }
 
   void _syncScaleData(String raw, DashboardController dashboardController) {
-    final packetAddress = _pendingConnectedAddress;
-    if (packetAddress != null) {
-      isConnected.value = true;
-      connectedAddress.value = packetAddress;
-      dashboardController.isWeightScaleConnected.value = true;
-      dashboardController.isExperimentalScaleConnected.value = true;
-      dashboardController.isUniversalBleScaleConnected.value = false;
-      _pendingConnectedAddress = null;
-      if (_firstPacketCompleter?.isCompleted == false) {
-        _firstPacketCompleter?.complete();
-      }
-      _firstPacketCompleter = null;
+    final address = connectedAddress.value;
+    if (address != null && !isConnected.value) {
+      _markConnected(address, dashboardController);
     }
 
     dashboardController.receivedData.value = raw;
@@ -344,6 +334,14 @@ class ClassicSerialScaleTestController extends GetxController {
     dashboardController.manualNonBatchWeights.manualGross.value = formatted;
     dashboardController.manualNonBatchWeights.calculateManualNet();
     dashboardController.manualTareWeights.manualGross.value = formatted;
+  }
+
+  void _markConnected(String address, DashboardController dashboardController) {
+    isConnected.value = true;
+    connectedAddress.value = address;
+    dashboardController.isWeightScaleConnected.value = true;
+    dashboardController.isExperimentalScaleConnected.value = true;
+    dashboardController.isUniversalBleScaleConnected.value = false;
   }
 
   void _publishDevices() {

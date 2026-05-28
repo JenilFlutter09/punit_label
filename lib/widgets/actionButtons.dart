@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:punit_label/constants/colors.dart';
 import 'package:punit_label/features/inward/batchWise/batchInwardController.dart';
 
 import '../constants/enums.dart';
-import '../features/inward/controller/inwardController.dart';
 
 /// Professional, Animated & Reusable Action Bar for Inward/Dispatch
 class InwardActionBar extends StatelessWidget {
@@ -52,7 +50,7 @@ class InwardActionBar extends StatelessWidget {
           label: mainLabel,
           onTap: () async {
             if (controller.inwardState.value == InwardState.running) {
-              await controller.onPauseOrStop(pauseOrStop: 'pause');
+              await controller.onTapMain();
             }
           },
         ),
@@ -307,7 +305,7 @@ class _StaticButton extends StatelessWidget {
             color: color,
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.4),
+                color: color.withValues(alpha: 0.4),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),

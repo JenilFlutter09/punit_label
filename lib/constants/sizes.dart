@@ -243,6 +243,12 @@ abstract class Dimens {
   static EdgeInsets edgeInsets0_0_0_5 = EdgeInsets.only(bottom: five);
   static EdgeInsets edgeInsets0_0_0_10 = EdgeInsets.only(bottom: ten);
   static EdgeInsets edgeInsets5_5_5_5 = EdgeInsets.all(five);
+  static EdgeInsets edgeInsets5_0_5_10 =  EdgeInsets.only(
+    top: zero,
+    left: five,
+    right: five,
+    bottom: twenty,
+  );
   static EdgeInsets edgeInsets5_5_5_0 = EdgeInsets.only(
     top: five,
     left: five,

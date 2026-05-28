@@ -22,8 +22,8 @@ class ExportHelper {
 
     for (var row in data) {
       grossTotal += _extractNumber(row[2]); // Gross
-      tareTotal += _extractNumber(row[3]);  // Tare
-      netTotal += _extractNumber(row[4]);   // Net
+      tareTotal += _extractNumber(row[3]); // Tare
+      netTotal += _extractNumber(row[4]); // Net
     }
 
     return [
@@ -38,8 +38,9 @@ class ExportHelper {
   /// Removes "kg" / " KG " and parses safely
   static double _extractNumber(String value) {
     return double.tryParse(
-        value.replaceAll("kg", "").replaceAll("KG", "").replaceAll(" ", "")
-    ) ?? 0.0;
+          value.replaceAll("kg", "").replaceAll("KG", "").replaceAll(" ", ""),
+        ) ??
+        0.0;
   }
 
   /// Main export chooser
@@ -77,7 +78,9 @@ class ExportHelper {
                   );
 
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("PDF file saved successfully!")),
+                    const SnackBar(
+                      content: Text("PDF file saved successfully!"),
+                    ),
                   );
                 },
               ),
@@ -93,7 +96,9 @@ class ExportHelper {
                     data: updatedData,
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Excel file saved successfully!")),
+                    const SnackBar(
+                      content: Text("Excel file saved successfully!"),
+                    ),
                   );
                 },
               ),
@@ -104,7 +109,10 @@ class ExportHelper {
     );
   }
 
-  static List<List<Dispatchbarcodes>> chunk(List<Dispatchbarcodes> list, int size) {
+  static List<List<Dispatchbarcodes>> chunk(
+    List<Dispatchbarcodes> list,
+    int size,
+  ) {
     final chunks = <List<Dispatchbarcodes>>[];
     for (var i = 0; i < list.length; i += size) {
       chunks.add(
@@ -113,6 +121,7 @@ class ExportHelper {
     }
     return chunks;
   }
+
   static Future<void> exportHorizontalClientPDF({
     required BuildContext context,
     required String title,
@@ -120,8 +129,7 @@ class ExportHelper {
     required Map<String, String> metaData,
 
     required List<Dispatchbarcodes> items,
-  }) async
-  {
+  }) async {
     final pdf = pw.Document();
     final logo = await rootBundle.load('assets/images/sukiLogo.jpeg');
     final logoImage = pw.MemoryImage(logo.buffer.asUint8List());
@@ -132,7 +140,6 @@ class ExportHelper {
       final key = item.productName ?? 'Unknown Product';
       grouped.putIfAbsent(key, () => []).add(item);
     }
-
 
     pdf.addPage(
       pw.MultiPage(
@@ -196,9 +203,7 @@ class ExportHelper {
             widgets.add(
               pw.Container(
                 padding: const pw.EdgeInsets.all(6),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(),
-                ),
+                decoration: pw.BoxDecoration(border: pw.Border.all()),
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
@@ -229,8 +234,7 @@ class ExportHelper {
               pw.Table(
                 border: pw.TableBorder.all(),
                 columnWidths: {
-                  for (int i = 0; i < 10; i++)
-                    i: const pw.FlexColumnWidth(1),
+                  for (int i = 0; i < 10; i++) i: const pw.FlexColumnWidth(1),
                 },
                 children: rows.map((row) {
                   final cells = <pw.Widget>[];
@@ -251,7 +255,10 @@ class ExportHelper {
                         padding: const pw.EdgeInsets.all(3),
                         child: pw.Text(
                           "${(item.netWeight ?? 0).toStringAsFixed(2)} kg",
-                          style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+                          style: pw.TextStyle(
+                            fontSize: 9,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
                         ),
                       ),
                     );
@@ -285,29 +292,31 @@ class ExportHelper {
       ),
     );
 
-
     final dir = Directory("/storage/emulated/0/Download");
     //    final dir = await getDownloadDirectory();
     final file = File("${dir.path}/$title.pdf");
     //await file.writeAsBytes(await pdf.save());
     try {
       await file.writeAsBytes(await pdf.save());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("PDF saved at ${file.path}")),
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("PDF saved at ${file.path}")));
+      // Utility.sharePdfFile(file.path);
+      await sendPdfEmail(
+        filePath: file.path,
+        sendingEmail: email ?? 'shahjenil9977@gmail.com',
       );
-     // Utility.sharePdfFile(file.path);
-      await sendPdfEmail(filePath: file.path,sendingEmail: email ?? 'shahjenil9977@gmail.com');
-
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to save PDF: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to save PDF: $e")));
     }
 
     // ScaffoldMessenger.of(context).showSnackBar(
     //   const SnackBar(content: Text("Custom PDF saved")),
     // );
   }
+
   static Future<Directory> getDownloadDirectory() async {
     if (Platform.isAndroid) {
       final dir = await getExternalStorageDirectory();
@@ -328,20 +337,14 @@ class ExportHelper {
     required DateTime date,
   }) {
     return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(),
-      ),
+      decoration: pw.BoxDecoration(border: pw.Border.all()),
       padding: const pw.EdgeInsets.all(8),
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           /// 🔹 LEFT (Logo)
           if (logo != null)
-            pw.Container(
-              width: 60,
-              height: 60,
-              child: pw.Image(logo),
-            ),
+            pw.Container(width: 60, height: 60, child: pw.Image(logo)),
 
           if (logo != null) pw.SizedBox(width: 8),
 
@@ -365,7 +368,7 @@ class ExportHelper {
                 pw.SizedBox(height: 4),
                 pw.Text(
                   "D. No : 5-2-365, Hyderbasthi, Ranigunj, Secunderabad - 03",
-                  style: pw.TextStyle(fontSize: 9, ),
+                  style: pw.TextStyle(fontSize: 9),
                 ),
                 pw.SizedBox(height: 2),
                 pw.Text(
@@ -386,9 +389,7 @@ class ExportHelper {
           /// 🔹 RIGHT (Slip Info Box)
           pw.Container(
             width: 140,
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(),
-            ),
+            decoration: pw.BoxDecoration(border: pw.Border.all()),
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
@@ -408,7 +409,10 @@ class ExportHelper {
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(4),
-                  child: pw.Text("Slip No : $slipNo", style: pw.TextStyle(fontSize: 9)),
+                  child: pw.Text(
+                    "Slip No : $slipNo",
+                    style: pw.TextStyle(fontSize: 9),
+                  ),
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(4),
@@ -419,8 +423,10 @@ class ExportHelper {
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(4),
-                  child:
-                  pw.Text("Invoice No : $invoiceNo", style: pw.TextStyle(fontSize: 9)),
+                  child: pw.Text(
+                    "Invoice No : $invoiceNo",
+                    style: pw.TextStyle(fontSize: 9),
+                  ),
                 ),
               ],
             ),
@@ -429,6 +435,7 @@ class ExportHelper {
       ),
     );
   }
+
   /// 🔹 Generate Dynamic PDF (With Product-wise Subtotals)
   static Future<void> generatePDF({
     required String title,
@@ -436,14 +443,32 @@ class ExportHelper {
     required List<String> headers,
     required List<List<String>> data,
     String? email,
+    VoidCallback? onBeforeResultDialogShown,
   }) async {
     final pdf = pw.Document();
 
     /// 🔹 Helper to parse weight
     double parseWeight(String value) {
-      return double.tryParse(
-        value.replaceAll("kg", "").trim(),
-      ) ?? 0.0;
+      return double.tryParse(value.replaceAll("kg", "").trim()) ?? 0.0;
+    }
+
+    bool hasHiddenAttributeColumn(List<String> row) {
+      return row.length == headers.length + 1;
+    }
+
+    List<String> buildVisibleRow(List<String> row) {
+      if (!hasHiddenAttributeColumn(row)) {
+        return List<String>.from(row);
+      }
+
+      return [row[0], row[1], ...row.skip(3)];
+    }
+
+    String getAttributeText(List<String> row) {
+      if (!hasHiddenAttributeColumn(row)) {
+        return "";
+      }
+      return row[2];
     }
 
     // /// 🔹 Group rows product-wise (Column index 1 = Product Name)
@@ -457,15 +482,18 @@ class ExportHelper {
     final Map<String, List<List<String>>> grouped = {};
 
     for (var row in data) {
+      final visibleRow = buildVisibleRow(row);
       final productName = row[1];
-      final attributeText = row[2].isEmpty ? "No Attributes" : row[2];
+      final rawAttributeText = getAttributeText(row);
+      final attributeText = rawAttributeText.isEmpty
+          ? "No Attributes"
+          : rawAttributeText;
 
       final key = "$productName||$attributeText";
 
       grouped.putIfAbsent(key, () => []);
-      grouped[key]!.add(row);
+      grouped[key]!.add(visibleRow);
     }
-
 
     pdf.addPage(
       pw.MultiPage(
@@ -545,7 +573,6 @@ class ExportHelper {
 
             widgets.add(pw.SizedBox(height: 6));
 
-
             // 🔹 Table Header Row
             widgets.add(
               pw.Table(
@@ -573,26 +600,14 @@ class ExportHelper {
 
                   /// 🔹 Product Rows
                   ...rows.map((row) {
-                    subGross += parseWeight(row[3]);
-                    subTare += parseWeight(row[4]);
-                    subNet += parseWeight(row[5]);
-// 🔹 Remove attribute column (index 2)
-                    final displayRow = [
-                      row[0], // Sr No
-                      row[1], // Product Name
-                      row[3], // Gross
-                      row[4], // Tare
-                      row[5], // Net
-                      row[6], // Created_at
-                    ];
+                    subGross += row.length > 2 ? parseWeight(row[2]) : 0;
+                    subTare += row.length > 3 ? parseWeight(row[3]) : 0;
+                    subNet += row.length > 4 ? parseWeight(row[4]) : 0;
                     return pw.TableRow(
-                      children: displayRow.map((cell) {
+                      children: row.map((cell) {
                         return pw.Padding(
                           padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                            cell,
-                            textAlign: pw.TextAlign.center,
-                          ),
+                          child: pw.Text(cell, textAlign: pw.TextAlign.center),
                         );
                       }).toList(),
                     );
@@ -603,47 +618,32 @@ class ExportHelper {
                     decoration: const pw.BoxDecoration(
                       color: PdfColors.grey200,
                     ),
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(""),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          "SUBTOTAL (${rows.length} items)",
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                        ),
-                      ),
-                      // pw.Padding(
-                      //   padding: const pw.EdgeInsets.all(6),
-                      //   child: pw.Text(""),
-                      // ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          "${subGross.toStringAsFixed(2)} kg",
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          textAlign: pw.TextAlign.center,
-                        ),
-                      ),
-                      pw.Padding(
+                    children: List.generate(headers.length, (index) {
+                      String text = "";
+                      pw.TextAlign textAlign = pw.TextAlign.left;
+
+                      if (index == 1) {
+                        text = "SUBTOTAL (${rows.length} items)";
+                      } else if (index == 2) {
+                        text = "${subGross.toStringAsFixed(2)} kg";
+                        textAlign = pw.TextAlign.center;
+                      } else if (index == 3) {
+                        text = "${subTare.toStringAsFixed(2)} kg";
+                        textAlign = pw.TextAlign.center;
+                      } else if (index == 4) {
+                        text = "${subNet.toStringAsFixed(2)} kg";
+                        textAlign = pw.TextAlign.center;
+                      }
+
+                      return pw.Padding(
                         padding: const pw.EdgeInsets.all(6),
                         child: pw.Text(
-                          "${subTare.toStringAsFixed(2)} kg",
+                          text,
                           style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          textAlign: pw.TextAlign.center,
+                          textAlign: textAlign,
                         ),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          "${subNet.toStringAsFixed(2)} kg",
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          textAlign: pw.TextAlign.center,
-                        ),
-                      ),
-                    ],
+                      );
+                    }),
                   ),
                 ],
               ),
@@ -676,8 +676,8 @@ class ExportHelper {
                   ),
                   pw.Text(
                     "Gross: ${grandGross.toStringAsFixed(2)} kg   "
-                        "Tare: ${grandTare.toStringAsFixed(2)} kg   "
-                        "Net: ${grandNet.toStringAsFixed(2)} kg",
+                    "Tare: ${grandTare.toStringAsFixed(2)} kg   "
+                    "Net: ${grandNet.toStringAsFixed(2)} kg",
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                   ),
                 ],
@@ -699,11 +699,15 @@ class ExportHelper {
     await sendPdfEmail(
       filePath: file.path,
       sendingEmail: email ?? 'shahjenil9977@gmail.com',
+      onBeforeResultDialogShown: onBeforeResultDialogShown,
     );
   }
 
-
-  static Future<void> sendPdfEmail({required String filePath, required String sendingEmail}) async {
+  static Future<void> sendPdfEmail({
+    required String filePath,
+    required String sendingEmail,
+    VoidCallback? onBeforeResultDialogShown,
+  }) async {
     const String username = 'jenilflutter@gmail.com'; // sender email
     const String appPassword = 'zaha xgeb fnwl szvw'; // Google App Password
 
@@ -714,16 +718,18 @@ class ExportHelper {
       ..recipients.add(sendingEmail) // designated email
       ..subject = 'Auto Generated Packing Slip'
       ..text = 'Packing slip generated automatically.'
-      ..attachments = [
-        FileAttachment(File(filePath))
-      ];
+      ..attachments = [FileAttachment(File(filePath))];
 
     try {
       final sendReport = await send(message, smtpServer);
       print('✅ Email sent successfully: $sendReport');
-      Utility.showDialog('Pdf send by email');
+      onBeforeResultDialogShown?.call();
+      await Utility.showDialog('Pdf send by email');
     } catch (e) {
-      Utility.showDialog('Pdf send by email');
+      onBeforeResultDialogShown?.call();
+      await Utility.showDialog(
+        'Pdf saved, but email failed. Please check internet or SMTP credentials.',
+      );
       print('❌ Email sending failed: $e');
     }
   }

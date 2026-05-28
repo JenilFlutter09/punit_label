@@ -124,7 +124,7 @@ class _SearchStringModalContent extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             TextField(
-              autofocus: true,
+              autofocus: false,
               decoration: InputDecoration(
                 hintText: "Search $label...",
                 prefixIcon: const Icon(Icons.search),
@@ -322,7 +322,7 @@ class _SearchMapModalContent extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             TextField(
-              autofocus: true,
+              autofocus: false,
               decoration: InputDecoration(
                 hintText: "Search $label...",
                 prefixIcon: const Icon(Icons.search),

@@ -1,13 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bluetooth_classic_serial/flutter_bluetooth_classic.dart'
-    as classic;
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../apis/bluetooth_device_store.dart';
 import '../constants/enums.dart';
+import '../services/classic_bluetooth_bridge.dart' as classic;
 
 String buildPayload(WeightStatus status) {
   return status == WeightStatus.inRange ? "0" : "1";

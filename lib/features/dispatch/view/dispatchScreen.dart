@@ -17,140 +17,171 @@ import '../models/dispatchModel.dart';
 
 class DispatchScreen extends StatelessWidget {
   DispatchScreen({super.key});
-  final controller = Get.put(DispatchController());
+  final controller = Get.put(DispatchController())..clearDispatchSession();
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final bool isTablet = width > 600;
 
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      appBar: CustomAppBar(
-        title: 'Dispatch',
-        showScale: false,
-        showPrinter: false,
-        showUser: false,
-        showDrawer: true,
-      ),
-      drawer: CustomDrawer(),
-      body: Obx(() {
-        if (controller.initLoading.value) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return Obx(() {
+      final isBusy = controller.isPdfProcessing.value;
 
-        return SingleChildScrollView(
-          padding: EdgeInsets.all(isTablet ? 24 : 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      return Scaffold(
+        backgroundColor: Colors.grey.shade100,
+        drawerEnableOpenDragGesture: !isBusy,
+        appBar: CustomAppBar(
+          title: 'Dispatch',
+          showScale: false,
+          showPrinter: false,
+          showUser: false,
+          showDrawer: true,
+        ),
+        drawer: isBusy ? null : CustomDrawer(),
+        body: Obx(() {
+          if (controller.initLoading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          return Stack(
             children: [
-              /// Customer & Product Selection Section
-              ProductSelectorSection(
-                controller: controller,
-                isTablet: isTablet,
-              ),
-
-              /// Action Buttons (Scan, PDF, Save)
-              Padding(
-                padding: Dimens.edgeInsets10_0_10_0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              SingleChildScrollView(
+                padding: EdgeInsets.all(isTablet ? 24 : 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      flex: 1,
-                      child: Obx(() {
-                        return controller
-                                    .dispatchModel
-                                    .value
-                                    ?.data
-                                    ?.isNotEmpty ??
-                                false
-                            ? CustomButton(
-                                onPressed: () async {
-                                  final result = await showBarcodeScannerDialog(
-                                    context,
-                                  );
-                                  if (result == null) {
-                                    Utility.showDialog('Re - Scan Please');
-                                  } else {
-                                    controller.verifyAndAddBarcode(result);
-                                  }
-                                },
-                                text: 'Scanner',
-                                textStyle: Styles.whiteBold22,
-                                icon: Icons.document_scanner_outlined,
-                                iconSize: Dimens.thirty,
-                                height: Dimens.sixty,
-                                backgroundColor: Colors.orange,
-                              )
-                            : CustomButton(
-                                onPressed: () {},
-                                icon: Icons.document_scanner_outlined,
-                                iconSize: Dimens.thirty,
-                                text: 'Scanner',
-                                textStyle: Styles.whiteBold22,
-                                height: Dimens.sixty,
-                                backgroundColor: Colors.grey,
-                              );
-                      }),
+                    /// Customer & Product Selection Section
+                    ProductSelectorSection(
+                      controller: controller,
+                      isTablet: isTablet,
                     ),
-                    Dimens.boxWidth5,
-                    Expanded(
-                      flex: 1,
-                      child: Obx(() {
-                        var isListEmpty = controller.barcodeList.isEmpty;
 
-                        return isListEmpty
-                            ? CustomButton(
-                                onPressed: () {},
-                                text: 'Save',
-                                textStyle: Styles.whiteBold22,
-                                icon: Icons.check_circle,
-                                iconSize: Dimens.thirty,
-                                height: Dimens.sixty,
-                                backgroundColor: Colors.grey,
-                              )
-                            : CustomButton(
-                                onPressed: () async {
-                                  await controller.saveAndSubmitScannedBarcodes(
-                                    context,
-                                  );
-                                },
-                                text: 'Save',
-                                textStyle: Styles.whiteBold22,
-                                icon: Icons.check_circle,
-                                iconSize: Dimens.thirty,
-                                height: Dimens.sixty,
-                                backgroundColor: Colors.green,
-                              );
-                      }),
+                    /// Action Buttons (Scan, PDF, Save)
+                    Padding(
+                      padding: Dimens.edgeInsets10_0_10_0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: Obx(() {
+                              return controller
+                                          .dispatchModel
+                                          .value
+                                          ?.data
+                                          ?.isNotEmpty ??
+                                      false
+                                  ? CustomButton(
+                                      onPressed: () async {
+                                        final result =
+                                            await showBarcodeScannerDialog(
+                                              context,
+                                            );
+                                        if (result == null) {
+                                          Utility.showDialog(
+                                            'Re - Scan Please',
+                                          );
+                                        } else {
+                                          controller.verifyAndAddBarcode(
+                                            result,
+                                          );
+                                        }
+                                      },
+                                      text: 'Scanner',
+                                      textStyle: Styles.whiteBold22,
+                                      icon: Icons.document_scanner_outlined,
+                                      iconSize: Dimens.thirty,
+                                      height: Dimens.sixty,
+                                      backgroundColor: Colors.orange,
+                                    )
+                                  : CustomButton(
+                                      onPressed: () {},
+                                      icon: Icons.document_scanner_outlined,
+                                      iconSize: Dimens.thirty,
+                                      text: 'Scanner',
+                                      textStyle: Styles.whiteBold22,
+                                      height: Dimens.sixty,
+                                      backgroundColor: Colors.grey,
+                                    );
+                            }),
+                          ),
+                          Dimens.boxWidth5,
+                          Expanded(
+                            flex: 1,
+                            child: Obx(() {
+                              var isListEmpty = controller.barcodeList.isEmpty;
+
+                              return isListEmpty
+                                  ? CustomButton(
+                                      onPressed: () {},
+                                      text: 'Save',
+                                      textStyle: Styles.whiteBold22,
+                                      icon: Icons.check_circle,
+                                      iconSize: Dimens.thirty,
+                                      height: Dimens.sixty,
+                                      backgroundColor: Colors.grey,
+                                    )
+                                  : CustomButton(
+                                      onPressed: () async {
+                                        await controller
+                                            .saveAndSubmitScannedBarcodes(
+                                              context,
+                                            );
+                                      },
+                                      text: 'Save',
+                                      textStyle: Styles.whiteBold22,
+                                      icon: Icons.check_circle,
+                                      iconSize: Dimens.thirty,
+                                      height: Dimens.sixty,
+                                      backgroundColor: Colors.green,
+                                    );
+                            }),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: isTablet ? 28 : 20),
+
+                    /// Dispatch Logs List
+                    Text(
+                      "Dispatch Logs",
+                      style: TextStyle(
+                        fontSize: isTablet ? 22 : 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 12),
+
+                    DispatchLogsList(
+                      controller: controller,
+                      isTablet: isTablet,
                     ),
                   ],
                 ),
               ),
-              SizedBox(height: isTablet ? 28 : 20),
-
-              /// Dispatch Logs List
-              Text(
-                "Dispatch Logs",
-                style: TextStyle(
-                  fontSize: isTablet ? 22 : 18,
-                  fontWeight: FontWeight.w700,
+              if (isBusy)
+                Positioned.fill(
+                  child: AbsorbPointer(
+                    absorbing: true,
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                  ),
                 ),
-              ),
-              SizedBox(height: 12),
-
-              DispatchLogsList(controller: controller, isTablet: isTablet),
             ],
-          ),
-        );
-      }),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async => await controller.refresh(),
-        child: Icon(Icons.refresh,color: Colors.white,),
-        backgroundColor: ColorsValue.primaryColor,
-        materialTapTargetSize: MaterialTapTargetSize.padded,
-      ),
-    );
+          );
+        }),
+        floatingActionButton: isBusy
+            ? null
+            : FloatingActionButton(
+                onPressed: () async => await controller.refresh(),
+                child: Icon(Icons.refresh, color: Colors.white),
+                backgroundColor: ColorsValue.primaryColor,
+                materialTapTargetSize: MaterialTapTargetSize.padded,
+              ),
+      );
+    });
   }
 }
 
@@ -198,8 +229,8 @@ class ProductSelectorSection extends StatelessWidget {
                     flex: 2,
                     child: TextField(
                       controller: controller.manualBarcode,
-                      autofocus: true,
-                        onSubmitted: (value) {
+                      autofocus: false,
+                      onSubmitted: (value) {
                         if (value.trim().isNotEmpty) {
                           controller.verifyAndAddBarcode(value.trim());
                         }
@@ -332,7 +363,7 @@ class InwardListItem extends StatelessWidget {
       child: Card(
         elevation: 6,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
@@ -491,7 +522,9 @@ class DispatchLogsList extends StatelessWidget {
 
             onDismissed: (_) {
               final removed = controller.barcodeList.removeAt(index);
-              controller.verifiedBarcodeList.removeAt(index);
+              final removedVerified = controller.verifiedBarcodeList.removeAt(
+                index,
+              );
 
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -506,6 +539,10 @@ class DispatchLogsList extends StatelessWidget {
                     textColor: Colors.white,
                     onPressed: () {
                       controller.barcodeList.insert(index, removed);
+                      controller.verifiedBarcodeList.insert(
+                        index,
+                        removedVerified,
+                      );
                     },
                   ),
                 ),
@@ -572,186 +609,6 @@ class DispatchLogsList extends StatelessWidget {
     );
   }
 }
-
-/*
-class SearchableStringDropdown extends StatelessWidget {
-  final String label;
-  final List<dispatchProducts> items;
-  final Rxn<dispatchProducts> selectedValue;
-  final double modalHeightFactor;
-  final void Function(dispatchProducts)? onItemSelected;
-
-  const SearchableStringDropdown({
-    super.key,
-    required this.label,
-    required this.items,
-    required this.selectedValue,
-    this.modalHeightFactor = 0.75,
-    this.onItemSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final displayText = selectedValue.value?.productName ?? "";
-
-      return GestureDetector(
-        onTap: () => _openSearchModal(context),
-        child: InputDecorator(
-          decoration: InputDecoration(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide.none,
-            ),
-            suffixIcon: const Icon(Icons.arrow_drop_down),
-          ),
-          child: Text(
-            displayText,
-            style: const TextStyle(fontSize: 16, color: Colors.black),
-          ),
-        ),
-      );
-    });
-  }
-
-  void _openSearchModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return FractionallySizedBox(
-          heightFactor: modalHeightFactor,
-          child: _SearchModalContent(
-            label: label,
-            items: items,
-            selectedValue: selectedValue,
-            onItemSelected: onItemSelected,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SearchModalContent extends StatelessWidget {
-  final String label;
-  final List<dispatchProducts> items;
-  final Rxn<dispatchProducts> selectedValue;
-  final void Function(dispatchProducts)? onItemSelected;
-
-  const _SearchModalContent({
-    required this.label,
-    required this.items,
-    required this.selectedValue,
-    this.onItemSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    String search = "";
-
-    return StatefulBuilder(
-      builder: (context, setState) {
-        final filtered = items.where((e) {
-          final name = e.productName?.toLowerCase() ?? "";
-          return name.contains(search.toLowerCase());
-        }).toList();
-
-        return Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: Column(
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Select $label",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-
-              // Search field
-              TextField(
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: "Search $label...",
-                  prefixIcon: const Icon(Icons.search),
-                ),
-                onChanged: (v) => setState(() => search = v),
-              ),
-
-              const SizedBox(height: 12),
-
-              // List
-              Expanded(
-                child: filtered.isEmpty
-                    ? Center(child: Text("No item found"))
-                    : ListView.separated(
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final item = filtered[index];
-                          final isSelected =
-                              selectedValue.value?.stockId == item.stockId;
-
-                          return ListTile(
-                            title: Text(item.productName ?? ''),
-                            trailing: isSelected
-                                ? const Icon(Icons.check, color: Colors.green)
-                                : null,
-                            onTap: () {
-                              selectedValue.value = item;
-                              onItemSelected?.call(item);
-                              Navigator.pop(context);
-                            },
-                          );
-                        },
-                      ),
-              ),
-
-              // Bottom actions
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      selectedValue.value = null;
-                      onItemSelected?.call(
-                        dispatchProducts(stockId: 0, productName: ""),
-                      );
-                      Navigator.pop(context);
-                    },
-                    child: const Text("Clear"),
-                  ),
-                  const Spacer(),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("Done"),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-*/
 
 class SearchableCustomerDropdown extends StatelessWidget {
   final String label;
@@ -866,7 +723,7 @@ class _SearchCustomerContent extends StatelessWidget {
 
               // Search field
               TextField(
-                autofocus: true,
+                autofocus: false,
                 decoration: InputDecoration(
                   hintText: "Search $label...",
                   prefixIcon: const Icon(Icons.search),

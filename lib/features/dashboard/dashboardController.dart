@@ -47,6 +47,10 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   var printSerialNumberInLabel = false.obs;
   var printTimeInLabel = false.obs;
   var printCopies = 1.obs;
+  var defaultNonBatchLabelFormatId = 3.obs;
+  Rxn<LabelFormatElement> defaultNonBatchLabelFormatObj =
+      Rxn<LabelFormatElement>();
+  RxString defaultNonBatchLabelFormatName = "".obs;
   RxBool enableInward = false.obs;
   RxBool enableDispatch = false.obs;
   var connectedDevice = Rxn<BluetoothDevice>();
@@ -70,7 +74,9 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   Timer? printerTimer;
   bool _autoReconnectStarted = false;
   bool _isResumeRecoveryRunning = false;
+  bool _isRestoringDrawerSettings = false;
   RxBool isLoading = false.obs;
+  final List<Worker> _settingsWorkers = [];
 
   RxInt totalProducts = 0.obs;
   RxInt totalVariants = 0.obs;
@@ -130,7 +136,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   );
 
   final smallSevenLabelLayout = LabelLayout(
-    maxAttributes: 7,
+    maxAttributes: 10,
     lineHeight: 40,
     keyFont: 28,
     valueFont: 30,
@@ -166,6 +172,155 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     printCopies.value = value.clamp(1, 10).toInt();
   }
 
+  LabelFormatElement? _findLabelFormatById(int id) {
+    for (final format in labelFormats) {
+      if (format.id == id) return format;
+    }
+    return null;
+  }
+
+  void _applyDefaultNonBatchLabelFormat(int? preferredId) {
+    if (labelFormats.isEmpty) return;
+
+    final matched =
+        (preferredId != null ? _findLabelFormatById(preferredId) : null) ??
+        _findLabelFormatById(3) ??
+        labelFormats.first;
+
+    defaultNonBatchLabelFormatId.value = matched.id;
+    defaultNonBatchLabelFormatObj.value = matched;
+    defaultNonBatchLabelFormatName.value = matched.nameOfLabel;
+  }
+
+  Future<void> loadDefaultNonBatchLabelFormat() async {
+    final savedId = await TokenStorage.getDefaultNonBatchLabelFormatId();
+    _applyDefaultNonBatchLabelFormat(savedId);
+  }
+
+  Future<void> updateDefaultNonBatchLabelFormat(
+    LabelFormatElement selected,
+  ) async {
+    _applyDefaultNonBatchLabelFormat(selected.id);
+    await TokenStorage.saveDefaultNonBatchLabelFormatId(selected.id);
+  }
+
+  TareState? _parseTareState(String? value) {
+    if (value == null) return null;
+    for (final state in TareState.values) {
+      if (state.name == value) return state;
+    }
+    return null;
+  }
+
+  LabelState? _parseLabelState(String? value) {
+    if (value == null) return null;
+    for (final state in LabelState.values) {
+      if (state.name == value) return state;
+    }
+    return null;
+  }
+
+  Future<void> loadDrawerSettings() async {
+    _isRestoringDrawerSettings = true;
+    try {
+      final savedWhiteLabel = await TokenStorage.getWhiteLabelEnabled();
+      if (savedWhiteLabel != null) {
+        isWhiteLabel.value = savedWhiteLabel;
+      }
+
+      final savedPrintSerialNumber =
+          await TokenStorage.getPrintSerialNumberEnabled();
+      if (savedPrintSerialNumber != null) {
+        printSerialNumberInLabel.value = savedPrintSerialNumber;
+      }
+
+      final savedPrintTime = await TokenStorage.getPrintTimeEnabled();
+      if (savedPrintTime != null) {
+        printTimeInLabel.value = savedPrintTime;
+      }
+
+      final savedPrintCopies = await TokenStorage.getPrintCopies();
+      if (savedPrintCopies != null) {
+        setPrintCopies(savedPrintCopies);
+      }
+
+      final savedTareState = _parseTareState(await TokenStorage.getTareState());
+      if (savedTareState != null) {
+        tareState.value = savedTareState;
+      }
+
+      final savedLabelState =
+          _parseLabelState(await TokenStorage.getLabelState());
+      if (savedLabelState != null) {
+        labelState.value = savedLabelState;
+        isLabelPrinterMode.value = savedLabelState == LabelState.Label;
+      }
+
+      final savedTowerLight = await TokenStorage.getTowerLightEnabled();
+      if (savedTowerLight != null) {
+        isTowerLight.value = savedTowerLight;
+      }
+    } finally {
+      _isRestoringDrawerSettings = false;
+    }
+  }
+
+  void _registerDrawerSettingPersistence() {
+    if (_settingsWorkers.isNotEmpty) return;
+
+    _settingsWorkers.add(
+      ever<bool>(isWhiteLabel, (value) async {
+        if (_isRestoringDrawerSettings) return;
+        await TokenStorage.saveWhiteLabelEnabled(value);
+        loadLabelFormats();
+        _applyDefaultNonBatchLabelFormat(defaultNonBatchLabelFormatId.value);
+      }),
+    );
+
+    _settingsWorkers.add(
+      ever<bool>(printSerialNumberInLabel, (value) async {
+        if (_isRestoringDrawerSettings) return;
+        await TokenStorage.savePrintSerialNumberEnabled(value);
+      }),
+    );
+
+    _settingsWorkers.add(
+      ever<bool>(printTimeInLabel, (value) async {
+        if (_isRestoringDrawerSettings) return;
+        await TokenStorage.savePrintTimeEnabled(value);
+      }),
+    );
+
+    _settingsWorkers.add(
+      ever<int>(printCopies, (value) async {
+        if (_isRestoringDrawerSettings) return;
+        await TokenStorage.savePrintCopies(value.clamp(1, 10).toInt());
+      }),
+    );
+
+    _settingsWorkers.add(
+      ever<TareState>(tareState, (value) async {
+        if (_isRestoringDrawerSettings) return;
+        await TokenStorage.saveTareState(value.name);
+      }),
+    );
+
+    _settingsWorkers.add(
+      ever<LabelState>(labelState, (value) async {
+        if (_isRestoringDrawerSettings) return;
+        isLabelPrinterMode.value = value == LabelState.Label;
+        await TokenStorage.saveLabelState(value.name);
+      }),
+    );
+
+    _settingsWorkers.add(
+      ever<bool>(isTowerLight, (value) async {
+        if (_isRestoringDrawerSettings) return;
+        await TokenStorage.saveTowerLightEnabled(value);
+      }),
+    );
+  }
+
   Future<dynamic> _invokeLabelPrintRepeated(
     String method,
     Map<String, dynamic> arguments,
@@ -182,6 +337,8 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     // TODO: implement onReady
     super.onReady();
     await handlePermissions();
+    await loadDrawerSettings();
+    _registerDrawerSettingPersistence();
     if (!_autoReconnectStarted) {
       _autoReconnectStarted = true;
       unawaited(autoReconnectDevicesOnStartup());
@@ -190,9 +347,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     await getDashboardDetails();
     await getCompanyDetails();
     loadLabelFormats();
-    ever(isWhiteLabel, (_) {
-      loadLabelFormats();
-    });
+    await loadDefaultNonBatchLabelFormat();
     printerTimer = Timer.periodic(Duration(seconds: 5), (timer) {
       checkPrinterConnection();
     });
@@ -202,6 +357,9 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
     _cancelAllCharSubs();
+    for (final worker in _settingsWorkers) {
+      worker.dispose();
+    }
     printerTimer?.cancel();
     super.onClose();
   }
@@ -215,6 +373,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
 
   Future<void> _recoverScaleConnectionOnResume() async {
     if (_isResumeRecoveryRunning) return;
+    if (isAnyScaleConnected) return;
     _isResumeRecoveryRunning = true;
 
     try {
@@ -517,8 +676,8 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     userDetails.value = await TokenStorage.getUser();
     enableInward.value = userDetails.value?.inventoryUser ?? false;
 
-    ///enableDispatch.value = userDetails.value?.dispatchUser ?? false;
-    enableDispatch.value = true;
+   enableDispatch.value = userDetails.value?.dispatchUser ?? false;
+    //enableDispatch.value = true;
   }
 
   Future<void> getCompanyDetails() async {
@@ -678,7 +837,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
 
     final attributes = <Map<String, dynamic>>[];
     labelFields.forEach((key, value) {
-      if (attributes.length >= 8) return;
+      if (attributes.length >= 10) return;
 
       final normalizedKey = key.trim().toLowerCase();
       final normalizedValue = value?.toString().trim() ?? "";

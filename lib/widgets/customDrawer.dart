@@ -42,7 +42,7 @@ class CustomDrawer extends StatelessWidget {
           _header(dashboardController: dashController),
           Expanded(
             child: ListView(
-              padding: Dimens.edgeInsets8_0_8_0,
+              padding: Dimens.edgeInsets5_0_5_10,
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -83,69 +83,11 @@ class CustomDrawer extends StatelessWidget {
                   ),
                 ),
                 Dimens.boxHeight10,
-                _sectionTitle("Device Connections"),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Column(
-                    children: [
-                      Obx(
-                        () => _connectionTile(
-                          icon: Icons.scale_rounded,
-                          title: "Scale",
-                          subtitle: dashController.isAnyScaleConnected
-                              ? "Connected and streaming live weight"
-                              : "Tap to connect a weighing scale",
-                          connected: dashController.isAnyScaleConnected,
-                          onTap: () async {
-                            Get.back();
-                            if (dashController.isAnyScaleConnected) {
-                              await dashController.disconnectActiveScale();
-                            } else {
-                              await showScaleConnectionSheet(
-                                context,
-                                dashController,
-                              );
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Obx(
-                        () => _connectionTile(
-                          icon: dashController.isLabelPrinterMode.value
-                              ? Icons.print_rounded
-                              : Icons.receipt_long_rounded,
-                          title: dashController.isLabelPrinterMode.value
-                              ? "Printer"
-                              : "Receipt Printer",
-                          subtitle: dashController.isActivePrinterConnected
-                              ? "Connected and ready to print"
-                              : "Tap to connect a printer",
-                          connected: dashController.isActivePrinterConnected,
-                          onTap: () async {
-                            Get.back();
-                            if (dashController.isActivePrinterConnected) {
-                              await dashController.disconnectActivePrinter();
-                              return;
-                            }
 
-                            if (dashController.isLabelPrinterMode.value) {
-                              await showPrinterConnectionSheet(
-                                context,
-                                dashController,
-                              );
-                            } else {
-                              dashController.bluetoothController
-                                  .openDeviceBottomSheet();
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Dimens.boxHeight10,
                 _sectionTitle("Label Configuration"),
+
+                _labelFormatDropdownTile(),
+
                 _switchTile(
                   icon: Icons.label_off,
                   title: "White Label",
@@ -163,9 +105,9 @@ class CustomDrawer extends StatelessWidget {
                   value: dashController.printTimeInLabel,
                 ),
                 _counterTile(
-                  icon: Icons.copy_rounded,
-                  title: "Sticker Copies",
-                  subtitle: "Print each label this many times",
+                  icon: Icons.one_x_mobiledata,
+                  title: "Label Copies",
+                  //subtitle: "Print each label this many times",
                   value: dashController.printCopies,
                   onDecrement: () => dashController.setPrintCopies(
                     dashController.printCopies.value - 1,
@@ -232,10 +174,74 @@ class CustomDrawer extends StatelessWidget {
                     },
                   ),
                 ),
+                Dimens.boxHeight10,
+                _sectionTitle("Device Connections"),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Column(
+                    children: [
+                      Obx(
+                            () => _connectionTile(
+                          icon: Icons.scale_rounded,
+                          title: "Scale",
+                          subtitle: dashController.isAnyScaleConnected
+                              ? "Connected and streaming live weight"
+                              : "Tap to connect a weighing scale",
+                          connected: dashController.isAnyScaleConnected,
+                          onTap: () async {
+                            Get.back();
+                            if (dashController.isAnyScaleConnected) {
+                              await dashController.disconnectActiveScale();
+                            } else {
+                              await showScaleConnectionSheet(
+                                context,
+                                dashController,
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Obx(
+                            () => _connectionTile(
+                          icon: dashController.isLabelPrinterMode.value
+                              ? Icons.print_rounded
+                              : Icons.receipt_long_rounded,
+                          title: dashController.isLabelPrinterMode.value
+                              ? "Printer"
+                              : "Receipt Printer",
+                          subtitle: dashController.isActivePrinterConnected
+                              ? "Connected and ready to print"
+                              : "Tap to connect a printer",
+                          connected: dashController.isActivePrinterConnected,
+                          onTap: () async {
+                            Get.back();
+                            if (dashController.isActivePrinterConnected) {
+                              await dashController.disconnectActivePrinter();
+                              return;
+                            }
+
+                            if (dashController.isLabelPrinterMode.value) {
+                              await showPrinterConnectionSheet(
+                                context,
+                                dashController,
+                              );
+                            } else {
+                              dashController.bluetoothController
+                                  .openDeviceBottomSheet();
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Dimens.boxHeight20,
               ],
             ),
           ),
-          SafeArea(
+
+         /* SafeArea(
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -256,7 +262,7 @@ class CustomDrawer extends StatelessWidget {
                 ),
               ),
             ),
-          ),
+          ),*/
         ],
       ),
     );
@@ -265,9 +271,9 @@ class CustomDrawer extends StatelessWidget {
   /// 🔹 Header
   Widget _header({required DashboardController dashboardController}) {
     return Container(
-      height: Dimens.hundredSixtySeven,
+      height: Dimens.hundredTwenty,
       width: Get.width,
-      padding: Dimens.edgeInsets0_0_0_20,
+      padding: Dimens.edgeInsets0_0_0_10,
       alignment: Alignment.bottomCenter,
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -280,8 +286,10 @@ class CustomDrawer extends StatelessWidget {
         ),
         borderRadius: const BorderRadius.only(topRight: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.center,
+
         children: [
           CircleAvatar(
             radius: 36,
@@ -292,26 +300,27 @@ class CustomDrawer extends StatelessWidget {
               color: ColorsValue.primaryColor,
             ),
           ),
-          Dimens.boxHeight12,
+
           Text(
-            "Welcome ${dashboardController.userDetails.value?.name ?? 'User'}",
+            "Welcome \n${dashboardController.userDetails.value?.name ?? 'User'}",
             style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 6),
-          Text(
-            dashboardController.userDetails.value?.companyCode ??
-                'Operator Console',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.82),
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 18),
+           const SizedBox(height: 6),
+          // Text(
+          //   dashboardController.userDetails.value?.companyCode ??
+          //       'Operator Console',
+          //   style: TextStyle(
+          //     color: Colors.white.withValues(alpha: 0.82),
+          //     fontSize: 13,
+          //     fontWeight: FontWeight.w500,
+          //   ),
+          // ),
+          // const SizedBox(height: 18),
         ],
       ),
     );
@@ -413,7 +422,7 @@ class CustomDrawer extends StatelessWidget {
   Widget _counterTile({
     required IconData icon,
     required String title,
-    required String subtitle,
+    String? subtitle,
     required RxInt value,
     required VoidCallback onDecrement,
     required VoidCallback onIncrement,
@@ -422,7 +431,15 @@ class CustomDrawer extends StatelessWidget {
       () => ListTile(
         leading: Icon(icon, color: ColorsValue.primaryColor),
         title: Text(title),
-        subtitle: Text(subtitle),
+        subtitle: subtitle != null
+            ? Text(
+                subtitle,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey,
+                ),
+              )
+            : null,
         trailing: Container(
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade300),
@@ -450,6 +467,53 @@ class CustomDrawer extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _labelFormatDropdownTile() {
+    return Obx(
+      () => ListTile(
+        leading: Icon(Icons.label, color: ColorsValue.primaryColor),
+        //title: const Text("Default Label"),
+       // subtitle: const Text("Used when opening non-batch inward"),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        trailing: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 170, maxWidth: 210),
+          child: DropdownButtonFormField<int>(
+            initialValue: dashController.defaultNonBatchLabelFormatObj.value?.id,
+            isExpanded: true,
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            items: dashController.labelFormats
+                .map(
+                  (format) => DropdownMenuItem<int>(
+                    value: format.id,
+                    child: Text(
+                      format.nameOfLabel,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (selectedId) {
+              if (selectedId == null) return;
+              final selected = dashController.labelFormats.firstWhere(
+                (format) => format.id == selectedId,
+                orElse: () => dashController.labelFormats.first,
+              );
+              dashController.updateDefaultNonBatchLabelFormat(selected);
+            },
           ),
         ),
       ),

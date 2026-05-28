@@ -60,6 +60,12 @@ class NonBatchInwardController extends GetxController {
   int continuousOutOfRangeSeconds = 0;
   Rxn<TareProductListModel> tareProductsListModel = Rxn<TareProductListModel>();
   var selectedBarcode = Rxn<TareBarcode>();
+
+  String _formatConvertedUnits(double value) {
+    final formatted = value.toStringAsFixed(2);
+    return formatted.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
   @override
   Future<void> onInit() async {
     // TODO: implement onInit
@@ -76,6 +82,7 @@ class NonBatchInwardController extends GetxController {
     await _fetchTareProductsList();
     await fetchProductNames();
     await fetchAttributes();
+    _applyDefaultLabelFormat();
 
     if (nonInwardController.selectedTransaction.value != null) {
       await fetchNonBatchDetail(
@@ -85,6 +92,21 @@ class NonBatchInwardController extends GetxController {
 
     serialNumberTextController.text = serialNumber.value.toString();
     validateSerial(serialNumberTextController.text);
+  }
+
+  void _applyDefaultLabelFormat() {
+    if (dashboardController.labelFormats.isEmpty) return;
+
+    final selected =
+        dashboardController.defaultNonBatchLabelFormatObj.value ??
+        dashboardController.labelFormats.firstWhere(
+          (format) => format.id == 3,
+          orElse: () => dashboardController.labelFormats.first,
+        );
+
+    selectedLabelFormatObj.value = selected;
+    selectedLabelFormat.value = selected.nameOfLabel;
+    selectedAttributesCount.value = 0;
   }
 
   // @override
@@ -446,6 +468,16 @@ class NonBatchInwardController extends GetxController {
   }) async {
     final LabelFormat selected =
         selectedLabelFormatObj.value?.labelFormat ?? LabelFormat.Large;
+    final selectedModule = selectedProduct.value;
+    final double netWeightValue = barcodeData.netWeight ?? 0;
+    final Map<String, String> unitFields =
+        (selectedModule?.unitConversion ?? false)
+        ? {
+            "Units": _formatConvertedUnits(
+              netWeightValue * (selectedModule?.unitValue ?? 1),
+            ),
+          }
+        : {};
 
     // -------------------------------------------------------------
     // 1️⃣ Convert selected attributes to Map<String, String>
@@ -600,6 +632,15 @@ class NonBatchInwardController extends GetxController {
         break;
 
       case LabelFormat.SmallSeven:
+        if (unitFields.isNotEmpty) {
+          final serialValue = labelFields.remove("Sr No ");
+          labelFields = {
+            if (serialValue != null) "Sr No ": serialValue,
+            ...combinationFields,
+            ...unitFields,
+            if (isTareWeightOff.value) ...manualNFields else ...manualGTNFields,
+          };
+        }
         await dashboardController.printSmallSevenLabelSticker(
           barcodeString: barcodeString,
           productName: productName,
