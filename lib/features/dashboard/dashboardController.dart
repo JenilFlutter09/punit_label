@@ -249,8 +249,9 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
         tareState.value = savedTareState;
       }
 
-      final savedLabelState =
-          _parseLabelState(await TokenStorage.getLabelState());
+      final savedLabelState = _parseLabelState(
+        await TokenStorage.getLabelState(),
+      );
       if (savedLabelState != null) {
         labelState.value = savedLabelState;
         isLabelPrinterMode.value = savedLabelState == LabelState.Label;
@@ -676,7 +677,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     userDetails.value = await TokenStorage.getUser();
     enableInward.value = userDetails.value?.inventoryUser ?? false;
 
-   enableDispatch.value = userDetails.value?.dispatchUser ?? false;
+    enableDispatch.value = userDetails.value?.dispatchUser ?? false;
     //enableDispatch.value = true;
   }
 

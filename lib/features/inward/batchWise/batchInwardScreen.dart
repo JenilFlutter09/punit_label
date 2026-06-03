@@ -86,8 +86,9 @@ class BatchInwardScreen extends StatelessWidget {
                           label: "Select Product",
                           items: controller.dropdownProducts,
                           selectedValue: controller.selectedModuleProduct,
-                          onItemSelected: (val) =>
-                              controller.changeSelectedProductId(val.id),
+                          onItemSelected: (val) {
+                            controller.changeSelectedProductId(val.id);
+                          },
                         ),
                       ),
                       SizedBox(height: 12),

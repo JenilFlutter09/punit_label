@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 
 import '../../../../constants/utility.dart';
+
 class BatchDetails {
   bool? status;
   String? message;
@@ -91,6 +92,8 @@ class Products {
   int? productId;
   String? productName;
   String? labelId;
+  String? labelMode;
+  String? labelTemplateKey;
   //String? tareWeight;
   double? tareWeight;
   bool? autoWeight;
@@ -102,25 +105,30 @@ class Products {
 
   List<Combinations>? combinations;
 
-  Products(
-      {this.batchProductId,
-        this.productId,
-        this.productName,
-        this.labelId,
-        this.tareWeight,
-        this.autoWeight,
-        this.minAutoWeight,
-        this.maxAutoWeight,
-        this.autoWeightSeconds,
-        this.unitConversion,
-        this.unit,
-        this.combinations});
+  Products({
+    this.batchProductId,
+    this.productId,
+    this.productName,
+    this.labelId,
+    this.labelMode,
+    this.labelTemplateKey,
+    this.tareWeight,
+    this.autoWeight,
+    this.minAutoWeight,
+    this.maxAutoWeight,
+    this.autoWeightSeconds,
+    this.unitConversion,
+    this.unit,
+    this.combinations,
+  });
 
   /*Products.fromJson(Map<String, dynamic> json) {
     batchProductId = json['batch_product_id'];
     productId = json['product_id'];
     productName = json['product_name'];
     labelId = json['label_id'];
+    labelMode = json['label_mode']?.toString();
+    labelTemplateKey = json['label_template_key']?.toString();
     autoWeight = json['auto_weight'];
     tareWeight = json['tare_weight'].toDouble();
     minAutoWeight = json['min_auto_weight'].toDouble();
@@ -155,13 +163,14 @@ class Products {
     }
   }
 
-
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = new Map<String, dynamic>();
     data['batch_product_id'] = this.batchProductId;
     data['product_id'] = this.productId;
     data['product_name'] = this.productName;
     data['label_id'] = this.labelId;
+    data['label_mode'] = this.labelMode;
+    data['label_template_key'] = this.labelTemplateKey;
     data['tare_weight'] = this.tareWeight;
     data['auto_weight'] = this.autoWeight;
     data['min_auto_weight'] = this.minAutoWeight;
@@ -174,14 +183,28 @@ class Products {
     }
     return data;
   }
-}
 
+  String? get selectedTemplateIdentifier {
+    final normalizedMode = labelMode?.trim().toLowerCase();
+    if (normalizedMode == 'custom' &&
+        labelTemplateKey != null &&
+        labelTemplateKey!.trim().isNotEmpty) {
+      return labelTemplateKey!.trim();
+    }
+
+    if (labelId != null && labelId!.trim().isNotEmpty) {
+      return labelId!.trim();
+    }
+
+    return null;
+  }
+}
 
 class Barcodes {
   int? batchProductId;
   String? batchProductName;
   String? barCodeString;
-  bool ? isTareWeight;
+  bool? isTareWeight;
   double? tareWeight;
   double? grossWeight;
   double? netWeight;
@@ -190,25 +213,28 @@ class Barcodes {
   String? time;
   int? serialNo;
 
-  Barcodes(
-      {this.batchProductId,
-        this.batchProductName,
-        this.barCodeString,
-        this.isTareWeight,
-        this.tareWeight,
-        this.grossWeight,
-        this.units,
-        this.unitConversion,
-        this.netWeight,this.time,this.serialNo});
+  Barcodes({
+    this.batchProductId,
+    this.batchProductName,
+    this.barCodeString,
+    this.isTareWeight,
+    this.tareWeight,
+    this.grossWeight,
+    this.units,
+    this.unitConversion,
+    this.netWeight,
+    this.time,
+    this.serialNo,
+  });
 
   Barcodes.fromJson(Map<String, dynamic> json) {
     batchProductId = json['batch_product_id'];
     batchProductName = json['batch_product_name'];
     barCodeString = json['bar_code_string'];
     isTareWeight = json['is_tare_weight'] == 1;
-    tareWeight =  Utility.toDouble(json['tare_weight']);
-    grossWeight =  Utility.toDouble(json['gross_weight']);
-    netWeight =  Utility.toDouble(json['net_weight']);
+    tareWeight = Utility.toDouble(json['tare_weight']);
+    grossWeight = Utility.toDouble(json['gross_weight']);
+    netWeight = Utility.toDouble(json['net_weight']);
     time = json['time'];
     serialNo = Utility.toInteger(json['serial_no']);
   }
@@ -228,19 +254,13 @@ class Barcodes {
   }
 }
 
-
 class Combinations {
   int? id;
   String? attrName;
   String? attrValue;
-  RxBool isPrintable = false.obs;  // <-- ADD THIS
+  RxBool isPrintable = false.obs; // <-- ADD THIS
 
-  Combinations({
-    this.id,
-    this.attrName,
-    this.attrValue,
-    dynamic isPrintable,
-  }) {
+  Combinations({this.id, this.attrName, this.attrValue, dynamic isPrintable}) {
     this.isPrintable.value = (isPrintable == "1" || isPrintable == 1);
   }
 

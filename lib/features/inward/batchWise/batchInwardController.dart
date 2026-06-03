@@ -42,8 +42,7 @@ class BatchInwardController extends GetxController {
 
   String _formatConvertedUnits(double value) {
     final formatted = value.toStringAsFixed(2);
-    return formatted
-        .replaceFirst(RegExp(r'\.?0+$'), '');
+    return formatted.replaceFirst(RegExp(r'\.?0+$'), '');
   }
 
   @override
@@ -63,6 +62,7 @@ class BatchInwardController extends GetxController {
     await _fetchTareProductsList();
 
     serialNumberTextController.text = serialNumber.value.toString();
+    validateSerial(serialNumberTextController.text);
   }
 
   Future<void> _fetchTareProductsList() async {
@@ -132,7 +132,7 @@ class BatchInwardController extends GetxController {
     serialNumber.value = int.tryParse(value) ?? 1;
   }
 
-  void changeSelectedProductId(int id) {
+  Future<void> changeSelectedProductId(int id) async {
     // find the product by id
     var product = batchModel.value?.data?.products?.firstWhere(
       (p) => p.batchProductId == id,
@@ -273,8 +273,11 @@ class BatchInwardController extends GetxController {
       return false;
     } else {
       final pdfItems = List<Barcodes>.from(productList);
-      final batchName = batchModel.value?.data?.batch?.batchName ?? "Product Name";
-      final attributesText = formatAttributes(selectedModelProduct.value?.combinations);
+      final batchName =
+          batchModel.value?.data?.batch?.batchName ?? "Product Name";
+      final attributesText = formatAttributes(
+        selectedModelProduct.value?.combinations,
+      );
       unawaited(
         generatePdfFromSnapshot(
           entries: pdfItems,
@@ -316,7 +319,9 @@ class BatchInwardController extends GetxController {
     await generatePdfFromSnapshot(
       entries: List<Barcodes>.from(productList),
       batchName: batchModel.value?.data?.batch?.batchName ?? "Product Name",
-      attributesText: formatAttributes(selectedModelProduct.value?.combinations),
+      attributesText: formatAttributes(
+        selectedModelProduct.value?.combinations,
+      ),
     );
   }
 
@@ -557,11 +562,9 @@ class BatchInwardController extends GetxController {
         ? {"Units": _formatConvertedUnits(convertedUnits)}
         : {};
     int number = 3;
-    // Merge maps (combinations override duplicates)
     Map<String, String> labelFields = isTareWeightOff.value
         ? {...combinationFields, ...manualNFields}
         : {...combinationFields, ...manualGTNFields};
-
     LabelFormat selectedLabelFormat = LabelFormat.Large;
     number =
         selectedLabelFormatObj.value?.id ??
@@ -570,7 +573,6 @@ class BatchInwardController extends GetxController {
     print('Label Format Number ----------> $number');
     switch (number) {
       case 0:
-        //selectedLabelFormat = LabelFormat.neoLabel;
         selectedLabelFormat = LabelFormat.MajedarTea;
         labelFields = {...combinationFields};
         break;
@@ -590,8 +592,8 @@ class BatchInwardController extends GetxController {
       case 5:
         selectedLabelFormat = LabelFormat.WholesalePack;
         labelFields = {
-          ...combinationFields, // Net Weight from printable attribute
-          "Gross Weight": manualCtrl.manualGross.value ?? '0', // Measured
+          ...combinationFields,
+          "Gross Weight": manualCtrl.manualGross.value ?? '0',
         };
         break;
       case 6:
@@ -601,6 +603,7 @@ class BatchInwardController extends GetxController {
             : {...combinationFields, ...unitFields, ...manualGTNFields};
         break;
     }
+
     if (dashboardController.printSerialNumberInLabel.value) {
       labelFields = {"Sr No ": nextSerial.toString(), ...labelFields};
     }
@@ -610,6 +613,7 @@ class BatchInwardController extends GetxController {
       labelFields: labelFields,
       selectedLabelFormat: selectedLabelFormat,
     );
+
     // Get current weight
     final double netWeight = double.parse(manualCtrl.manualNet.value ?? '0.0');
     print(

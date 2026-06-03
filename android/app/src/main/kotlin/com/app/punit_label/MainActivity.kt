@@ -217,7 +217,6 @@ class MainActivity : FlutterActivity() {
                             printTime = printTime
                         )
                     }
-
 //                    "printTeaSticker" -> {
 //                        val args = call.arguments as? Map<String, Any> ?: emptyMap()
 //
@@ -1547,34 +1546,6 @@ if (businessHours.isNotEmpty()) {
 //                    }
                 }
 
-                if (printTime) {
-                    val dateFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
-                    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-                    val dateX = right - 145
-                    val dateY = margin + 20
-
-                    lp.PrintText(
-                        dateX,
-                        dateY,
-                        "0",
-                        dateFormat.format(Date()),
-                        0,
-                        20,
-                        20,
-                        0
-                    )
-                    lp.PrintText(
-                        dateX,
-                        dateY + 24,
-                        "0",
-                        timeFormat.format(Date()),
-                        0,
-                        20,
-                        20,
-                        0
-                    )
-                }
-
                 val printableAttributes = attributes.filter {
                     (it["key"] ?: "").isNotBlank() && (it["value"] ?: "").isNotBlank()
                 }.take(10)
@@ -1583,8 +1554,13 @@ if (businessHours.isNotEmpty()) {
                 val productLineHeight = lineHeight + 6
                 val productBlockHeight = productLineHeight
                 val productValueX = headerLeft
+                val dateFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
+                val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+                val productDateX = right - 145
+                val productDateY = yPos
+                val productNameMaxChars = if (printTime) 25 else 28
 
-                for ((index, line) in splitByLength(productName, 28).take(2).withIndex()) {
+                for ((index, line) in splitByLength(productName, productNameMaxChars).take(2).withIndex()) {
                     lp.PrintText(
                         productValueX,
                         yPos + (index * productLineHeight),
@@ -1594,6 +1570,29 @@ if (businessHours.isNotEmpty()) {
                         productValueFont,
                         productValueFont,
                         1
+                    )
+                }
+
+                if (printTime) {
+                    lp.PrintText(
+                        productDateX,
+                        productDateY,
+                        "0",
+                        dateFormat.format(Date()),
+                        0,
+                        20,
+                        20,
+                        0
+                    )
+                    lp.PrintText(
+                        productDateX,
+                        productDateY + 24,
+                        "0",
+                        timeFormat.format(Date()),
+                        0,
+                        20,
+                        20,
+                        0
                     )
                 }
 
