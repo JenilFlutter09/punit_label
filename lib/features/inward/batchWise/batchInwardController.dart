@@ -231,6 +231,7 @@ class BatchInwardController extends GetxController {
           tareWeight: tare,
           grossWeight: gross,
           netWeight: net, // ALWAYS VALID INTEGER NOW
+          serialNo: item.serialNo,
         ),
       );
     }

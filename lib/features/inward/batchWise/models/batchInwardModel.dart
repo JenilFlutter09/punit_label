@@ -62,13 +62,15 @@ class BarCodes {
   double? tareWeight;
   double? grossWeight;
   double? netWeight;
+  int? serialNo;
 
   BarCodes(
       {this.barCodeString,
         this.tareWeightEnable,
         this.tareWeight,
         this.grossWeight,
-        this.netWeight});
+        this.netWeight,
+        this.serialNo});
 
   BarCodes.fromJson(Map<String, dynamic> json) {
     barCodeString = json['bar_code_string'];
@@ -76,6 +78,7 @@ class BarCodes {
     tareWeight = json['tare_weight'];
     grossWeight = json['gross_weight'];
     netWeight = json['net_weight'];
+    serialNo = json['serial_no'];
   }
 
   Map<String, dynamic> toJson() {
@@ -85,8 +88,8 @@ class BarCodes {
     data['tare_weight'] = this.tareWeight;
     data['gross_weight'] = this.grossWeight;
     data['net_weight'] = this.netWeight;
+    data['serial_no'] = this.serialNo;
     return data;
   }
 }
-
 
