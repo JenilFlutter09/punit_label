@@ -14,6 +14,7 @@ class InwardController extends GetxController {
   ConnectHelper connectHelper = ConnectHelper();
   Rxn<batchListModel> batchModel = Rxn<batchListModel>();
   RxList<batch> batchList = RxList<batch>();
+  Rxn<batch> selectedBatch = Rxn<batch>();
   final searchController = TextEditingController();
   final searchQuery = ''.obs;
   final dashboardController = Get.find<DashboardController>();
@@ -51,6 +52,10 @@ class InwardController extends GetxController {
     searchQuery.value = value;
   }
 
+  void selectBatch(batch? value) {
+    selectedBatch.value = value;
+  }
+
   /// Fetch Order List
   Future<void> _fetchBatchlist() async {
     var response = await dashboardController.callApi(
@@ -60,6 +65,14 @@ class InwardController extends GetxController {
     if (!response.hasError) {
       batchModel.value = batchListModel.fromJson(jsonDecode(response.data));
       batchList.value = batchModel.value?.data ?? [];
+      if (batchList.isEmpty) {
+        selectedBatch.value = null;
+      } else {
+        final currentId = selectedBatch.value?.id;
+        selectedBatch.value =
+            batchList.firstWhereOrNull((item) => item.id == currentId) ??
+            batchList.first;
+      }
       print(
         "---------------------------fetched batch list--------------------",
       );
@@ -120,6 +133,10 @@ class NonInwardController extends GetxController {
     searchQuery.value = value;
   }
 
+  void selectTransaction(Entity? value) {
+    selectedTransaction.value = value;
+  }
+
   /// Fetch Order List
   Future<void> fetchNonBatchlist() async {
     var response = await dashboardController.callApi(
@@ -131,6 +148,14 @@ class NonInwardController extends GetxController {
         jsonDecode(response.data),
       );
       batchList.value = batchListModel.value?.data ?? [];
+      if (batchList.isEmpty) {
+        selectedTransaction.value = null;
+      } else {
+        final currentId = selectedTransaction.value?.id;
+        selectedTransaction.value =
+            batchList.firstWhereOrNull((item) => item.id == currentId) ??
+            batchList.first;
+      }
       print(
         "---------------------------fetched Non batch list--------------------",
       );

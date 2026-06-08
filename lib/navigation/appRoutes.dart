@@ -6,6 +6,7 @@ abstract class Routes {
   static const blueTooth = _Paths.bluetooth;
   static const dashBoardView = _Paths.dashboardview;
   static const login = _Paths.login;
+  static const settings = _Paths.settings;
 }
 
 abstract class _Paths {
@@ -14,4 +15,5 @@ abstract class _Paths {
   static const bluetooth = '/BluetoothView';
   static const dashboardview = '/DashBoardView';
   static const login = '/LoginView';
+  static const settings = '/SettingsScreen';
 }

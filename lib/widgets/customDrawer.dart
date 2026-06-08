@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:punit_label/constants/enums.dart';
-import 'package:punit_label/constants/sizes.dart';
+import 'package:punit_label/constants/app_layout.dart';
 import 'package:punit_label/features/dashboard/dashboardController.dart';
 import 'package:punit_label/features/dispatch/view/dispatchScreen.dart';
 import 'package:punit_label/features/inward/view/inwardScreen.dart';
+import 'package:punit_label/features/settings/settingsScreen.dart';
 
 import '../constants/colors.dart';
 import '../constants/styles.dart';
 import '../features/tare/tareView.dart';
-import 'bluetooth_bottomsheet.dart';
 
 class CustomDrawer extends StatelessWidget {
   CustomDrawer({super.key});
@@ -18,263 +18,268 @@ class CustomDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    //final bool isTablet = MediaQuery.of(context).size.width > 600;
+    final layout = context.layoutSpec;
+    final media = MediaQuery.of(context);
+    final width = media.size.width;
+    final isHorizontalTablet =
+        layout.isTablet && media.orientation == Orientation.landscape;
+    final isMobile = layout.isPhone;
+    final isTablet = layout.isTablet && !layout.isExpandedTablet;
+    final drawerWidth = isMobile
+        ? width * 0.75
+        : isHorizontalTablet
+        ? (width * 0.36).clamp(380.0, 460.0)
+        : isTablet
+        ? 320.0
+        : 360.0;
 
-    final width = MediaQuery.of(context).size.width;
-
-    final isMobile = width < 600;
-    final isTablet = width >= 600 && width < 1024;
     return Drawer(
-      // width: isTablet ? Dimens.twoHundredFifty : Dimens.hundredFifty,
-      width: isMobile
-          ? width * 0.75
-          : isTablet
-          ? 320
-          : 360,
+      width: drawerWidth,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
           topRight: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
       ),
-      child: Column(
-        children: [
-          _header(dashboardController: dashController),
-          Expanded(
-            child: ListView(
-              padding: Dimens.edgeInsets5_0_5_10,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
+      child: SafeArea(
+        child: ColoredBox(
+          color: const Color(0xFFF7F9FC),
+          child: Column(
+            children: [
+              _header(
+                dashboardController: dashController,
+                isHorizontalTablet: isHorizontalTablet,
+              ),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    isHorizontalTablet ? 18 : 12,
+                    10,
+                    isHorizontalTablet ? 18 : 12,
+                    18,
                   ),
-                  child: Obx(
-                    () => Row(
-                      children: [
-                        DrawerQuickAction(
-                          icon: Icons.archive,
-                          label: "Inward",
-                          enabled: dashController.enableInward.value,
-                          onTap: () {
-                            Get.back();
-                            Get.to(() => InwardScreen());
-                          },
-                        ),
-                        DrawerQuickAction(
-                          icon: Icons.local_shipping,
-                          label: "Dispatch",
-                          enabled: dashController.enableDispatch.value,
-                          onTap: () {
-                            Get.back();
-                            Get.to(() => DispatchScreen());
-                          },
-                        ),
-                        DrawerQuickAction(
-                          icon: Icons.line_weight,
-                          label: "Tare",
-                          onTap: () {
-                            Get.back();
-                            Get.to(() => AddTareProductsView());
-                          },
-                        ),
-                      ],
+                  children: [
+                    _sectionTitle('Navigation'),
+                    const SizedBox(height: 8),
+                    _navigationPanel(
+                      context,
+                      isHorizontalTablet: isHorizontalTablet,
                     ),
-                  ),
-                ),
-                Dimens.boxHeight10,
-
-                _sectionTitle("Label Configuration"),
-
-                _labelFormatDropdownTile(),
-
-                _switchTile(
-                  icon: Icons.label_off,
-                  title: "White Label",
-                  value: dashController.isWhiteLabel,
-                ),
-                _switchTile(
-                  icon: Icons.numbers,
-                  title: "Serial Number",
-                  value: dashController.printSerialNumberInLabel,
-                ),
-
-                _switchTile(
-                  icon: Icons.timer_rounded,
-                  title: "Time Stamp",
-                  value: dashController.printTimeInLabel,
-                ),
-                _counterTile(
-                  icon: Icons.one_x_mobiledata,
-                  title: "Label Copies",
-                  //subtitle: "Print each label this many times",
-                  value: dashController.printCopies,
-                  onDecrement: () => dashController.setPrintCopies(
-                    dashController.printCopies.value - 1,
-                  ),
-                  onIncrement: () => dashController.setPrintCopies(
-                    dashController.printCopies.value + 1,
-                  ),
-                ),
-                //  Divider(),
-                Dimens.boxHeight10,
-                _sectionTitle("Tare Weight Configuration"),
-                //Dimens.boxHeight10,
-                Obx(
-                  () => ThreeLevelSelector(
-                    value: dashController.tareState.value,
-                    isTablet: isTablet,
-                    onChanged: (state) {
-                      dashController.tareState.value = state;
-                      if (state == TareState.off) {
-                        dashController.manualBatchWeights.manualTare.value =
-                            '0';
-                        dashController.manualBatchWeights.tareCtrl.text = '0';
-                        dashController.manualNonBatchWeights.manualTare.value =
-                            '0';
-                        dashController.manualNonBatchWeights.tareCtrl.text =
-                            '0';
-                      }
-                    },
-                  ),
-                ),
-
-                //Dimens.boxHeight10,
-                // Divider(),
-                Dimens.boxHeight10,
-                _sectionTitle("Printer Configuration"),
-                //Dimens.boxHeight10,
-                Obx(
-                  () => TwoLevelSelector(
-                    value: dashController.labelState.value,
-                    isTablet: isTablet,
-                    onChanged: (state) {
-                      dashController.labelState.value = state;
-                      if (state == LabelState.Receipt) {
-                        if (dashController.isPrinterConnected.value == true) {
-                          dashController.disconnectPrinter();
-                        }
-                        dashController.isLabelPrinterMode.value = false;
-                      } else {
-                        dashController.isLabelPrinterMode.value = true;
-                      }
-                    },
-                  ),
-                ),
-                // Divider(),
-                Dimens.boxHeight10,
-                _sectionTitle("Tower Light Configuration"),
-                //Dimens.boxHeight10,
-                Obx(
-                  () => TowerLevelSelector(
-                    value: dashController.isTowerLight.value,
-                    isTablet: isTablet,
-                    onChanged: (state) {
-                      dashController.isTowerLight.value = state;
-                    },
-                  ),
-                ),
-                Dimens.boxHeight10,
-                _sectionTitle("Device Connections"),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Column(
-                    children: [
-                      Obx(
-                            () => _connectionTile(
-                          icon: Icons.scale_rounded,
-                          title: "Scale",
-                          subtitle: dashController.isAnyScaleConnected
-                              ? "Connected and streaming live weight"
-                              : "Tap to connect a weighing scale",
-                          connected: dashController.isAnyScaleConnected,
-                          onTap: () async {
-                            Get.back();
-                            if (dashController.isAnyScaleConnected) {
-                              await dashController.disconnectActiveScale();
-                            } else {
-                              await showScaleConnectionSheet(
-                                context,
-                                dashController,
-                              );
+                    const SizedBox(height: 18),
+                    _sectionTitle('Quick Controls'),
+                    const SizedBox(height: 8),
+                    _controlCard(
+                      title: 'Tare Weight Configuration',
+                      subtitle:
+                          'Choose how tare values are applied during inward flows.',
+                      child: Obx(
+                        () => ThreeLevelSelector(
+                          value: dashController.tareState.value,
+                          isTablet: layout.isTablet,
+                          onChanged: (state) {
+                            dashController.tareState.value = state;
+                            if (state == TareState.off) {
+                              dashController
+                                      .manualBatchWeights
+                                      .manualTare
+                                      .value =
+                                  '0';
+                              dashController.manualBatchWeights.tareCtrl.text =
+                                  '0';
+                              dashController
+                                      .manualNonBatchWeights
+                                      .manualTare
+                                      .value =
+                                  '0';
+                              dashController
+                                      .manualNonBatchWeights
+                                      .tareCtrl
+                                      .text =
+                                  '0';
                             }
                           },
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Obx(
-                            () => _connectionTile(
-                          icon: dashController.isLabelPrinterMode.value
-                              ? Icons.print_rounded
-                              : Icons.receipt_long_rounded,
-                          title: dashController.isLabelPrinterMode.value
-                              ? "Printer"
-                              : "Receipt Printer",
-                          subtitle: dashController.isActivePrinterConnected
-                              ? "Connected and ready to print"
-                              : "Tap to connect a printer",
-                          connected: dashController.isActivePrinterConnected,
-                          onTap: () async {
-                            Get.back();
-                            if (dashController.isActivePrinterConnected) {
-                              await dashController.disconnectActivePrinter();
-                              return;
-                            }
-
-                            if (dashController.isLabelPrinterMode.value) {
-                              await showPrinterConnectionSheet(
-                                context,
-                                dashController,
-                              );
+                    ),
+                    const SizedBox(height: 12),
+                    _controlCard(
+                      title: 'Printer Configuration',
+                      subtitle:
+                          'Switch between label and receipt printing modes.',
+                      child: Obx(
+                        () => TwoLevelSelector(
+                          value: dashController.labelState.value,
+                          isTablet: layout.isTablet,
+                          onChanged: (state) {
+                            dashController.labelState.value = state;
+                            if (state == LabelState.Receipt) {
+                              if (dashController.isPrinterConnected.value ==
+                                  true) {
+                                dashController.disconnectPrinter();
+                              }
+                              dashController.isLabelPrinterMode.value = false;
                             } else {
-                              dashController.bluetoothController
-                                  .openDeviceBottomSheet();
+                              dashController.isLabelPrinterMode.value = true;
                             }
                           },
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                Dimens.boxHeight20,
-              ],
-            ),
-          ),
-
-         /* SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: dashController.logout,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ColorsValue.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
                     ),
-                  ),
-                  icon: const Icon(Icons.logout_rounded),
-                  label: const Text("Logout"),
+                    const SizedBox(height: 12),
+                    _controlCard(
+                      title: 'Tower Light Configuration',
+                      subtitle:
+                          'Keep the tower light ready for operator alerts.',
+                      child: Obx(
+                        () => TowerLevelSelector(
+                          value: dashController.isTowerLight.value,
+                          isTablet: layout.isTablet,
+                          onChanged: (state) {
+                            dashController.isTowerLight.value = state;
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ),*/
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navigationPanel(
+    BuildContext context, {
+    required bool isHorizontalTablet,
+  }) {
+    final items = [
+      _DrawerNavItem(
+        icon: Icons.archive,
+        label: 'Inward',
+        subtitle: 'Batch and non-batch inward',
+        enabled: dashController.enableInward.value,
+        onTap: () {
+          Get.back();
+          Get.to(() => InwardScreen());
+        },
+      ),
+      _DrawerNavItem(
+        icon: Icons.local_shipping,
+        label: 'Dispatch',
+        subtitle: 'Barcode dispatch session',
+        enabled: dashController.enableDispatch.value,
+        onTap: () {
+          Get.back();
+          Get.to(() => DispatchScreen());
+        },
+      ),
+      _DrawerNavItem(
+        icon: Icons.line_weight,
+        label: 'Tare',
+        subtitle: 'Tare product setup',
+        onTap: () {
+          Get.back();
+          Get.to(() => AddTareProductsView());
+        },
+      ),
+      _DrawerNavItem(
+        icon: Icons.settings_rounded,
+        label: 'Settings',
+        subtitle: 'Labels and devices',
+        onTap: () {
+          Get.back();
+          Get.to(() => SettingsScreen());
+        },
+      ),
+    ];
+
+    return Obx(() {
+      if (isHorizontalTablet) {
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: items.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.28,
+          ),
+          itemBuilder: (context, index) => _NavigationCard(item: items[index]),
+        );
+      }
+
+      return Column(
+        children: [
+          Row(
+            children: items.take(3).map((item) {
+              return DrawerQuickAction(
+                icon: item.icon,
+                label: item.label,
+                enabled: item.enabled,
+                onTap: item.onTap,
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+          _menuTile(
+            icon: items.last.icon,
+            title: items.last.label,
+            subtitle: items.last.subtitle,
+            onTap: items.last.onTap,
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _controlCard({
+    required String title,
+    required String subtitle,
+    required Widget child,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: ColorsValue.shadowColor),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x08163A66),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Styles.blackBold14),
+          const SizedBox(height: 4),
+          Text(subtitle, style: Styles.black12),
+          const SizedBox(height: 12),
+          child,
         ],
       ),
     );
   }
 
   /// 🔹 Header
-  Widget _header({required DashboardController dashboardController}) {
+  Widget _header({
+    required DashboardController dashboardController,
+    required bool isHorizontalTablet,
+  }) {
     return Container(
-      height: Dimens.hundredTwenty,
+      padding: EdgeInsets.fromLTRB(
+        isHorizontalTablet ? 22 : 16,
+        isHorizontalTablet ? 18 : 14,
+        isHorizontalTablet ? 22 : 16,
+        isHorizontalTablet ? 18 : 12,
+      ),
       width: Get.width,
-      padding: Dimens.edgeInsets0_0_0_10,
-      alignment: Alignment.bottomCenter,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -287,40 +292,57 @@ class CustomDrawer extends StatelessWidget {
         borderRadius: const BorderRadius.only(topRight: Radius.circular(24)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         crossAxisAlignment: CrossAxisAlignment.center,
-
         children: [
           CircleAvatar(
-            radius: 36,
+            radius: isHorizontalTablet ? 32 : 30,
             backgroundColor: Colors.white,
             child: Icon(
               Icons.person,
-              size: 42,
+              size: isHorizontalTablet ? 36 : 34,
               color: ColorsValue.primaryColor,
             ),
           ),
-
-          Text(
-            "Welcome \n${dashboardController.userDetails.value?.name ?? 'User'}",
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Welcome',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    fontSize: isHorizontalTablet ? 13 : 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  dashboardController.userDetails.value?.name ?? 'User',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: isHorizontalTablet ? 21 : 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  dashboardController.userDetails.value?.companyCode ??
+                      'Operator Console',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    fontSize: isHorizontalTablet ? 13 : 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
-            textAlign: TextAlign.center,
           ),
-           const SizedBox(height: 6),
-          // Text(
-          //   dashboardController.userDetails.value?.companyCode ??
-          //       'Operator Console',
-          //   style: TextStyle(
-          //     color: Colors.white.withValues(alpha: 0.82),
-          //     fontSize: 13,
-          //     fontWeight: FontWeight.w500,
-          //   ),
-          // ),
-          // const SizedBox(height: 18),
         ],
       ),
     );
@@ -329,16 +351,15 @@ class CustomDrawer extends StatelessWidget {
   /// 🔹 Section title
   Widget _sectionTitle(String text) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
       child: Text(text.toUpperCase(), style: Styles.primaryBold14),
     );
   }
 
-  Widget _connectionTile({
+  Widget _menuTile({
     required IconData icon,
     required String title,
     required String subtitle,
-    required bool connected,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -376,144 +397,12 @@ class CustomDrawer extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: connected
-                      ? Colors.green.withValues(alpha: 0.12)
-                      : Colors.orange.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  connected ? "Connected" : "Connect",
-                  style: TextStyle(
-                    color: connected ? Colors.green[700] : Colors.orange[800],
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.grey.shade500,
+                size: 24,
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 🔹 Switch row (professional pattern)
-  Widget _switchTile({
-    required IconData icon,
-    required String title,
-    required RxBool value,
-  }) {
-    return Obx(
-      () => SwitchListTile(
-        secondary: Icon(icon, color: ColorsValue.primaryColor),
-        title: Text(title),
-        value: value.value,
-        onChanged: (v) => value.value = v,
-      ),
-    );
-  }
-
-  Widget _counterTile({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required RxInt value,
-    required VoidCallback onDecrement,
-    required VoidCallback onIncrement,
-  }) {
-    return Obx(
-      () => ListTile(
-        leading: Icon(icon, color: ColorsValue.primaryColor),
-        title: Text(title),
-        subtitle: subtitle != null
-            ? Text(
-                subtitle,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey,
-                ),
-              )
-            : null,
-        trailing: Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                onPressed: value.value > 1 ? onDecrement : null,
-                icon: const Icon(Icons.remove),
-                visualDensity: VisualDensity.compact,
-              ),
-              Container(
-                constraints: const BoxConstraints(minWidth: 24),
-                alignment: Alignment.center,
-                child: Text(
-                  "${value.value}",
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-              IconButton(
-                onPressed: value.value < 10 ? onIncrement : null,
-                icon: const Icon(Icons.add),
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _labelFormatDropdownTile() {
-    return Obx(
-      () => ListTile(
-        leading: Icon(Icons.label, color: ColorsValue.primaryColor),
-        //title: const Text("Default Label"),
-       // subtitle: const Text("Used when opening non-batch inward"),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-        trailing: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 170, maxWidth: 210),
-          child: DropdownButtonFormField<int>(
-            initialValue: dashController.defaultNonBatchLabelFormatObj.value?.id,
-            isExpanded: true,
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            items: dashController.labelFormats
-                .map(
-                  (format) => DropdownMenuItem<int>(
-                    value: format.id,
-                    child: Text(
-                      format.nameOfLabel,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (selectedId) {
-              if (selectedId == null) return;
-              final selected = dashController.labelFormats.firstWhere(
-                (format) => format.id == selectedId,
-                orElse: () => dashController.labelFormats.first,
-              );
-              dashController.updateDefaultNonBatchLabelFormat(selected);
-            },
           ),
         ),
       ),
@@ -790,6 +679,92 @@ class DrawerQuickAction extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DrawerNavItem {
+  const _DrawerNavItem({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool enabled;
+}
+
+class _NavigationCard extends StatelessWidget {
+  const _NavigationCard({required this.item});
+
+  final _DrawerNavItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: item.enabled ? item.onTap : null,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: item.enabled
+                  ? ColorsValue.shadowColor
+                  : Colors.grey.shade300,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: item.enabled
+                      ? ColorsValue.primaryColor.withValues(alpha: 0.1)
+                      : Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  item.icon,
+                  color: item.enabled ? ColorsValue.primaryColor : Colors.grey,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: item.enabled ? Colors.black87 : Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                item.subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.25,
+                  color: item.enabled ? Colors.grey.shade700 : Colors.grey,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

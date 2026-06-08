@@ -1,9 +1,7 @@
 import 'package:get/get.dart';
-import '../features/bluetooth/bluetoothView.dart';
 import '../features/dashboard/dashboard.dart';
 import '../features/login/login.dart';
-import '../features/splash/splash.dart';
-
+import '../features/settings/settingsScreen.dart';
 import '../features/splash/splash.dart';
 
 part 'appRoutes.dart';
@@ -27,6 +25,12 @@ class AppPages {
     GetPage<LoginView>(
       name: _Paths.login,
       page: LoginView.new,
+      transition: Transition.cupertino,
+      transitionDuration: transitionDuration,
+    ),
+    GetPage<SettingsScreen>(
+      name: _Paths.settings,
+      page: SettingsScreen.new,
       transition: Transition.cupertino,
       transitionDuration: transitionDuration,
     ),

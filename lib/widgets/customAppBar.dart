@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:punit_label/features/login/loginmodel.dart';
 import 'package:punit_label/widgets/usbSerial.dart';
 
+import '../constants/app_layout.dart';
 import '../constants/colors.dart';
 import '../constants/styles.dart';
 import '../features/dashboard/dashboardController.dart';
@@ -132,11 +133,15 @@ class AppBarSizing {
   final double toolbarHeight;
 
   AppBarSizing(double width)
-    : iconSize = width > 600 ? 24 : 20,
-      badgeIconSize = width > 600 ? 16 : 13,
-      radius = width > 600 ? 22 : 18,
-      titleFont = width > 600 ? 22 : 17,
-      toolbarHeight = width > 600 ? 72 : 64;
+    : iconSize = AppLayoutSpec.fromWidth(width).isExpandedTablet
+          ? 26
+          : AppLayoutSpec.fromWidth(width).isTablet
+          ? 24
+          : 20,
+      badgeIconSize = AppLayoutSpec.fromWidth(width).isTablet ? 16 : 13,
+      radius = AppLayoutSpec.fromWidth(width).isTablet ? 22 : 18,
+      titleFont = AppLayoutSpec.fromWidth(width).appBarTitleFont,
+      toolbarHeight = AppLayoutSpec.fromWidth(width).toolbarHeight;
 }
 
 class StatusIconButton extends StatelessWidget {

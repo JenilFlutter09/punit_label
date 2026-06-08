@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:punit_label/constants/colors.dart';
+import 'package:punit_label/constants/app_layout.dart';
 import 'package:punit_label/constants/styles.dart';
 import 'package:punit_label/features/dispatch/dispatchController.dart';
 import 'package:get/get.dart';
 
 import '../../../constants/sizes.dart';
 import '../../../constants/utility.dart';
+import '../../../widgets/adaptive_workflow_shell.dart';
 import '../../../widgets/customAppBar.dart';
 import '../../../widgets/customButton.dart';
 import '../../../widgets/customDrawer.dart';
@@ -21,8 +23,7 @@ class DispatchScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final bool isTablet = width > 600;
+    final layout = context.layoutSpec;
 
     return Obx(() {
       final isBusy = controller.isPdfProcessing.value;
@@ -45,119 +46,44 @@ class DispatchScreen extends StatelessWidget {
 
           return Stack(
             children: [
-              SingleChildScrollView(
-                padding: EdgeInsets.all(isTablet ? 24 : 10),
-                child: Column(
+              AdaptiveWorkflowShell(
+                title: 'Dispatch',
+                subtitle:
+                    'Keep customer selection and scanner controls on the left while reviewing the active dispatch session on the right.',
+                headerBadge: '${controller.customerList.length} customers',
+                compactContent: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    /// Customer & Product Selection Section
                     ProductSelectorSection(
                       controller: controller,
-                      isTablet: isTablet,
+                      isTablet: layout.isTablet,
                     ),
-
-                    /// Action Buttons (Scan, PDF, Save)
-                    Padding(
-                      padding: Dimens.edgeInsets10_0_10_0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          Expanded(
-                            flex: 1,
-                            child: Obx(() {
-                              return controller
-                                          .dispatchModel
-                                          .value
-                                          ?.data
-                                          ?.isNotEmpty ??
-                                      false
-                                  ? CustomButton(
-                                      onPressed: () async {
-                                        final result =
-                                            await showBarcodeScannerDialog(
-                                              context,
-                                            );
-                                        if (result == null) {
-                                          Utility.showDialog(
-                                            'Re - Scan Please',
-                                          );
-                                        } else {
-                                          controller.verifyAndAddBarcode(
-                                            result,
-                                          );
-                                        }
-                                      },
-                                      text: 'Scanner',
-                                      textStyle: Styles.whiteBold22,
-                                      icon: Icons.document_scanner_outlined,
-                                      iconSize: Dimens.thirty,
-                                      height: Dimens.sixty,
-                                      backgroundColor: Colors.orange,
-                                    )
-                                  : CustomButton(
-                                      onPressed: () {},
-                                      icon: Icons.document_scanner_outlined,
-                                      iconSize: Dimens.thirty,
-                                      text: 'Scanner',
-                                      textStyle: Styles.whiteBold22,
-                                      height: Dimens.sixty,
-                                      backgroundColor: Colors.grey,
-                                    );
-                            }),
-                          ),
-                          Dimens.boxWidth5,
-                          Expanded(
-                            flex: 1,
-                            child: Obx(() {
-                              var isListEmpty = controller.barcodeList.isEmpty;
-
-                              return isListEmpty
-                                  ? CustomButton(
-                                      onPressed: () {},
-                                      text: 'Save',
-                                      textStyle: Styles.whiteBold22,
-                                      icon: Icons.check_circle,
-                                      iconSize: Dimens.thirty,
-                                      height: Dimens.sixty,
-                                      backgroundColor: Colors.grey,
-                                    )
-                                  : CustomButton(
-                                      onPressed: () async {
-                                        await controller
-                                            .saveAndSubmitScannedBarcodes(
-                                              context,
-                                            );
-                                      },
-                                      text: 'Save',
-                                      textStyle: Styles.whiteBold22,
-                                      icon: Icons.check_circle,
-                                      iconSize: Dimens.thirty,
-                                      height: Dimens.sixty,
-                                      backgroundColor: Colors.green,
-                                    );
-                            }),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: isTablet ? 28 : 20),
-
-                    /// Dispatch Logs List
-                    Text(
-                      "Dispatch Logs",
-                      style: TextStyle(
-                        fontSize: isTablet ? 22 : 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(height: 12),
-
-                    DispatchLogsList(
+                    SizedBox(height: layout.sectionSpacing),
+                    _DispatchPrimaryActions(
                       controller: controller,
-                      isTablet: isTablet,
+                      isTablet: layout.isTablet,
+                    ),
+                    SizedBox(height: layout.sectionSpacing),
+                    _DispatchLogsSection(
+                      controller: controller,
+                      isTablet: layout.isTablet,
                     ),
                   ],
                 ),
+                leftPanel: ProductSelectorSection(
+                  controller: controller,
+                  isTablet: layout.isTablet,
+                ),
+                rightPanel: _DispatchLogsSection(
+                  controller: controller,
+                  isTablet: layout.isTablet,
+                ),
+                primaryAction: layout.isExpandedTablet
+                    ? _DispatchPrimaryActions(
+                        controller: controller,
+                        isTablet: layout.isTablet,
+                      )
+                    : null,
               ),
               if (isBusy)
                 Positioned.fill(
@@ -172,7 +98,7 @@ class DispatchScreen extends StatelessWidget {
             ],
           );
         }),
-        floatingActionButton: isBusy
+        floatingActionButton: isBusy || layout.isExpandedTablet
             ? null
             : FloatingActionButton(
                 onPressed: () async => await controller.refresh(),
@@ -182,6 +108,110 @@ class DispatchScreen extends StatelessWidget {
               ),
       );
     });
+  }
+}
+
+class _DispatchPrimaryActions extends StatelessWidget {
+  const _DispatchPrimaryActions({
+    required this.controller,
+    required this.isTablet,
+  });
+
+  final DispatchController controller;
+  final bool isTablet;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdaptiveSectionCard(
+      title: 'Dispatch Actions',
+      subtitle:
+          'Scan a product, save the verified session, or refresh the dispatch list.',
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: Obx(() {
+                  final canScan =
+                      controller.dispatchModel.value?.data?.isNotEmpty ?? false;
+                  return CustomButton(
+                    onPressed: canScan
+                        ? () async {
+                            final result = await showBarcodeScannerDialog(
+                              context,
+                            );
+                            if (result == null) {
+                              Utility.showDialog('Re - Scan Please');
+                            } else {
+                              controller.verifyAndAddBarcode(result);
+                            }
+                          }
+                        : () {},
+                    text: 'Scanner',
+                    textStyle: Styles.whiteBold22,
+                    icon: Icons.document_scanner_outlined,
+                    iconSize: Dimens.thirty,
+                    height: Dimens.sixty,
+                    backgroundColor: canScan ? Colors.orange : Colors.grey,
+                  );
+                }),
+              ),
+              Dimens.boxWidth5,
+              Expanded(
+                child: Obx(() {
+                  final canSave = controller.barcodeList.isNotEmpty;
+                  return CustomButton(
+                    onPressed: canSave
+                        ? () async {
+                            await controller.saveAndSubmitScannedBarcodes(
+                              context,
+                            );
+                          }
+                        : () {},
+                    text: 'Save',
+                    textStyle: Styles.whiteBold22,
+                    icon: Icons.check_circle,
+                    iconSize: Dimens.thirty,
+                    height: Dimens.sixty,
+                    backgroundColor: canSave ? Colors.green : Colors.grey,
+                  );
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: controller.refresh,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Refresh Dispatch List'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DispatchLogsSection extends StatelessWidget {
+  const _DispatchLogsSection({
+    required this.controller,
+    required this.isTablet,
+  });
+
+  final DispatchController controller;
+  final bool isTablet;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdaptiveSectionCard(
+      title: 'Dispatch Logs',
+      subtitle:
+          'Review the verified barcode session before saving and generating the dispatch PDF.',
+      child: DispatchLogsList(controller: controller, isTablet: isTablet),
+    );
   }
 }
 
