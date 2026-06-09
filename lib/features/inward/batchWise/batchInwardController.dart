@@ -751,14 +751,41 @@ class BatchInwardController extends GetxController {
       for (final c in combinations)
         if (c.isPrintable.value) c.attrName ?? "": c.attrValue ?? "",
     };
-    Map<String, String> manualGTNFields = {
-      "Gross Weight": manualCtrl.manualGross.value ?? '0',
-      "Tare Weight": manualCtrl.manualTare.value ?? '0',
-      "Net Weight": manualCtrl.manualNet.value ?? '0',
-    };
-    Map<String, String> manualNFields = {
-      "Net Weight": manualCtrl.manualNet.value ?? '0',
-    };
+    // Map<String, String> manualGTNFields = {
+    //   "Gross Weight": manualCtrl.manualGross.value ?? '0',
+    //   "Tare Weight": manualCtrl.manualTare.value ?? '0',
+    //   "Net Weight": manualCtrl.manualNet.value ?? '0',
+    // };
+    // Map<String, String> manualNFields = {
+    //   "Net Weight": manualCtrl.manualNet.value ?? '0',
+    // };
+    Map<String, String> manualGTNFields = {};
+    Map<String, String> manualNFields = {};
+    if(selectedLabelFormatObj.value == LabelFormat.DryFruit){
+      manualGTNFields = {
+        "Gross Weight":
+        "${double.tryParse(manualCtrl.manualGross.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+        "Tare Weight":
+        "${double.tryParse(manualCtrl.manualTare.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+        "Net Weight":
+        "${double.tryParse(manualCtrl.manualNet.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+      };
+
+      manualNFields = {
+        "Net Weight":
+        "${double.tryParse(manualCtrl.manualNet.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+      };
+    }else {
+      manualGTNFields = {
+        "Gross Weight": manualCtrl.manualGross.value ?? '0',
+        "Tare Weight": manualCtrl.manualTare.value ?? '0',
+        "Net Weight": manualCtrl.manualNet.value ?? '0',
+      };
+
+      manualNFields = {
+        "Net Weight": manualCtrl.manualNet.value ?? '0',
+      };
+    }
     final Map<String, String> unitFields = product.unitConversion
         ? {"Units": _formatConvertedUnits(convertedUnits)}
         : {};
@@ -900,6 +927,19 @@ class BatchInwardController extends GetxController {
           noAttribute: labelFields.length,
           netweight: netWeight,
           barcodeString: barcodeString,
+        );
+        break;
+      case LabelFormat.DryFruit:
+        // TODO: Handle this case.
+        final double netWeight = double.parse(
+          manualCtrl.manualNet.value ?? '0.0',
+        );
+        await dashboardController.printDryFruitSmallSticker(
+          productName: productName,
+          noAttribute: labelFields.length,
+          netweight: netWeight,
+          barcodeString: barcodeString,
+          labelFields: labelFields,
         );
         break;
 

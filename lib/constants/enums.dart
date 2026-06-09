@@ -8,7 +8,8 @@ enum InwardState { idle, running, paused }
 //enum LabelFormat { Small, Medium, Large, ExtraLarge, WholesalePack ,neoLabel, SmallSeven}
 //enum LabelFormat { Small, Medium, Large, ExtraLarge, WholesalePack , SmallSeven}
 //enum LabelFormat { Small, Medium, Large, ExtraLarge, WholesalePack ,MajedarTea}
-enum LabelFormat { Small,Medium, Large, ExtraLarge, WholesalePack ,MajedarTea, SmallSeven}
+//enum LabelFormat { Small,Medium, Large, ExtraLarge, WholesalePack ,MajedarTea, SmallSeven}
+enum LabelFormat { Small,Medium, Large, ExtraLarge, WholesalePack ,MajedarTea, SmallSeven, DryFruit}
 //enum LabelFormat { Small, Medium, Large,ExtraLarge ,MajedarTea}
 enum TareState{ on , off , barcode}
 enum LabelState{ Label, Receipt}
