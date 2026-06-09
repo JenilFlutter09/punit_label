@@ -3,19 +3,14 @@ import 'package:get/get.dart';
 import 'package:punit_label/constants/colors.dart';
 import 'package:punit_label/constants/sizes.dart';
 import 'package:punit_label/features/inward/nonBatchWise/nonBatchController.dart';
-import 'package:punit_label/widgets/customAppBar.dart';
-import 'package:punit_label/widgets/miscellenous.dart';
 import 'package:punit_label/features/inward/nonBatchWise/nonBatchProductCard.dart';
 import 'package:punit_label/features/inward/nonBatchWise/nonBatchWeightSection.dart';
+import 'package:punit_label/widgets/customAppBar.dart';
 
-import '../../../constants/enums.dart';
 import '../../../constants/utility.dart';
-import '../batchWise/bluetoothWeightSection.dart';
 import '../../../widgets/customDrawer.dart';
 import '../../../widgets/searchableDropdown.dart';
 import '../../dashboard/dashboardController.dart';
-import '../controller/inwardController.dart';
-import 'models/nonBatchInwardModel.dart';
 
 class NonBatchInwardScreen extends StatelessWidget {
   NonBatchInwardScreen({super.key});
@@ -69,14 +64,16 @@ class NonBatchInwardScreen extends StatelessWidget {
                         isTablet: isTablet,
                         controller: controller.serialNumberTextController,
                         onChanged: controller.validateSerial,
-                        suffix: Obx(() => Icon(
-                          controller.isSerialVerified.value
-                              ? Icons.check_circle
-                              : Icons.cancel,
-                          color: controller.isSerialVerified.value
-                              ? Colors.green
-                              : Colors.red,
-                        )),
+                        suffix: Obx(
+                          () => Icon(
+                            controller.isSerialVerified.value
+                                ? Icons.check_circle
+                                : Icons.cancel,
+                            color: controller.isSerialVerified.value
+                                ? Colors.green
+                                : Colors.red,
+                          ),
+                        ),
                       ),
                       Dimens.boxHeight12,
                       Utility.styledInputField(
@@ -122,6 +119,21 @@ class NonBatchInwardScreen extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
+                                    "LABEL SIZE",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  SearchableStringDropdown(
+                                    label: "Select Label Size",
+                                    items: const ["75x75", "100x100"],
+                                    selectedValue: controller.selectedLabelSize,
+                                    onItemSelected: controller.changeLabelSize,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text(
                                     "LABEL FORMAT",
                                     style: TextStyle(
                                       fontSize: 14,
@@ -131,37 +143,42 @@ class NonBatchInwardScreen extends StatelessWidget {
 
                                   const SizedBox(height: 6),
 
-                                  SearchableStringDropdown(
-                                    label: "Select Label Format",
-                                    items: controller.dashboardController.labelFormats
-                                        .map((e) => e.nameOfLabel)
-                                        .toList(),
-                                    selectedValue:
-                                        controller.selectedLabelFormat,
-                                    onItemSelected: (selectedName) {
-                                      controller.selectedLabelFormat.value =
-                                          selectedName;
-
-                                      /// Get the full object
-                                      controller.selectedLabelFormatObj.value =
-                                          controller.dashboardController.labelFormats.firstWhere(
-                                            (e) =>
-                                                e.nameOfLabel == selectedName,
-                                          );
-
-                                      /// Reset attribute selection count
-                                      controller.selectedAttributesCount.value =
-                                          0;
-
-                                      /// Uncheck all
-                                      controller.attributeEnabled.forEach((
-                                        key,
-                                        val,
-                                      ) {
-                                        val.value = false;
-                                      });
-                                    },
-                                  ),
+                                  if (controller.isTemplateOptionsLoading.value)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    )
+                                  else if (controller
+                                      .labelTemplateOptions
+                                      .isEmpty)
+                                    const Text(
+                                      "No label formats available for this product and size.",
+                                    )
+                                  else
+                                    SearchableStringDropdown(
+                                      label: "Select Label Format",
+                                      items: controller.labelTemplateOptions
+                                          .map((e) => e.name)
+                                          .toList(),
+                                      selectedValue:
+                                          controller.selectedLabelFormat,
+                                      onItemSelected: controller
+                                          .selectLabelTemplateOptionByName,
+                                    ),
+                                  if (controller.isCustomTemplateSelected) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      "Custom templates currently print fixed fields only in non-batch inward.",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               );
                             }),
@@ -172,99 +189,114 @@ class NonBatchInwardScreen extends StatelessWidget {
                           /// ---------------------------------------
                           /// ATTRIBUTE LIST UI
                           /// ---------------------------------------
-                          ...controller.allAttributesList.map((attr) {
-                            return Padding(
+                          if (controller.isCustomTemplateSelected)
+                            Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                                 vertical: 6,
                               ),
-                              child: Obx(() {
-                                final isChecked =
-                                    controller.attributeEnabled[attr
-                                        .attributeName] ??
-                                    false.obs;
+                              child: Text(
+                                "Attribute selection is disabled for custom templates in this version.",
+                                style: TextStyle(color: Colors.grey[700]),
+                              ),
+                            )
+                          else
+                            ...controller.allAttributesList.map((attr) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                child: Obx(() {
+                                  final isChecked =
+                                      controller.attributeEnabled[attr
+                                          .attributeName] ??
+                                      false.obs;
 
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Checkbox(
-                                          value: isChecked.value,
-                                          onChanged: (v) {
-                                            final allowed =
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Checkbox(
+                                            value: isChecked.value,
+                                            onChanged: (v) {
+                                              final allowed =
+                                                  controller
+                                                      .selectedLabelFormatObj
+                                                      .value
+                                                      ?.elementsAllowedToPrint ??
+                                                  0;
+
+                                              if (v == true) {
+                                                if (controller
+                                                        .selectedAttributesCount
+                                                        .value >=
+                                                    allowed) {
+                                                  Get.snackbar(
+                                                    "Limit Reached",
+                                                    "Only $allowed attributes allowed for this label format.",
+                                                  );
+                                                  return;
+                                                }
+
+                                                isChecked.value = true;
                                                 controller
-                                                    .selectedLabelFormatObj
-                                                    .value
-                                                    ?.elementsAllowedToPrint ??
-                                                0;
-
-                                            if (v == true) {
-                                              if (controller
-                                                      .selectedAttributesCount
-                                                      .value >=
-                                                  allowed) {
-                                                Get.snackbar(
-                                                  "Limit Reached",
-                                                  "Only $allowed attributes allowed for this label format.",
-                                                );
-                                                return;
+                                                    .selectedAttributesCount
+                                                    .value++;
+                                              } else {
+                                                isChecked.value = false;
+                                                controller
+                                                    .selectedAttributesCount
+                                                    .value--;
                                               }
-
-                                              isChecked.value = true;
-                                              controller
-                                                  .selectedAttributesCount
-                                                  .value++;
-                                            } else {
-                                              isChecked.value = false;
-                                              controller
-                                                  .selectedAttributesCount
-                                                  .value--;
-                                            }
-                                          },
-                                        ),
-
-                                        Text(
-                                          (attr.attributeName ?? "")
-                                              .toUpperCase(),
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
+                                            },
                                           ),
-                                        ),
-                                      ],
-                                    ),
 
-                                    const SizedBox(height: 6),
+                                          Text(
+                                            (attr.attributeName ?? "")
+                                                .toUpperCase(),
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
 
-                                    /// ---------------------------------------
-                                    /// ATTRIBUTE OPTIONS DROPDOWN
-                                    /// ---------------------------------------
-                                    SearchableStringDropdown(
-                                      label: attr.attributeName!,
-                                      items:
-                                          attr.options
-                                              ?.map((e) => e.optionsName ?? "")
-                                              .toList() ??
-                                          [],
+                                      const SizedBox(height: 6),
 
-                                      selectedValue:
-                                          controller.selectedAttributes[attr
-                                              .attributeName] ??
-                                          "".obs,
-                                      onItemSelected: (value) {
-                                        controller
-                                                .selectedAttributes[attr
-                                                    .attributeName]!
-                                                .value =
-                                            value;
-                                      },
-                                    ),
-                                  ],
-                                );
-                              }),
-                            );
-                          }).toList(),
+                                      /// ---------------------------------------
+                                      /// ATTRIBUTE OPTIONS DROPDOWN
+                                      /// ---------------------------------------
+                                      SearchableStringDropdown(
+                                        label: attr.attributeName!,
+                                        items:
+                                            attr.options
+                                                ?.map(
+                                                  (e) => e.optionsName ?? "",
+                                                )
+                                                .toList() ??
+                                            [],
+
+                                        selectedValue:
+                                            controller.selectedAttributes[attr
+                                                .attributeName] ??
+                                            "".obs,
+                                        onItemSelected: (value) {
+                                          controller
+                                                  .selectedAttributes[attr
+                                                      .attributeName]!
+                                                  .value =
+                                              value;
+                                        },
+                                      ),
+                                    ],
+                                  );
+                                }),
+                              );
+                            }).toList(),
                         ],
                       ),
                     ],
@@ -391,7 +423,7 @@ class NonBatchInwardScreen extends StatelessWidget {
         margin: Dimens.edgeInsets0_0_05_8,
         child: FloatingActionButton.extended(
           onPressed: () async {
-           // controller.inwardState.value = InwardState.running;
+            // controller.inwardState.value = InwardState.running;
             await controller.addToList();
           },
           label: Text('Add Entry', style: TextStyle(color: Colors.white)),

@@ -148,6 +148,8 @@ class Products {
     productId = json['product_id'];
     productName = json['product_name'];
     labelId = json['label_id'];
+    labelMode = json['label_mode']?.toString();
+    labelTemplateKey = json['label_template_key']?.toString();
     autoWeight = json['auto_weight'];
     tareWeight = (json['tare_weight'] as num?)?.toDouble();
     minAutoWeight = (json['min_auto_weight'] as num?)?.toDouble();

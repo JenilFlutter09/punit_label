@@ -16,6 +16,8 @@ import io.flutter.plugin.common.MethodChannel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
+import kotlin.math.roundToInt
 class MainActivity : FlutterActivity() {
     init {
         System.loadLibrary("ConfigFileINI")
@@ -215,6 +217,37 @@ class MainActivity : FlutterActivity() {
                             layout = layout,
                             isWhiteLabel = isWhiteLabel,
                             printTime = printTime
+                        )
+                    }
+                    "printRuntimeTemplateSticker" -> {
+                        val args = call.arguments as? Map<String, Any> ?: emptyMap()
+
+                        val width = (args["width"] as? Number)?.toInt() ?: 600
+                        val height = (args["height"] as? Number)?.toInt() ?: 600
+                        val labelSize = args["labelSize"]?.toString() ?: "75x75"
+                        val whiteLabel = args["whiteLabel"] as? Boolean ?: false
+                        val footerLocked = args["footerLocked"] as? Boolean ?: false
+                        val footerMessage = args["footerMessage"]?.toString() ?: ""
+                        val rawFields =
+                            call.argument<List<Map<String, Any?>>>("fields") ?: emptyList()
+                        val rawAttributePairs =
+                            call.argument<List<Map<String, Any?>>>("attributePairs") ?: emptyList()
+                        val lockedFields =
+                            call.argument<List<String>>("lockedFields") ?: emptyList()
+
+                        printRuntimeTemplateSticker(
+                            result = result,
+                            width = width,
+                            height = height,
+                            labelSize = labelSize,
+                            whiteLabel = whiteLabel,
+                            fields = rawFields,
+                            attributePairs = rawAttributePairs.map {
+                                it.mapValues { entry -> entry.value?.toString() ?: "" }
+                            },
+                            lockedFields = lockedFields,
+                            footerLocked = footerLocked,
+                            footerMessage = footerMessage
                         )
                     }
 //                    "printTeaSticker" -> {
@@ -752,6 +785,381 @@ if (businessHours.isNotEmpty()) {
             }
 
         }.start()
+    }
+
+    private fun printRuntimeTemplateSticker(
+        result: MethodChannel.Result,
+        width: Int = 600,
+        height: Int = 600,
+        labelSize: String = "75x75",
+        whiteLabel: Boolean = false,
+        fields: List<Map<String, Any?>> = emptyList(),
+        attributePairs: List<Map<String, String>> = emptyList(),
+        lockedFields: List<String> = emptyList(),
+        footerLocked: Boolean = false,
+        footerMessage: String = ""
+    ) {
+        Thread {
+            try {
+                val lp = printer ?: run {
+                    mainHandler.post {
+                        result.error("NO_PRINTER", "Printer not connected", null)
+                    }
+                    return@Thread
+                }
+
+                val setSize = lp.SetLabelSize(width, height)
+                if (setSize != 0) {
+                    mainHandler.post {
+                        result.error("SET_LABEL_ERROR", "Failed: $setSize", null)
+                    }
+                    return@Thread
+                }
+
+                lp.SetPrintDensity(15)
+                val labelMm = runtimeLabelSizeMm(labelSize)
+                val labelWidthMm = labelMm.first
+                val labelHeightMm = labelMm.second
+
+                val specialFields = setOf("barcode", "barcode_text", "footer")
+                val sortedFields = fields.sortedBy { runtimeFieldOrder(it) }
+                val textFields = sortedFields.filter {
+                    runtimeFieldKey(it) !in specialFields
+                }
+                val barcodeField = sortedFields.firstOrNull {
+                    runtimeFieldKey(it) == "barcode"
+                }
+                val barcodeTextField = sortedFields.firstOrNull {
+                    runtimeFieldKey(it) == "barcode_text"
+                }
+                val footerField = sortedFields.firstOrNull {
+                    runtimeFieldKey(it) == "footer"
+                }
+
+                var textBottom = 0
+                for (field in textFields) {
+                    val fieldKey = runtimeFieldKey(field)
+                    val visible = runtimeFieldVisible(field)
+                    if (!visible && !lockedFields.contains(fieldKey)) {
+                        continue
+                    }
+
+                    val value = runtimeFieldValue(field)
+                    if (value.isBlank()) {
+                        continue
+                    }
+
+                    val x = runtimeMmCoord(field["x"], width, labelWidthMm)
+                    val y = runtimeMmCoord(field["y"], height, labelHeightMm)
+                    val boxWidth = max(runtimeMmCoord(field["w"], width, labelWidthMm), 40)
+                    val boxHeight = max(runtimeMmCoord(field["h"], height, labelHeightMm), 24)
+                    val fontSize = runtimeFontSize(field["font_size"], width, height)
+                    val lineHeight =
+                        runtimeLineHeight(field["line_height"], fontSize, width, height)
+                    val maxLines = max(1, boxHeight / max(lineHeight, 1))
+                    val wrappedLines = wrapRuntimeText(value, boxWidth, fontSize).take(maxLines)
+                    var currentY = y
+
+                    for (line in wrappedLines) {
+                        lp.PrintText(
+                            x,
+                            currentY,
+                            "0",
+                            line,
+                            0,
+                            fontSize,
+                            fontSize,
+                            runtimeFontStyle(field)
+                        )
+                        currentY += lineHeight
+                    }
+
+                    textBottom = max(textBottom, currentY)
+                }
+
+                val barcodeTop = barcodeField?.let {
+                    runtimeMmCoord(it["y"], height, labelHeightMm)
+                } ?: height - 140
+                val attributeStartX = textFields.minOfOrNull {
+                    runtimeMmCoord(it["x"], width, labelWidthMm)
+                } ?: runtimeMmCoord(2, width, labelWidthMm)
+                val attributeFont = runtimeFontSize(10, width, height)
+                val attributeLineHeight = runtimeLineHeight(12, attributeFont, width, height)
+                var attributeY = max(
+                    textBottom + 8,
+                    runtimeMmCoord(48, height, labelHeightMm),
+                )
+                val attributeMaxY = max(barcodeTop - attributeLineHeight, attributeY)
+
+                for (pair in attributePairs) {
+                    if (attributeY > attributeMaxY) {
+                        break
+                    }
+
+                    val key = pair["name"]?.trim().orEmpty()
+                    val value = pair["value"]?.trim().orEmpty()
+                    if (key.isBlank() || value.isBlank()) {
+                        continue
+                    }
+
+                    val lines = wrapRuntimeText(
+                        "$key : $value",
+                        width - attributeStartX - 20,
+                        attributeFont
+                    )
+
+                    for (line in lines) {
+                        if (attributeY > attributeMaxY) {
+                            break
+                        }
+
+                        lp.PrintText(
+                            attributeStartX,
+                            attributeY,
+                            "0",
+                            line,
+                            0,
+                            attributeFont,
+                            attributeFont,
+                            0
+                        )
+                        attributeY += attributeLineHeight
+                    }
+                }
+
+                barcodeField?.let { field ->
+                    val value = runtimeFieldValue(field)
+                    if (value.isNotBlank()) {
+                        val x = runtimeMmCoord(field["x"], width, labelWidthMm)
+                        val y = runtimeMmCoord(field["y"], height, labelHeightMm)
+                        val boxWidth = max(runtimeMmCoord(field["w"], width, labelWidthMm), 120)
+                        val barcodeHeight =
+                            max(runtimeMmCoord(field["h"], height, labelHeightMm), 50)
+                        val moduleWidth = barcodeModuleWidth(value, boxWidth)
+                        val estimatedWidth = estimateBarcodeWidth(value.length, moduleWidth)
+                        val barcodeX = x + max((boxWidth - estimatedWidth) / 2, 0)
+
+                        val barcodeStatus = lp.PrintBarcode1D(
+                            barcodeX,
+                            y,
+                            1,
+                            0,
+                            value,
+                            barcodeHeight,
+                            1,
+                            moduleWidth,
+                            moduleWidth
+                        )
+
+                        if (barcodeStatus != 0) {
+                            mainHandler.post {
+                                result.error(
+                                    "BARCODE_ERROR",
+                                    "Failed: $barcodeStatus",
+                                    null
+                                )
+                            }
+                            return@Thread
+                        }
+                    }
+                }
+
+                barcodeTextField?.let { field ->
+                    val value = runtimeFieldValue(field)
+                    if (value.isNotBlank()) {
+                        val x = runtimeMmCoord(field["x"], width, labelWidthMm)
+                        val y = runtimeMmCoord(field["y"], height, labelHeightMm)
+                        val boxWidth = max(runtimeMmCoord(field["w"], width, labelWidthMm), 80)
+                        val fontSize = runtimeFontSize(field["font_size"], width, height)
+                        val textX = centerTextInBox(value, fontSize, x, boxWidth)
+                        lp.PrintText(
+                            textX,
+                            y,
+                            "0",
+                            value,
+                            0,
+                            fontSize,
+                            fontSize,
+                            0
+                        )
+                    }
+                }
+
+                footerField?.let { field ->
+                    val shouldPrintFooter =
+                        runtimeFieldVisible(field) || footerLocked || lockedFields.contains("footer")
+                    val value = runtimeFieldValue(field)
+                    if (shouldPrintFooter && value.isNotBlank()) {
+                        val x = runtimeMmCoord(field["x"], width, labelWidthMm)
+                        val y = runtimeMmCoord(field["y"], height, labelHeightMm)
+                        val boxWidth =
+                            max(runtimeMmCoord(field["w"], width, labelWidthMm), width - 20)
+                        val fontSize = runtimeFontSize(field["font_size"], width, height)
+                        val lines = wrapRuntimeText(value, boxWidth, fontSize)
+                        var footerY = y
+                        for (line in lines) {
+                            val footerX = centerTextInBox(line, fontSize, x, boxWidth)
+                            lp.PrintText(
+                                footerX,
+                                footerY,
+                                "0",
+                                line,
+                                0,
+                                fontSize,
+                                fontSize,
+                                0
+                            )
+                            footerY += runtimeLineHeight(
+                                field["line_height"],
+                                fontSize,
+                                width,
+                                height
+                            )
+                        }
+                    }
+                }
+
+                val status = lp.PrintLabel(1, 1)
+                mainHandler.post {
+                    if (status == 0) {
+                        result.success(
+                            "Runtime template label printed successfully for $labelSize"
+                        )
+                    } else {
+                        result.error("PRINT_FAILED", "PrintLabel returned: $status", null)
+                    }
+                }
+            } catch (e: Exception) {
+                mainHandler.post {
+                    result.error(
+                        "EXCEPTION",
+                        e.message ?: footerMessage.ifBlank { "Unknown error" },
+                        null
+                    )
+                }
+            }
+        }.start()
+    }
+
+    private fun runtimeFieldKey(field: Map<String, Any?>): String {
+        return field["field_key"]?.toString()?.trim()?.lowercase(Locale.getDefault()) ?: ""
+    }
+
+    private fun runtimeFieldValue(field: Map<String, Any?>): String {
+        return field["value"]?.toString()?.trim().orEmpty()
+    }
+
+    private fun runtimeFieldVisible(field: Map<String, Any?>): Boolean {
+        val raw = field["is_visible"]
+        return when (raw) {
+            is Boolean -> raw
+            is Number -> raw.toInt() != 0
+            else -> raw?.toString()?.trim()?.lowercase(Locale.getDefault()) == "true"
+        }
+    }
+
+    private fun runtimeFieldOrder(field: Map<String, Any?>): Int {
+        val raw = field["order_index"]
+        return when (raw) {
+            is Number -> raw.toInt()
+            else -> raw?.toString()?.toIntOrNull() ?: 0
+        }
+    }
+
+    private fun runtimeLabelSizeMm(labelSize: String): Pair<Double, Double> {
+        val parts = labelSize.trim().split("x")
+        if (parts.size == 2) {
+            val widthMm = parts[0].toDoubleOrNull()
+            val heightMm = parts[1].toDoubleOrNull()
+            if (widthMm != null && heightMm != null && widthMm > 0 && heightMm > 0) {
+                return widthMm to heightMm
+            }
+        }
+        return 75.0 to 75.0
+    }
+
+    private fun runtimeMmCoord(value: Any?, axisDots: Int, axisMm: Double): Int {
+        val source = when (value) {
+            is Number -> value.toDouble()
+            else -> value?.toString()?.toDoubleOrNull() ?: 0.0
+        }
+        if (axisMm <= 0) return 0
+        return ((source / axisMm) * axisDots).roundToInt()
+    }
+
+    private fun runtimeScale(width: Int, height: Int): Double {
+        return minOf(width, height) / 240.0
+    }
+
+    private fun runtimeFontSize(value: Any?, width: Int, height: Int): Int {
+        val source = when (value) {
+            is Number -> value.toDouble()
+            else -> value?.toString()?.toDoubleOrNull() ?: 10.0
+        }
+        return (source * runtimeScale(width, height)).roundToInt().coerceIn(18, 72)
+    }
+
+    private fun runtimeLineHeight(value: Any?, fontSize: Int, width: Int, height: Int): Int {
+        val source = when (value) {
+            is Number -> value.toDouble()
+            else -> value?.toString()?.toDoubleOrNull() ?: fontSize.toDouble()
+        }
+        val scaled = (source * runtimeScale(width, height)).roundToInt()
+        return max(scaled, fontSize + 4)
+    }
+
+    private fun runtimeFontStyle(field: Map<String, Any?>): Int {
+        val fontWeight =
+            field["font_weight"]?.toString()?.trim()?.lowercase(Locale.getDefault()) ?: "normal"
+        return if (fontWeight == "bold") 1 else 0
+    }
+
+    private fun wrapRuntimeText(text: String, maxWidth: Int, fontSize: Int): List<String> {
+        val cleanText = text.trim()
+        if (cleanText.isEmpty()) return emptyList()
+
+        val words = cleanText.split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (words.isEmpty()) return listOf(cleanText)
+
+        val lines = mutableListOf<String>()
+        var current = words.first()
+
+        for (word in words.drop(1)) {
+            val candidate = "$current $word"
+            if (estimateRuntimeTextWidth(candidate, fontSize) <= maxWidth) {
+                current = candidate
+            } else {
+                lines.add(current)
+                current = word
+            }
+        }
+
+        lines.add(current)
+        return lines
+    }
+
+    private fun estimateRuntimeTextWidth(text: String, fontSize: Int): Int {
+        return (text.length * fontSize / 1.9).roundToInt()
+    }
+
+    private fun centerTextInBox(text: String, fontSize: Int, startX: Int, boxWidth: Int): Int {
+        val textWidth = estimateRuntimeTextWidth(text, fontSize)
+        return startX + max((boxWidth - textWidth) / 2, 0)
+    }
+
+    private fun barcodeModuleWidth(barcodeData: String, availableWidth: Int): Int {
+        var moduleWidth = 4
+        var estimatedWidth = estimateBarcodeWidth(barcodeData.length, moduleWidth)
+        while (estimatedWidth > availableWidth && moduleWidth > 1) {
+            moduleWidth -= 1
+            estimatedWidth = estimateBarcodeWidth(barcodeData.length, moduleWidth)
+        }
+        return moduleWidth
+    }
+
+    private fun estimateBarcodeWidth(chars: Int, moduleWidth: Int): Int {
+        val modulesPerChar = 6
+        return chars * moduleWidth * modulesPerChar
     }
 
 //    private fun printTeaSticker(

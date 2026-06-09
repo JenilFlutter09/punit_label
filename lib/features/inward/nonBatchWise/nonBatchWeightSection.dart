@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:punit_label/features/dashboard/dashboardController.dart';
-import 'package:punit_label/features/inward/batchWise/batchInwardController.dart';
 import 'package:punit_label/features/inward/nonBatchWise/nonBatchController.dart';
 import '../../../constants/sizes.dart';
 import '../../../constants/styles.dart';
 import '../../../constants/utility.dart';
-import '../controller/inwardController.dart';
-import '../batchWise/models/batchDetails.dart';
 
 import '../../../constants/colors.dart';
 import '../../../constants/enums.dart';
@@ -436,6 +433,13 @@ class NonBatchInwardActionBar extends StatelessWidget {
             await controller.addToList();
           },
         ),
+        if (controller.isCustomTemplateSelected)
+          _ActionButtonConfig(
+            icon: Icons.visibility,
+            color: Colors.teal,
+            label: "Preview",
+            onTap: () => controller.previewCurrentLabel(context),
+          ),
         _ActionButtonConfig(
           icon: mainIcon,
           color: mainColor,
@@ -476,6 +480,13 @@ class NonBatchInwardActionBar extends StatelessWidget {
               : "Start Auto");
 
     return [
+      if (controller.isCustomTemplateSelected)
+        _ActionButtonConfig(
+          icon: Icons.visibility,
+          color: Colors.teal,
+          label: "Preview",
+          onTap: () => controller.previewCurrentLabel(context),
+        ),
       _ActionButtonConfig(
         icon: mainIcon,
         color: mainColor,
@@ -689,7 +700,7 @@ class _StaticButton extends StatelessWidget {
             color: color,
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.4),
+                color: color.withValues(alpha: 0.4),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),

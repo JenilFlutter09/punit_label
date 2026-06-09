@@ -7,8 +7,11 @@ import 'package:intl/intl.dart';
 import 'package:punit_label/constants/utility.dart';
 import 'package:punit_label/features/inward/nonBatchWise/models/attributesListModel.dart';
 import 'package:punit_label/features/inward/nonBatchWise/models/nonBatchDetail.dart';
+import 'package:punit_label/features/label_template/models/label_template_models.dart';
+import 'package:punit_label/features/label_template/widgets/runtime_label_preview_dialog.dart';
 
 import '../../../apis/connectHelper.dart';
+import '../../../apis/responseModel.dart';
 import '../../../constants/enums.dart';
 import '../../../widgets/pdfExcel.dart';
 import '../../../widgets/searchableDropdown.dart';
@@ -38,7 +41,12 @@ class NonBatchInwardController extends GetxController {
 
   RxMap<String, RxBool> attributeEnabled = <String, RxBool>{}.obs;
 
-  //RxList<LabelFormatElement> labelFormats = <LabelFormatElement>[].obs;
+  final RxList<LabelTemplateOption> labelTemplateOptions =
+      <LabelTemplateOption>[].obs;
+  final Rxn<LabelTemplateOption> selectedLabelTemplateOption =
+      Rxn<LabelTemplateOption>();
+  final RxString selectedLabelSize = '75x75'.obs;
+  final RxBool isTemplateOptionsLoading = false.obs;
   Rxn<LabelFormatElement> selectedLabelFormatObj = Rxn<LabelFormatElement>();
 
   RxString selectedLabelFormat = "".obs;
@@ -60,6 +68,8 @@ class NonBatchInwardController extends GetxController {
   int continuousOutOfRangeSeconds = 0;
   Rxn<TareProductListModel> tareProductsListModel = Rxn<TareProductListModel>();
   var selectedBarcode = Rxn<TareBarcode>();
+  RuntimeLabelTemplateData? _cachedRuntimeTemplate;
+  String? _cachedRuntimeTemplateKey;
 
   String _formatConvertedUnits(double value) {
     final formatted = value.toStringAsFixed(2);
@@ -82,7 +92,6 @@ class NonBatchInwardController extends GetxController {
     await _fetchTareProductsList();
     await fetchProductNames();
     await fetchAttributes();
-    _applyDefaultLabelFormat();
 
     if (nonInwardController.selectedTransaction.value != null) {
       await fetchNonBatchDetail(
@@ -92,21 +101,6 @@ class NonBatchInwardController extends GetxController {
 
     serialNumberTextController.text = serialNumber.value.toString();
     validateSerial(serialNumberTextController.text);
-  }
-
-  void _applyDefaultLabelFormat() {
-    if (dashboardController.labelFormats.isEmpty) return;
-
-    final selected =
-        dashboardController.defaultNonBatchLabelFormatObj.value ??
-        dashboardController.labelFormats.firstWhere(
-          (format) => format.id == 3,
-          orElse: () => dashboardController.labelFormats.first,
-        );
-
-    selectedLabelFormatObj.value = selected;
-    selectedLabelFormat.value = selected.nameOfLabel;
-    selectedAttributesCount.value = 0;
   }
 
   // @override
@@ -211,7 +205,7 @@ class NonBatchInwardController extends GetxController {
         ?.map(
           (p) => module(
             id: p.productId ?? 0,
-            name: p.productName.toString() ?? "",
+            name: p.productName ?? "",
             autoWeight: p.autoWeight ?? false,
             minWeight: p.minAutoWeight ?? 0,
             maxWeight: p.maxAutoWeight ?? 0,
@@ -238,8 +232,11 @@ class NonBatchInwardController extends GetxController {
           .toString();
       manualCtrl.tareCtrl.text =
           selectedProduct.value?.productTareWeight.toString() ?? '0';
+      await _loadLabelTemplateOptionsForSelectedProduct();
     } else {
       selectedProduct.value = null;
+      labelTemplateOptions.clear();
+      _applySelectedLabelTemplateOption(null);
     }
   }
 
@@ -272,7 +269,7 @@ class NonBatchInwardController extends GetxController {
     }
   }
 
-  void changeSelectedProductId(int id) {
+  Future<void> changeSelectedProductId(int id) async {
     final products = product_list_model.value?.data;
 
     if (products == null) return;
@@ -306,8 +303,123 @@ class NonBatchInwardController extends GetxController {
     } else {
       isBatchAutoWeightEnabled.value = true;
     }
+    _resetAttributeSelections();
+    await _loadLabelTemplateOptionsForSelectedProduct();
     if (inwardState.value == InwardState.running) {
       _startAutoWeightMonitor();
+    }
+  }
+
+  Future<void> changeLabelSize(String labelSize) async {
+    selectedLabelSize.value = labelSize;
+    _clearRuntimeTemplateCache();
+    await _loadLabelTemplateOptionsForSelectedProduct();
+  }
+
+  void selectLabelTemplateOptionByName(String optionName) {
+    final option = labelTemplateOptions.firstWhereOrNull(
+      (item) => item.name == optionName,
+    );
+    _applySelectedLabelTemplateOption(option);
+    _clearRuntimeTemplateCache();
+  }
+
+  Future<void> _loadLabelTemplateOptionsForSelectedProduct() async {
+    final productId = selectedProduct.value?.id;
+    if (productId == null) {
+      labelTemplateOptions.clear();
+      _applySelectedLabelTemplateOption(null);
+      return;
+    }
+
+    try {
+      isTemplateOptionsLoading.value = true;
+      final response = await connectHelper.getLabelTemplateOptions(
+        productId: productId,
+        labelSize: selectedLabelSize.value,
+      );
+      labelTemplateOptions.assignAll(response.data?.options ?? const []);
+
+      final preferred =
+          labelTemplateOptions.firstWhereOrNull((item) => item.isDefault) ??
+          (labelTemplateOptions.isNotEmpty ? labelTemplateOptions.first : null);
+      _applySelectedLabelTemplateOption(preferred);
+      _clearRuntimeTemplateCache();
+    } catch (error) {
+      labelTemplateOptions.clear();
+      _applySelectedLabelTemplateOption(null);
+      if (error is ResponseModel) {
+        Utility.showApiErrorSnackbar(error);
+      } else {
+        Utility.showCustomApiErrorSnackBar(
+          title: 'Template Options',
+          body: 'Failed to load label format options.',
+        );
+      }
+    } finally {
+      isTemplateOptionsLoading.value = false;
+    }
+  }
+
+  void _applySelectedLabelTemplateOption(LabelTemplateOption? option) {
+    selectedLabelTemplateOption.value = option;
+    selectedLabelFormat.value = option?.name ?? '';
+    selectedLabelFormatObj.value = option?.isExisting == true
+        ? dashboardController.resolveExistingLabelFormat(optionId: option?.id)
+        : null;
+    if (option?.isCustom == true) {
+      _resetAttributeSelections();
+    }
+    selectedAttributesCount.value = 0;
+  }
+
+  void _resetAttributeSelections() {
+    selectedAttributes.forEach((_, value) => value.value = '');
+    attributeEnabled.forEach((_, value) => value.value = false);
+    selectedAttributesCount.value = 0;
+  }
+
+  void _clearRuntimeTemplateCache() {
+    _cachedRuntimeTemplate = null;
+    _cachedRuntimeTemplateKey = null;
+  }
+
+  bool get isCustomTemplateSelected =>
+      selectedLabelTemplateOption.value?.isCustom == true;
+
+  Future<RuntimeLabelTemplateData?>
+  _getRuntimeTemplateForSelectedProduct() async {
+    final productId = selectedProduct.value?.id;
+    final selectedOption = selectedLabelTemplateOption.value;
+    if (productId == null || selectedOption?.isCustom != true) {
+      return null;
+    }
+
+    final cacheKey =
+        '$productId:${selectedLabelSize.value}:${selectedOption?.id}';
+    if (_cachedRuntimeTemplateKey == cacheKey &&
+        _cachedRuntimeTemplate != null) {
+      return _cachedRuntimeTemplate;
+    }
+
+    try {
+      final response = await connectHelper.getRuntimeLabelTemplate(
+        productId: productId,
+        labelSize: selectedLabelSize.value,
+      );
+      _cachedRuntimeTemplate = response.data;
+      _cachedRuntimeTemplateKey = cacheKey;
+      return _cachedRuntimeTemplate;
+    } catch (error) {
+      if (error is ResponseModel) {
+        Utility.showApiErrorSnackbar(error);
+      } else {
+        Utility.showCustomApiErrorSnackBar(
+          title: 'Runtime Template',
+          body: 'Failed to load runtime label template.',
+        );
+      }
+      return null;
     }
   }
 
@@ -466,8 +578,38 @@ class NonBatchInwardController extends GetxController {
     required NonBatchProducts productData,
     required int serialNumber,
   }) async {
+    final runtimeTemplate = await _getRuntimeTemplateForSelectedProduct();
+    if (selectedLabelTemplateOption.value?.isCustom == true &&
+        runtimeTemplate == null) {
+      return;
+    }
+    if (runtimeTemplate?.isCustom == true) {
+      final printedAt =
+          DateTime.tryParse(barcodeData.time ?? '') ??
+          Utility.nowWithoutSeconds();
+      await dashboardController.printRuntimeTemplateLabel(
+        labelSize: selectedLabelSize.value,
+        runtimeData: runtimeTemplate!,
+        productName: productData.productName ?? "Product",
+        grossWeight: barcodeData.grossWeight ?? 0,
+        tareWeight: barcodeData.tareWeight ?? 0,
+        netWeight: barcodeData.netWeight ?? 0,
+        barcodeString: barcodeData.barCodeString ?? "",
+        serialNumber: serialNumber.toString(),
+        printedAt: printedAt,
+      );
+      return;
+    }
+
     final LabelFormat selected =
-        selectedLabelFormatObj.value?.labelFormat ?? LabelFormat.Large;
+        (runtimeTemplate?.isExisting == true
+            ? dashboardController
+                  .resolveExistingLabelFormat(
+                    optionId: selectedLabelTemplateOption.value?.id,
+                  )
+                  .labelFormat
+            : selectedLabelFormatObj.value?.labelFormat) ??
+        LabelFormat.Large;
     final selectedModule = selectedProduct.value;
     final double netWeightValue = barcodeData.netWeight ?? 0;
     final Map<String, String> unitFields =
@@ -512,8 +654,8 @@ class NonBatchInwardController extends GetxController {
     // -------------------------------------------------------------
     // 3️⃣ Merge all fields into one labelFields map
     // -------------------------------------------------------------
-      //Map<String, String> labelFields = selected == LabelFormat.neoLabel
-     Map<String, String> labelFields = selected == LabelFormat.MajedarTea
+    //Map<String, String> labelFields = selected == LabelFormat.neoLabel
+    Map<String, String> labelFields = selected == LabelFormat.MajedarTea
         ? {...combinationFields}
         : isTareWeightOff.value
         ? {...combinationFields, ...manualNFields}
@@ -650,6 +792,63 @@ class NonBatchInwardController extends GetxController {
     }
   }
 
+  Future<void> previewCurrentLabel(BuildContext context) async {
+    if (!isCustomTemplateSelected) {
+      Utility.showCustomApiErrorSnackBar(
+        title: 'Preview',
+        body: 'Preview is currently available for custom label templates.',
+      );
+      return;
+    }
+
+    final product = selectedProduct.value;
+    if (product == null) {
+      Utility.showCustomApiErrorSnackBar(
+        title: 'Preview',
+        body: 'Select a product before opening label preview.',
+      );
+      return;
+    }
+
+    final runtimeTemplate = await _getRuntimeTemplateForSelectedProduct();
+    if (runtimeTemplate == null || !runtimeTemplate.isCustom) {
+      Utility.showCustomApiErrorSnackBar(
+        title: 'Preview',
+        body: 'Custom runtime template is not available for preview.',
+      );
+      return;
+    }
+
+    final previewSerial = serialNumber.value;
+    final barcodeString = Utility.generateBarcode(id: previewSerial);
+    final grossWeight =
+        Utility.toDouble(manualCtrl.manualGross.value ?? '0') ?? 0;
+    final tareWeight =
+        Utility.toDouble(
+          isTareWeightOff.value ? '0' : manualCtrl.manualTare.value ?? '0',
+        ) ??
+        0;
+    final netWeight = Utility.toDouble(manualCtrl.manualNet.value ?? '0') ?? 0;
+    final printedAt = Utility.nowWithoutSeconds();
+    final fields = dashboardController.buildResolvedRuntimePreviewFields(
+      runtimeData: runtimeTemplate,
+      productName: product.name,
+      grossWeight: grossWeight,
+      tareWeight: tareWeight,
+      netWeight: netWeight,
+      barcodeString: barcodeString,
+      serialNumber: previewSerial.toString(),
+      printedAt: printedAt,
+    );
+
+    await showRuntimeLabelPreviewDialog(
+      context: context,
+      title: 'Label Preview',
+      labelSize: selectedLabelSize.value,
+      fields: fields,
+    );
+  }
+
   NonBatchProducts buildSelectedProductJson() {
     final product = selectedProduct.value;
 
@@ -688,8 +887,8 @@ class NonBatchInwardController extends GetxController {
     List<NonBatchBarcodes> barcodeList = barcode_list;
 
     return NonBatchProducts(
-      productId: product.id ?? 0,
-      productName: product.name ?? "",
+      productId: product.id,
+      productName: product.name,
       attributes: attributesJson,
       barcodes: barcodeList,
     );
@@ -764,7 +963,7 @@ class NonBatchInwardController extends GetxController {
     await ExportHelper.generatePDF(
       title: title,
       metaData: {
-        "Transaction Name": transactionName.text ?? "Product Name",
+        "Transaction Name": transactionName.text,
         "Generated By": "punitinstrument.com",
         "Date": DateFormat('dd-MM-yyyy').format(DateTime.now()),
       },
@@ -785,7 +984,7 @@ class NonBatchInwardController extends GetxController {
 
         /// 🧾 Meta Data
         metaData: {
-          "Transaction Name": transactionName.text ?? "Product Name",
+          "Transaction Name": transactionName.text,
           "Generated By": "punitinstrument.com",
           "Date": DateFormat('dd-MM-yyyy').format(DateTime.now()),
         },

@@ -93,13 +93,24 @@ class BatchInwardScreen extends StatelessWidget {
                       ),
                       SizedBox(height: 12),
                       Obx(() {
-                        if (dashboardController.labelFormats.isEmpty) {
-                          return SizedBox.shrink();
-                        }
-
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            const Text(
+                              "LABEL SIZE",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            SearchableStringDropdown(
+                              label: "Select Label Size",
+                              items: const ["75x75", "100x100"],
+                              selectedValue: controller.selectedLabelSize,
+                              onItemSelected: controller.changeLabelSize,
+                            ),
+                            const SizedBox(height: 12),
                             const Text(
                               "LABEL FORMAT",
                               style: TextStyle(
@@ -108,21 +119,37 @@ class BatchInwardScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 6),
-                            SearchableStringDropdown(
-                              label: "Select Label Format",
-                              items: dashboardController.labelFormats
-                                  .map((e) => e.nameOfLabel)
-                                  .toList(),
-                              selectedValue: controller.selectedLabelFormat,
-                              onItemSelected: (selectedName) {
-                                controller.selectedLabelFormat.value =
-                                    selectedName;
-                                controller.selectedLabelFormatObj.value =
-                                    dashboardController.labelFormats.firstWhere(
-                                      (e) => e.nameOfLabel == selectedName,
-                                    );
-                              },
-                            ),
+                            if (controller.isTemplateOptionsLoading.value)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              )
+                            else if (controller.labelTemplateOptions.isEmpty)
+                              const Text(
+                                "No label formats available for this product and size.",
+                              )
+                            else
+                              SearchableStringDropdown(
+                                label: "Select Label Format",
+                                items: controller.labelTemplateOptions
+                                    .map((e) => e.name)
+                                    .toList(),
+                                selectedValue: controller.selectedLabelFormat,
+                                onItemSelected:
+                                    controller.selectLabelTemplateOptionByName,
+                              ),
+                            if (controller.isCustomTemplateSelected) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                "Custom templates print through the Android label printer.",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ],
                           ],
                         );
                       }),

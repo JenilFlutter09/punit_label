@@ -7,11 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:punit_label/constants/enums.dart';
 import 'package:punit_label/constants/utility.dart';
 import 'package:punit_label/features/bluetooth_test/classic_serial_scale_test_sheet.dart';
 import 'package:punit_label/features/dashboard/dashboardModel.dart';
+import 'package:punit_label/features/label_template/models/label_template_models.dart';
 import 'package:punit_label/features/login/loginmodel.dart';
 
 import '../../apis/connectHelper.dart';
@@ -202,6 +204,24 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   ) async {
     _applyDefaultNonBatchLabelFormat(selected.id);
     await TokenStorage.saveDefaultNonBatchLabelFormatId(selected.id);
+  }
+
+  LabelFormatElement resolveExistingLabelFormat({
+    String? optionId,
+    int fallbackId = 3,
+  }) {
+    final parsedId = int.tryParse(optionId ?? '');
+    return _findLabelFormatById(parsedId ?? fallbackId) ??
+        _findLabelFormatById(fallbackId) ??
+        labelFormats.first;
+  }
+
+  String formatRuntimeDateTime(DateTime dateTime) {
+    return DateFormat('dd/MM/yyyy HH:mm').format(dateTime);
+  }
+
+  String formatRuntimeWeight(double value) {
+    return value.toStringAsFixed(3);
   }
 
   TareState? _parseTareState(String? value) {
@@ -827,6 +847,181 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     });
 
     return attributes;
+  }
+
+  Future<bool> printRuntimeTemplateLabel({
+    required String labelSize,
+    required RuntimeLabelTemplateData runtimeData,
+    required String productName,
+    required double grossWeight,
+    required double tareWeight,
+    required double netWeight,
+    required String barcodeString,
+    required String serialNumber,
+    required DateTime printedAt,
+    Map<String, String> attributeValues = const {},
+    List<PrintableAttributeEntry> attributePairs = const [],
+  }) async {
+    if (!isLabelPrinterMode.value) {
+      Utility.showCustomApiErrorSnackBar(
+        title: 'Label Printer Required',
+        body:
+            'Custom label templates only work in label-printer mode on Android.',
+      );
+      return false;
+    }
+
+    final template = runtimeData.template;
+    if (template == null) {
+      Utility.showCustomApiErrorSnackBar(
+        title: 'Template Missing',
+        body: 'Runtime template payload is missing template layout data.',
+      );
+      return false;
+    }
+
+    final resolvedFields = _buildResolvedRuntimeFields(
+      runtimeData: runtimeData,
+      productName: productName,
+      grossWeight: grossWeight,
+      tareWeight: tareWeight,
+      netWeight: netWeight,
+      barcodeString: barcodeString,
+      serialNumber: serialNumber,
+      printedAt: printedAt,
+      attributeValues: attributeValues,
+    );
+
+    final dimensions = _runtimeTemplateDimensions(labelSize);
+    final payload = {
+      'labelSize': labelSize,
+      'width': dimensions.width,
+      'height': dimensions.height,
+      'whiteLabel': template.whiteLabel,
+      'lockedFields': runtimeData.lockedFields,
+      'footerLocked': runtimeData.footerLocked,
+      'footerMessage': runtimeData.footerMessage ?? '',
+      'fields': resolvedFields.map((field) => field.toMap()).toList(),
+      'attributePairs': attributePairs.map((item) => item.toMap()).toList(),
+    };
+
+    await _invokeLabelPrintRepeated('printRuntimeTemplateSticker', payload);
+    return true;
+  }
+
+  List<ResolvedPrintField> buildResolvedRuntimePreviewFields({
+    required RuntimeLabelTemplateData runtimeData,
+    required String productName,
+    required double grossWeight,
+    required double tareWeight,
+    required double netWeight,
+    required String barcodeString,
+    required String serialNumber,
+    required DateTime printedAt,
+    Map<String, String> attributeValues = const {},
+  }) {
+    return _buildResolvedRuntimeFields(
+      runtimeData: runtimeData,
+      productName: productName,
+      grossWeight: grossWeight,
+      tareWeight: tareWeight,
+      netWeight: netWeight,
+      barcodeString: barcodeString,
+      serialNumber: serialNumber,
+      printedAt: printedAt,
+      attributeValues: attributeValues,
+    );
+  }
+
+  List<ResolvedPrintField> _buildResolvedRuntimeFields({
+    required RuntimeLabelTemplateData runtimeData,
+    required String productName,
+    required double grossWeight,
+    required double tareWeight,
+    required double netWeight,
+    required String barcodeString,
+    required String serialNumber,
+    required DateTime printedAt,
+    required Map<String, String> attributeValues,
+  }) {
+    final companyProfile = runtimeData.companyProfile;
+    final footerValue = runtimeData.footerText ?? '';
+
+    return runtimeData.template?.fields.map((field) {
+          final value = _resolveRuntimeFieldValue(
+            fieldKey: field.fieldKey,
+            companyProfile: companyProfile,
+            productName: productName,
+            grossWeight: grossWeight,
+            tareWeight: tareWeight,
+            netWeight: netWeight,
+            barcodeString: barcodeString,
+            serialNumber: serialNumber,
+            printedAt: printedAt,
+            footerValue: footerValue,
+            attributeValues: attributeValues,
+          );
+          return ResolvedPrintField.fromTemplateField(field, value);
+        }).toList() ??
+        const [];
+  }
+
+  String _resolveRuntimeFieldValue({
+    required String fieldKey,
+    required RuntimeCompanyProfile? companyProfile,
+    required String productName,
+    required double grossWeight,
+    required double tareWeight,
+    required double netWeight,
+    required String barcodeString,
+    required String serialNumber,
+    required DateTime printedAt,
+    required String footerValue,
+    required Map<String, String> attributeValues,
+  }) {
+    final normalizedFieldKey = fieldKey.trim().toLowerCase();
+    if (normalizedFieldKey.startsWith('attr_')) {
+      return attributeValues[normalizedFieldKey] ?? '';
+    }
+
+    switch (normalizedFieldKey) {
+      case 'company_name':
+      case 'company_email':
+      case 'company_contact_no':
+      case 'company_gst_no':
+      case 'company_website':
+      case 'company_address':
+        return companyProfile?.valueForField(fieldKey) ?? '';
+      case 'product_name':
+        return productName;
+      case 'gross_weight':
+        return formatRuntimeWeight(grossWeight);
+      case 'tare_weight':
+        return formatRuntimeWeight(tareWeight);
+      case 'net_weight':
+        return formatRuntimeWeight(netWeight);
+      case 'barcode':
+      case 'barcode_text':
+        return barcodeString;
+      case 'sr_no':
+        return serialNumber;
+      case 'datetime':
+        return formatRuntimeDateTime(printedAt);
+      case 'footer':
+        return footerValue;
+      default:
+        return '';
+    }
+  }
+
+  RuntimeLabelDimensions _runtimeTemplateDimensions(String labelSize) {
+    switch (labelSize.trim()) {
+      case '100x100':
+        return const RuntimeLabelDimensions(width: 700, height: 700);
+      case '75x75':
+      default:
+        return const RuntimeLabelDimensions(width: 600, height: 600);
+    }
   }
 
   List<Map<String, dynamic>> buildSmallSevenLabelAttributes(
@@ -1803,4 +1998,11 @@ class LabelLayout {
     "columnGap": columnGap,
     "barcodeHeight": barcodeHeight,
   };
+}
+
+class RuntimeLabelDimensions {
+  final int width;
+  final int height;
+
+  const RuntimeLabelDimensions({required this.width, required this.height});
 }
