@@ -135,6 +135,49 @@ class MainActivity : FlutterActivity() {
                             printTime = printTime
                         )
                     }
+                    "printDryFruitSticker" -> {
+                        val args = call.arguments as? Map<String, Any> ?: emptyMap()
+
+                        val width = (args["width"] as? Number)?.toInt() ?: 600
+                        val height = (args["height"] as? Number)?.toInt() ?: 410
+                        val margin = (args["margin"] as? Number)?.toInt() ?: 0
+
+                        val companyName = args["companyName"]?.toString() ?: "Majedar Tea Co."
+                        val productName = args["productName"]?.toString() ?: ""
+                        val attributeLabel =
+                            args["attributeLabel"]?.toString()?.takeIf { it.isNotBlank() }
+                                ?: "Description"
+                        val description = args["description"]?.toString() ?: ""
+                        val grossWt = args["grossWt"]?.toString() ?: ""
+                        val barcodeData = args["barcodeData"]?.toString() ?: ""
+
+                        val rawAttributes =
+                            call.argument<List<Map<String, Any>>>("attributes") ?: emptyList()
+
+                        val attributes =
+                            rawAttributes.map { it.mapValues { v -> v.value.toString() } }
+
+                        val isGrid = args["isGrid"] as? Boolean ?: false
+                        val isWhiteLabel = args["isWhiteLabel"] as? Boolean ?: false
+                        val printTime = args["printTime"] as? Boolean ?: false
+
+                        printDryFruitSticker(
+                            result = result,
+                            width = width,
+                            height = height,
+                            margin = margin,
+                            companyName = companyName,
+                            productName = productName,
+                            attributeLabel = attributeLabel,
+                            description = description,
+                            grossWt = grossWt,
+                            barcodeData = barcodeData,
+                            attributes = attributes,
+                            isGrid = isGrid,
+                            isWhiteLabel = isWhiteLabel,
+                            printTime = printTime
+                        )
+                    }
                     "printNeoLabelSticker" -> {
                         val args = call.arguments as? Map<String, Any> ?: emptyMap()
 
@@ -967,6 +1010,9 @@ if (businessHours.isNotEmpty()) {
                         else -> "$it Kg"
                     }
                 }
+                val printableAttributes = attributes.filter {
+                    (it["key"] ?: "").isNotBlank() && (it["value"] ?: "").isNotBlank()
+                }.take(3)
 
 //                // ---------- BORDER ----------
 //                lp.PrintBox(left, margin, right, height - margin, 3)
@@ -1014,28 +1060,52 @@ if (businessHours.isNotEmpty()) {
                         productFont,
                         1
                     )
-                    val attributeFont = 36
-                    val attributeY = 160
-                    val attributeLineHeight = 42
-                    val attributeMaxChars =
-                        (((right - left - 50) * 2.2) / attributeFont).toInt().coerceAtLeast(18)
-                    val attributeLines =
-                        splitByLength(displayAttributeText, attributeMaxChars).take(2)
+                    var attributeY = 148
+                    if (printableAttributes.isNotEmpty()) {
+                        for (item in printableAttributes) {
+                            val line = "${item["key"] ?: ""} : ${item["value"] ?: ""}"
+                            val rowFont = fitFontSizeForWidth(
+                                line,
+                                (right - left - 50).coerceAtLeast(220),
+                                30,
+                                22
+                            )
+                            lp.PrintText(
+                                left + 25,
+                                attributeY,
+                                "0",
+                                line,
+                                0,
+                                rowFont,
+                                rowFont,
+                                1
+                            )
+                            attributeY += rowFont + 6
+                        }
+                    } else {
+                        val attributeFont = 32
+                        val attributeLineHeight = 36
+                        val attributeMaxChars =
+                            (((right - left - 50) * 2.2) / attributeFont).toInt().coerceAtLeast(18)
+                        val attributeLines =
+                            splitByLength(displayAttributeText, attributeMaxChars).take(2)
 
-                    attributeLines.forEachIndexed { index, line ->
-                        lp.PrintText(
-                            left + 25,
-                            attributeY + (index * attributeLineHeight),
-                            "0",
-                            line,
-                            0,
-                            attributeFont,
-                            attributeFont,
-                            1
-                        )
+                        attributeLines.forEachIndexed { index, line ->
+                            lp.PrintText(
+                                left + 25,
+                                attributeY + (index * attributeLineHeight),
+                                "0",
+                                line,
+                                0,
+                                attributeFont,
+                                attributeFont,
+                                1
+                            )
+                        }
+                        attributeY += attributeLines.size * attributeLineHeight
                     }
 
-                    val weightY = attributeY + (attributeLines.size * attributeLineHeight) + 18
+                    val weightY = attributeY + 10
 
                     // ---------- GROSS WT ----------
                     lp.PrintText(
@@ -1044,8 +1114,8 @@ if (businessHours.isNotEmpty()) {
                         "0",
                         "Weight : ",
                         0,
-                        36,
-                        36,
+                        32,
+                        32,
                         1
                     )
 
@@ -1055,14 +1125,14 @@ if (businessHours.isNotEmpty()) {
                         "0",
                         displayWeight,
                         0,
-                        36,
-                        36,
+                        32,
+                        32,
                         1
                     )
 
                     // ---------- BARCODE ----------
-                    val barcodeHeight = 60
-                    val barcodeY = height - 130
+                    val barcodeHeight = 52
+                    val barcodeY = height - 105
                     val barcodeX = left + 50
 
                     lp.PrintBarcode1D(
@@ -1183,6 +1253,214 @@ if (businessHours.isNotEmpty()) {
                 mainHandler.post {
                     if (status == 0) {
                         result.success("Tea label printed successfully!")
+                    } else {
+                        result.error("PRINT_FAILED", "PrintLabel returned: $status", null)
+                    }
+                }
+
+            } catch (e: Exception) {
+                mainHandler.post {
+                    result.error("EXCEPTION", e.message ?: "Unknown error", null)
+                }
+            }
+        }.start()
+    }
+    private fun printDryFruitSticker(
+        result: MethodChannel.Result,
+        width: Int = 600,
+        height: Int = 410,
+        margin: Int = 0,
+        companyName: String = "Majedar Tea Co.",
+        productName: String = "",
+        attributeLabel: String = "Description",
+        description: String = "",
+        grossWt: String = "",
+        barcodeData: String = "",
+        attributes: List<Map<String, String>> = emptyList(),
+        isGrid: Boolean = false,
+        isWhiteLabel: Boolean = false,
+        printTime: Boolean = false
+    ) {
+        Thread {
+            try {
+                val lp = printer ?: run {
+                    mainHandler.post {
+                        result.error("NO_PRINTER", "Printer not connected", null)
+                    }
+                    return@Thread
+                }
+
+                val setSize = lp.SetLabelSize(width, height)
+                if (setSize != 0) {
+                    mainHandler.post {
+                        result.error("SET_LABEL_ERROR", "Failed: $setSize", null)
+                    }
+                    return@Thread
+                }
+
+                lp.SetPrintDensity(15)
+
+                val left = margin
+                val right = width - margin
+                val teaTimeStamp = if (printTime) {
+                    SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.getDefault()).format(Date())
+                } else {
+                    ""
+                }
+                val displayProductName = productName.trim()
+                val displayDescription = description.trim()
+                val displayAttributeLabel = attributeLabel.trim().ifBlank { "Description" }
+                val displayAttributeText = if (displayDescription.isBlank()) {
+                    displayAttributeLabel
+                } else {
+                    "$displayAttributeLabel : $displayDescription"
+                }
+                val displayWeight = grossWt.trim().let {
+                    when {
+                        it.isEmpty() -> ""
+                        it.lowercase(Locale.getDefault()).endsWith("kg") -> it
+                        else -> "$it Kg"
+                    }
+                }
+                val printableAttributes = attributes.filter {
+                    (it["key"] ?: "").isNotBlank() && (it["value"] ?: "").isNotBlank()
+                }.take(4)
+
+//                // ---------- BORDER ----------
+//                lp.PrintBox(left, margin, right, height - margin, 3)
+
+                if (teaTimeStamp.isNotEmpty()) {
+                    lp.PrintText(
+                        right - 255,
+                        14,
+                        "0",
+                        teaTimeStamp,
+                        0,
+                        22,
+                        22,
+                        1
+                    )
+                }
+
+                val productY = if (teaTimeStamp.isNotEmpty()) 42 else 22
+                val productFont = fitFontSizeForWidth(
+                    displayProductName,
+                    (right - left - 50).coerceAtLeast(200),
+                    44,
+                    34
+                )
+                lp.PrintText(
+                    left + 25,
+                    productY,
+                    "0",
+                    displayProductName,
+                    0,
+                    productFont,
+                    productFont,
+                    1
+                )
+
+                var attributeY = if (teaTimeStamp.isNotEmpty()) 88 else 72
+                if (printableAttributes.isNotEmpty()) {
+                    for (item in printableAttributes) {
+                        val key = item["key"] ?: ""
+                        var value = item["value"] ?: ""
+
+                        if (key.equals("weight", ignoreCase = true)) {
+                            value = String.format(Locale.US, "%.3f Kg", value.toDoubleOrNull() ?: 0.0)
+                        }
+
+                        val line = "$key : $value"
+
+                        val rowFont = fitFontSizeForWidth(
+                            line,
+                            (right - left - 50).coerceAtLeast(220),
+                            36,
+                            28
+                        )
+
+                        lp.PrintText(
+                            left + 25,
+                            attributeY,
+                            "0",
+                            line,
+                            0,
+                            rowFont,
+                            rowFont,
+                            1
+                        )
+
+                        attributeY += 42
+                    }
+                } else {
+                    val attributeFont = 30
+                    val attributeLineHeight = 32
+                    val attributeMaxChars =
+                        (((right - left - 50) * 2.2) / attributeFont).toInt().coerceAtLeast(18)
+                    val attributeLines =
+                        splitByLength(displayAttributeText, attributeMaxChars).take(2)
+
+                    attributeLines.forEachIndexed { index, line ->
+                        lp.PrintText(
+                            left + 25,
+                            attributeY + (index * attributeLineHeight),
+                            "0",
+                            line,
+                            0,
+                            attributeFont,
+                            attributeFont,
+                            1
+                        )
+                    }
+                    attributeY += attributeLines.size * attributeLineHeight
+                }
+
+//                val weightY = attributeY + 4
+//                lp.PrintText(
+//                    left + 25,
+//                    weightY,
+//                    "0",
+//                    "Weight : ",
+//                    0,
+//                    32,
+//                    32,
+//                    1
+//                )
+//
+//                lp.PrintText(
+//                    left + 170,
+//                    weightY,
+//                    "0",
+//                    displayWeight,
+//                    0,
+//                    32,
+//                    32,
+//                    1
+//                )
+
+                val barcodeHeight = 80
+                val barcodeY = height - 130
+                val barcodeX = left + 50
+
+                lp.PrintBarcode1D(
+                    barcodeX,
+                    barcodeY,
+
+                    1,
+                    0,
+                    barcodeData,
+                    barcodeHeight,
+                    1,
+                    4,
+                    4
+                )
+
+                // ---------- PRINT ----------
+                val status = lp.PrintLabel(1, 1)
+
+                mainHandler.post {
+                    if (status == 0) {
+                        result.success("Dry fruit label printed successfully!")
                     } else {
                         result.error("PRINT_FAILED", "PrintLabel returned: $status", null)
                     }

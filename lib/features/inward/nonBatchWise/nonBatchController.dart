@@ -500,15 +500,33 @@ class NonBatchInwardController extends GetxController {
     // -------------------------------------------------------------
     // 2️⃣ Add weight fields
     // -------------------------------------------------------------
-    Map<String, String> manualGTNFields = {
-      "Gross Weight": manualCtrl.manualGross.value ?? '0',
-      "Tare Weight": manualCtrl.manualTare.value ?? '0',
-      "Net Weight": manualCtrl.manualNet.value ?? '0',
-    };
+    Map<String, String> manualGTNFields = {};
+    Map<String, String> manualNFields = {};
+    if(selected == LabelFormat.DryFruit){
+      manualGTNFields = {
+        "Gross Weight":
+        "${double.tryParse(manualCtrl.manualGross.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+        "Tare Weight":
+        "${double.tryParse(manualCtrl.manualTare.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+        "Net Weight":
+        "${double.tryParse(manualCtrl.manualNet.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+      };
 
-    Map<String, String> manualNFields = {
-      "Net Weight": manualCtrl.manualNet.value ?? '0',
-    };
+      manualNFields = {
+        "Net Weight":
+        "${double.tryParse(manualCtrl.manualNet.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+      };
+    }else {
+      manualGTNFields = {
+        "Gross Weight": manualCtrl.manualGross.value ?? '0',
+        "Tare Weight": manualCtrl.manualTare.value ?? '0',
+        "Net Weight": manualCtrl.manualNet.value ?? '0',
+      };
+
+      manualNFields = {
+        "Net Weight": manualCtrl.manualNet.value ?? '0',
+      };
+    }
     // -------------------------------------------------------------
     // 3️⃣ Merge all fields into one labelFields map
     // -------------------------------------------------------------
@@ -623,6 +641,19 @@ class NonBatchInwardController extends GetxController {
           manualCtrl.manualNet.value ?? '0.0',
         );
         await dashboardController.printTeaSmallSticker(
+          productName: productName,
+          noAttribute: labelFields.length,
+          netweight: netWeight,
+          barcodeString: barcodeString,
+          labelFields: labelFields,
+        );
+        break;
+        case LabelFormat.DryFruit:
+        // TODO: Handle this case.
+        final double netWeight = double.parse(
+          manualCtrl.manualNet.value ?? '0.0',
+        );
+        await dashboardController.printDryFruitSmallSticker(
           productName: productName,
           noAttribute: labelFields.length,
           netweight: netWeight,

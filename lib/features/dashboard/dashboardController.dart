@@ -627,6 +627,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
         ),
         LabelFormatElement(5, "Wholesale Pack", 10, LabelFormat.WholesalePack),
         LabelFormatElement(6, "Small Seven (5)", 5, LabelFormat.SmallSeven),
+        LabelFormatElement(7, "DryFruit Label Format", 3, LabelFormat.DryFruit),
       ];
     } else {
       labelFormats.value = [
@@ -663,6 +664,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
         ),
         LabelFormatElement(5, "Wholesale Pack", 10, LabelFormat.WholesalePack),
         LabelFormatElement(6, "Small Seven (5)", 5, LabelFormat.SmallSeven),
+        LabelFormatElement(7, "DryFruit Label Format", 3, LabelFormat.DryFruit),
       ];
     }
   }
@@ -852,6 +854,33 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     return attributes;
   }
 
+  List<Map<String, dynamic>> buildDryFruitLabelAttributes(
+    Map<String, dynamic>? labelFields,
+  ) {
+    if (labelFields == null || labelFields.isEmpty) return [];
+
+    const excludedKeys = {
+      "weight",
+      "gross weight",
+      "tare weight",
+      "sr no",
+      "sr no.",
+    };
+
+    final attributes = <Map<String, dynamic>>[];
+    labelFields.forEach((key, value) {
+      final normalizedKey = key.trim().toLowerCase();
+      final normalizedValue = value?.toString().trim() ?? "";
+      if (excludedKeys.contains(normalizedKey) || normalizedValue.isEmpty) {
+        return;
+      }
+
+      attributes.add({"key": key.trim(), "value": normalizedValue});
+    });
+
+    return attributes;
+  }
+
   Future<void> printOneSticker({
     required int stickerHeight,
     required int stickerWidth,
@@ -928,6 +957,23 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   }) async {
     print("printTeaLabel CALLED");
     await printTeaLabel(
+      barcodeString: barcodeString,
+      productName: productName,
+      noAttribute: noAttribute,
+      netweight: netweight,
+      labelFields: labelFields,
+    );
+  }
+
+  Future<void> printDryFruitSmallSticker({
+    required String barcodeString,
+    required String productName,
+    required int noAttribute,
+    required double netweight,
+    Map<String, dynamic>? labelFields,
+  }) async {
+    print("printDryFruitLabel CALLED");
+    await printDryFruitLabel(
       barcodeString: barcodeString,
       productName: productName,
       noAttribute: noAttribute,
@@ -1137,6 +1183,67 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
         };
         final result = await _invokeLabelPrintRepeated(
           "printTeaSticker",
+          payload,
+        );
+
+        print(result);
+      }
+    } catch (e) {
+      print("Error printing tea sticker: $e");
+    }
+  }
+
+  Future<void> printDryFruitLabel({
+    required String barcodeString,
+    required String productName,
+    required int noAttribute,
+    required double netweight,
+    Map<String, dynamic>? labelFields,
+  }) async {
+    try {
+      final companyData = companyDetails.value?.data;
+      final companyName = companyData?.name ?? "Majedar Tea Co.";
+      print("dynamic attributes ===========> ${jsonEncode(labelFields)}");
+      final dynamicAttributes = buildDryFruitLabelAttributes(labelFields);
+
+      print("label attributes ===========> ${jsonEncode(dynamicAttributes)}");
+      final firstAttribute = dynamicAttributes.isNotEmpty
+          ? dynamicAttributes.first
+          : const <String, dynamic>{};
+      final attributeLabel = (firstAttribute["key"]?.toString() ?? "").trim();
+      final attributeValue = (firstAttribute["value"]?.toString() ?? "").trim();
+
+      if (isLabelPrinterMode.value == false) {
+        bluetoothController.printReceipt(
+          companyName: companyName,
+          companyContact: buildCompanyInfoLines(companyData),
+          items: [
+            {"key": "Product", "value": productName},
+            ...dynamicAttributes,
+            {"key": "Gross Wt", "value": "${netweight.toStringAsFixed(3)} kg"},
+          ],
+          barcodeData: barcodeString,
+        );
+      } else {
+        final payload = {
+          "width": 600,
+          "height": 410,
+          "margin": 0,
+          "companyName": companyName,
+          "barcodeData": barcodeString,
+
+          /// ✅ Send clean 3 values
+          "productName": productName,
+          "grossWt": netweight.toStringAsFixed(3),
+          "attributeLabel": attributeLabel,
+          "description": attributeValue,
+          "attributes": dynamicAttributes,
+
+          "isWhiteLabel": isWhiteLabel.value,
+          "printTime": printTimeInLabel.value,
+        };
+        final result = await _invokeLabelPrintRepeated(
+          "printDryFruitSticker",
           payload,
         );
 
