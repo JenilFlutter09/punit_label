@@ -7,8 +7,9 @@ import 'package:intl/intl.dart';
 import 'package:punit_label/constants/utility.dart';
 import 'package:punit_label/features/inward/batchWise/models/batchDetails.dart';
 import 'package:punit_label/features/inward/batchWise/models/batchInwardModel.dart';
+import 'package:punit_label/features/label_preview/models/static_label_preview_models.dart';
+import 'package:punit_label/features/label_preview/widgets/static_label_preview_dialog.dart';
 import 'package:punit_label/features/label_template/models/label_template_models.dart';
-import 'package:punit_label/features/label_template/widgets/runtime_label_preview_dialog.dart';
 import 'package:punit_label/features/tare/tareListModel.dart';
 import 'package:punit_label/widgets/searchableDropdown.dart';
 
@@ -19,6 +20,8 @@ import '../../../widgets/pdfExcel.dart';
 import '../../dashboard/dashboardController.dart';
 
 class BatchInwardController extends GetxController {
+  static const String customLabelSelection = 'Custom';
+
   var initLoading = false.obs;
   Rx<InwardState> inwardState = InwardState.idle.obs;
   ConnectHelper connectHelper = ConnectHelper();
@@ -39,6 +42,7 @@ class BatchInwardController extends GetxController {
       <LabelTemplateOption>[].obs;
   final Rxn<LabelTemplateOption> selectedLabelTemplateOption =
       Rxn<LabelTemplateOption>();
+  final RxString selectedCustomTemplateOptionName = ''.obs;
   final RxString selectedLabelSize = '75x75'.obs;
   final RxBool isTemplateOptionsLoading = false.obs;
   Rxn<LabelFormatElement> selectedLabelFormatObj = Rxn<LabelFormatElement>();
@@ -50,6 +54,16 @@ class BatchInwardController extends GetxController {
   var selectedModelProduct = Rxn<Products>();
   RuntimeLabelTemplateData? _cachedRuntimeTemplate;
   String? _cachedRuntimeTemplateKey;
+
+  void _syncSelectedProductTare() {
+    final tareValue =
+        dashboardController.tareState.value == TareState.off
+        ? '0'
+        : (selectedModelProduct.value?.tareWeight.toString() ?? '0');
+    manualCtrl.manualTare.value = tareValue;
+    manualCtrl.tareCtrl.text = tareValue;
+    manualCtrl.calculateManualNet();
+  }
 
   String _formatConvertedUnits(double value) {
     final formatted = value.toStringAsFixed(2);
@@ -123,20 +137,13 @@ class BatchInwardController extends GetxController {
       selectedModuleProduct.value = dropdownProducts.first;
       selectedModelProduct.value = batchModel.value?.data?.products?.first;
       isBatchAutoWeightEnabled.value = dropdownProducts.first.autoWeight;
-      manualCtrl.manualTare.value = selectedModelProduct.value?.tareWeight
-          .toString();
-      manualCtrl.tareCtrl.text =
-          selectedModelProduct.value?.tareWeight.toString() ?? '0';
-      await _loadLabelTemplateOptionsForSelectedProduct(
-        preferIdentifier:
-            selectedModelProduct.value?.selectedTemplateIdentifier,
-      );
+      _syncSelectedProductTare();
+      await _loadLabelTemplateOptionsForSelectedProduct();
     } else {
       selectedModuleProduct.value = null;
       selectedModelProduct.value = null;
       labelTemplateOptions.clear();
-      selectedLabelTemplateOption.value = null;
-      selectedLabelFormat.value = '';
+      _clearLabelSelection();
     }
     if (batchModel.value?.data?.isPaused == true) {
       inwardState.value = InwardState.paused;
@@ -170,18 +177,13 @@ class BatchInwardController extends GetxController {
       unitConversion: product.unitConversion ?? false,
       unitValue: double.parse(product.unit ?? '0'),
     );
-    manualCtrl.manualTare.value = selectedModelProduct.value?.tareWeight
-        .toString();
-    manualCtrl.tareCtrl.text =
-        selectedModelProduct.value?.tareWeight.toString() ?? '0';
+    _syncSelectedProductTare();
 
     continuousOutOfRangeSeconds = 0;
     autoWeightTimer?.cancel();
     isBatchAutoWeightEnabled.value =
         selectedModuleProduct.value?.autoWeight ?? false;
-    await _loadLabelTemplateOptionsForSelectedProduct(
-      preferIdentifier: product.selectedTemplateIdentifier,
-    );
+    await _loadLabelTemplateOptionsForSelectedProduct();
     if (inwardState.value == InwardState.running) {
       _startAutoWeightMonitor();
     }
@@ -190,85 +192,39 @@ class BatchInwardController extends GetxController {
   Future<void> changeLabelSize(String labelSize) async {
     selectedLabelSize.value = labelSize;
     _clearRuntimeTemplateCache();
-    await _loadLabelTemplateOptionsForSelectedProduct(
-      preferIdentifier: selectedModelProduct.value?.selectedTemplateIdentifier,
-    );
   }
 
-  void selectLabelTemplateOptionByName(String optionName) {
-    final option = labelTemplateOptions.firstWhereOrNull(
-      (item) => item.name == optionName,
-    );
-    _applySelectedLabelTemplateOption(option);
+  void selectPrimaryLabelFormat(String optionName) {
+    selectedLabelFormat.value = optionName;
+    final existingFormat =
+        dashboardController.labelFormats.firstWhereOrNull(
+          (item) => item.nameOfLabel == optionName,
+        ) ??
+        dashboardController.resolveExistingLabelFormat();
+    selectedLabelFormatObj.value = existingFormat;
+    selectedLabelTemplateOption.value = null;
+    selectedCustomTemplateOptionName.value = '';
     _clearRuntimeTemplateCache();
   }
 
-  Future<void> _loadLabelTemplateOptionsForSelectedProduct({
-    String? preferIdentifier,
-  }) async {
+  Future<void> _loadLabelTemplateOptionsForSelectedProduct() async {
     final batchProductId = selectedModelProduct.value?.batchProductId;
     if (batchProductId == null) {
       labelTemplateOptions.clear();
-      _applySelectedLabelTemplateOption(null);
+      _clearLabelSelection();
       return;
     }
 
-    try {
-      isTemplateOptionsLoading.value = true;
-      final response = await connectHelper.getLabelTemplateOptions(
-        batchProductId: batchProductId,
-        labelSize: selectedLabelSize.value,
-      );
-      labelTemplateOptions.assignAll(response.data?.options ?? const []);
-
-      final preferredOption = _resolvePreferredTemplateOption(
-        preferIdentifier: preferIdentifier,
-      );
-      _applySelectedLabelTemplateOption(preferredOption);
-      _clearRuntimeTemplateCache();
-    } catch (error) {
-      labelTemplateOptions.clear();
-      _applySelectedLabelTemplateOption(null);
-      if (error is ResponseModel) {
-        Utility.showApiErrorSnackbar(error);
-      } else {
-        Utility.showCustomApiErrorSnackBar(
-          title: 'Template Options',
-          body: 'Failed to load label format options.',
-        );
-      }
-    } finally {
-      isTemplateOptionsLoading.value = false;
-    }
+    labelTemplateOptions.clear();
+    _applyExistingOnlySelection();
+    _clearRuntimeTemplateCache();
   }
 
-  LabelTemplateOption? _resolvePreferredTemplateOption({
-    String? preferIdentifier,
-  }) {
-    if (labelTemplateOptions.isEmpty) return null;
-
-    final normalizedIdentifier = preferIdentifier?.trim();
-    if (normalizedIdentifier != null && normalizedIdentifier.isNotEmpty) {
-      final matched = labelTemplateOptions.firstWhereOrNull(
-        (option) => option.id == normalizedIdentifier,
-      );
-      if (matched != null) {
-        return matched;
-      }
-    }
-
-    return labelTemplateOptions.firstWhereOrNull(
-          (option) => option.isDefault,
-        ) ??
-        labelTemplateOptions.first;
-  }
-
-  void _applySelectedLabelTemplateOption(LabelTemplateOption? option) {
-    selectedLabelTemplateOption.value = option;
-    selectedLabelFormat.value = option?.name ?? '';
-    selectedLabelFormatObj.value = option?.isExisting == true
-        ? dashboardController.resolveExistingLabelFormat(optionId: option?.id)
-        : null;
+  void _clearLabelSelection() {
+    selectedLabelTemplateOption.value = null;
+    selectedLabelFormatObj.value = null;
+    selectedLabelFormat.value = '';
+    selectedCustomTemplateOptionName.value = '';
   }
 
   void _clearRuntimeTemplateCache() {
@@ -276,8 +232,30 @@ class BatchInwardController extends GetxController {
     _cachedRuntimeTemplateKey = null;
   }
 
+  void _applyExistingOnlySelection() {
+    final existingFormat = dashboardController.resolveExistingLabelFormat(
+      optionId:
+          selectedLabelFormatObj.value?.id.toString() ??
+          selectedModelProduct.value?.labelId,
+    );
+    selectedLabelFormat.value = existingFormat.nameOfLabel;
+    selectedLabelFormatObj.value = existingFormat;
+    selectedLabelTemplateOption.value = null;
+    selectedCustomTemplateOptionName.value = '';
+  }
+
   bool get isCustomTemplateSelected =>
-      selectedLabelTemplateOption.value?.isCustom == true;
+      selectedLabelFormat.value == customLabelSelection;
+
+  List<String> get primaryLabelFormatOptions {
+    final options = <String>[];
+    for (final format in dashboardController.labelFormats) {
+      if (!options.contains(format.nameOfLabel)) {
+        options.add(format.nameOfLabel);
+      }
+    }
+    return options;
+  }
 
   Map<String, String> _buildRuntimeAttributeValues(
     List<Combinations> combinations,
@@ -288,7 +266,7 @@ class BatchInwardController extends GetxController {
       final name = item.attrName?.trim() ?? '';
       final value = item.attrValue?.trim() ?? '';
       if (name.isEmpty || value.isEmpty) continue;
-      values[_runtimeAttributeFieldKey(name)] = value;
+      values[_runtimeAttributeFieldKey(name)] = '$name: $value';
     }
     return values;
   }
@@ -723,9 +701,8 @@ class BatchInwardController extends GetxController {
       inwardState.value = InwardState.running;
     }
     final combinations = fetchedProduct?.combinations ?? [];
-    final selectedTemplateOption = selectedLabelTemplateOption.value;
 
-    if (selectedTemplateOption?.isCustom == true) {
+    if (isCustomTemplateSelected) {
       await _printCustomTemplateLabel(
         productName: product.name,
         barcodeString: barcodeString,
@@ -761,30 +738,28 @@ class BatchInwardController extends GetxController {
     // };
     Map<String, String> manualGTNFields = {};
     Map<String, String> manualNFields = {};
-    if(selectedLabelFormatObj.value == LabelFormat.DryFruit){
+    if (selectedLabelFormatObj.value == LabelFormat.DryFruit) {
       manualGTNFields = {
         "Gross Weight":
-        "${double.tryParse(manualCtrl.manualGross.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+            "${double.tryParse(manualCtrl.manualGross.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
         "Tare Weight":
-        "${double.tryParse(manualCtrl.manualTare.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+            "${double.tryParse(manualCtrl.manualTare.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
         "Net Weight":
-        "${double.tryParse(manualCtrl.manualNet.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+            "${double.tryParse(manualCtrl.manualNet.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
       };
 
       manualNFields = {
         "Net Weight":
-        "${double.tryParse(manualCtrl.manualNet.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+            "${double.tryParse(manualCtrl.manualNet.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
       };
-    }else {
+    } else {
       manualGTNFields = {
         "Gross Weight": manualCtrl.manualGross.value ?? '0',
         "Tare Weight": manualCtrl.manualTare.value ?? '0',
         "Net Weight": manualCtrl.manualNet.value ?? '0',
       };
 
-      manualNFields = {
-        "Net Weight": manualCtrl.manualNet.value ?? '0',
-      };
+      manualNFields = {"Net Weight": manualCtrl.manualNet.value ?? '0'};
     }
     final Map<String, String> unitFields = product.unitConversion
         ? {"Units": _formatConvertedUnits(convertedUnits)}
@@ -798,7 +773,9 @@ class BatchInwardController extends GetxController {
         selectedLabelFormatObj.value?.id ??
         dashboardController
             .resolveExistingLabelFormat(
-              optionId: selectedLabelTemplateOption.value?.id,
+              optionId:
+                  selectedLabelTemplateOption.value?.id ??
+                  selectedLabelFormatObj.value?.id.toString(),
               fallbackId:
                   int.tryParse(selectedModelProduct.value?.labelId ?? '3') ?? 3,
             )
@@ -1037,86 +1014,178 @@ class BatchInwardController extends GetxController {
     );
   }
 
-  Future<void> previewCurrentLabel(BuildContext context) async {
-    if (!isCustomTemplateSelected) {
-      Utility.showCustomApiErrorSnackBar(
-        title: 'Preview',
-        body: 'Preview is currently available for custom label templates.',
-      );
-      return;
-    }
-
+  StaticLabelPreviewData? _buildExistingLabelPreviewData() {
     final product = selectedModuleProduct.value;
     final selected = selectedModelProduct.value;
-    if (product == null || selected == null) {
+    if (product == null || selected == null) return null;
+
+    final combinationFields = {
+      for (final c in selected.combinations ?? const <Combinations>[])
+        if (c.isPrintable.value) c.attrName ?? '': c.attrValue ?? '',
+    };
+
+    Map<String, String> manualGTNFields = {};
+    Map<String, String> manualNFields = {};
+    final selectedFormat =
+        selectedLabelFormatObj.value?.labelFormat ?? LabelFormat.Large;
+
+    if (selectedFormat == LabelFormat.DryFruit) {
+      manualGTNFields = {
+        'Gross Weight':
+            "${double.tryParse(manualCtrl.manualGross.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+        'Tare Weight':
+            "${double.tryParse(manualCtrl.manualTare.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+        'Net Weight':
+            "${double.tryParse(manualCtrl.manualNet.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+      };
+      manualNFields = {
+        'Net Weight':
+            "${double.tryParse(manualCtrl.manualNet.value ?? '0')?.toStringAsFixed(3) ?? '0.000'} Kg",
+      };
+    } else {
+      manualGTNFields = {
+        'Gross Weight': manualCtrl.manualGross.value ?? '0',
+        'Tare Weight': manualCtrl.manualTare.value ?? '0',
+        'Net Weight': manualCtrl.manualNet.value ?? '0',
+      };
+      manualNFields = {'Net Weight': manualCtrl.manualNet.value ?? '0'};
+    }
+
+    final unitFields = (product.unitConversion)
+        ? {
+            'Units': _formatConvertedUnits(
+              (Utility.toDouble(manualCtrl.manualNet.value ?? '0') ?? 0) *
+                  product.unitValue,
+            ),
+          }
+        : <String, String>{};
+
+    Map<String, dynamic> labelFields = isTareWeightOff.value
+        ? {...combinationFields, ...manualNFields}
+        : {...combinationFields, ...manualGTNFields};
+
+    final previewSerial =
+        serialNumber.value +
+        productList.where((item) => item.batchProductId == product.id).length;
+    if (dashboardController.printSerialNumberInLabel.value) {
+      labelFields = {'Sr No ': previewSerial.toString(), ...labelFields};
+    }
+
+    final barcodeString = Utility.generateBarcode(id: previewSerial);
+    final noAttr = labelFields.length;
+
+    switch (selectedFormat) {
+      case LabelFormat.Small:
+        return dashboardController.buildGenericStaticLabelPreview(
+          format: selectedFormat,
+          width: 600,
+          height: 410,
+          isGrid: noAttr > 1,
+          productName: product.name,
+          barcodeString: barcodeString,
+          labelFields: labelFields,
+          layout: dashboardController.smallLabelLayout,
+        );
+      case LabelFormat.Medium:
+        return dashboardController.buildGenericStaticLabelPreview(
+          format: selectedFormat,
+          width: 600,
+          height: 600,
+          isGrid: noAttr > 5,
+          productName: product.name,
+          barcodeString: barcodeString,
+          labelFields: labelFields,
+          layout: dashboardController.largeLabelLayout,
+        );
+      case LabelFormat.Large:
+        return dashboardController.buildGenericStaticLabelPreview(
+          format: selectedFormat,
+          width: 700,
+          height: 600,
+          isGrid: noAttr > 5,
+          productName: product.name,
+          barcodeString: barcodeString,
+          labelFields: labelFields,
+          layout: dashboardController.largeLabelLayout,
+        );
+      case LabelFormat.ExtraLarge:
+        return dashboardController.buildGenericStaticLabelPreview(
+          format: selectedFormat,
+          width: 700,
+          height: 700,
+          isGrid: noAttr > 5,
+          productName: product.name,
+          barcodeString: barcodeString,
+          labelFields: labelFields,
+          layout: dashboardController.largeLabelLayout,
+        );
+      case LabelFormat.WholesalePack:
+        final wholesaleFields = <String, dynamic>{};
+        if (labelFields.containsKey('Sr No ')) {
+          wholesaleFields['Sr No '] = labelFields['Sr No '];
+        }
+        wholesaleFields.addAll(combinationFields);
+        wholesaleFields['Gross Weight'] = manualCtrl.manualGross.value ?? '0';
+        return dashboardController.buildGenericStaticLabelPreview(
+          format: selectedFormat,
+          width: 700,
+          height: 1200,
+          isGrid: false,
+          productName: product.name,
+          barcodeString: barcodeString,
+          labelFields: wholesaleFields,
+          layout: dashboardController.wholesalePackLayout,
+          businessHours: 'On working day 11:00AM - 6:00PM',
+        );
+      case LabelFormat.MajedarTea:
+        return dashboardController.buildTeaStaticLabelPreview(
+          productName: product.name,
+          barcodeString: barcodeString,
+          grossWeight: double.parse(
+            manualCtrl.manualNet.value ?? '0.0',
+          ).toStringAsFixed(3),
+          labelFields: labelFields,
+        );
+      case LabelFormat.DryFruit:
+        return dashboardController.buildDryFruitStaticLabelPreview(
+          productName: product.name,
+          barcodeString: barcodeString,
+          grossWeight: double.parse(
+            manualCtrl.manualNet.value ?? '0.0',
+          ).toStringAsFixed(3),
+          labelFields: labelFields,
+        );
+      case LabelFormat.SmallSeven:
+        Map<String, dynamic> smallSevenFields = Map<String, dynamic>.from(
+          labelFields,
+        );
+        if (unitFields.isNotEmpty) {
+          final serialValue = smallSevenFields.remove('Sr No ');
+          smallSevenFields = {
+            if (serialValue != null) 'Sr No ': serialValue,
+            ...combinationFields,
+            ...unitFields,
+            if (isTareWeightOff.value) ...manualNFields else ...manualGTNFields,
+          };
+        }
+        return dashboardController.buildSmallSevenStaticLabelPreview(
+          productName: product.name,
+          barcodeString: barcodeString,
+          labelFields: smallSevenFields,
+        );
+    }
+  }
+
+  Future<void> previewCurrentLabel(BuildContext context) async {
+    final previewData = _buildExistingLabelPreviewData();
+    if (previewData == null) {
       Utility.showCustomApiErrorSnackBar(
         title: 'Preview',
         body: 'Select a product before opening label preview.',
       );
       return;
     }
-
-    final runtimeTemplate = await _getRuntimeTemplateForSelectedProduct();
-    if (runtimeTemplate == null || !runtimeTemplate.isCustom) {
-      Utility.showCustomApiErrorSnackBar(
-        title: 'Preview',
-        body: 'Custom runtime template is not available for preview.',
-      );
-      return;
-    }
-
-    final existingCount = productList
-        .where((item) => item.batchProductId == product.id)
-        .length;
-    final previewSerial = serialNumber.value + existingCount;
-    final barcodeString = Utility.generateBarcode(id: previewSerial);
-    final grossWeight =
-        Utility.toDouble(manualCtrl.manualGross.value ?? '0') ?? 0;
-    final tareWeight =
-        Utility.toDouble(
-          isTareWeightOff.value ? '0' : manualCtrl.manualTare.value ?? '0',
-        ) ??
-        0;
-    final netWeight = Utility.toDouble(manualCtrl.manualNet.value ?? '0') ?? 0;
-    final printedAt = Utility.nowWithoutSeconds();
-    final attributes = (selected.combinations ?? [])
-        .where((item) => item.isPrintable.value)
-        .map(
-          (item) => PrintableAttributeEntry(
-            name: item.attrName ?? '',
-            value: item.attrValue ?? '',
-          ),
-        )
-        .where(
-          (item) => item.name.trim().isNotEmpty && item.value.trim().isNotEmpty,
-        )
-        .toList();
-    final attributeValues = _buildRuntimeAttributeValues(
-      selected.combinations ?? const [],
-    );
-    final useExplicitAttributeFields = _templateHasExplicitAttributeFields(
-      runtimeTemplate,
-    );
-
-    final fields = dashboardController.buildResolvedRuntimePreviewFields(
-      runtimeData: runtimeTemplate,
-      productName: product.name,
-      grossWeight: grossWeight,
-      tareWeight: tareWeight,
-      netWeight: netWeight,
-      barcodeString: barcodeString,
-      serialNumber: previewSerial.toString(),
-      printedAt: printedAt,
-      attributeValues: attributeValues,
-    );
-
-    await showRuntimeLabelPreviewDialog(
-      context: context,
-      title: 'Label Preview',
-      labelSize: selectedLabelSize.value,
-      fields: fields,
-      attributes: useExplicitAttributeFields ? const [] : attributes,
-    );
+    await showStaticLabelPreviewDialog(context: context, data: previewData);
   }
 
   Future<void> onTapStop() async {

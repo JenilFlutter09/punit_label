@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:barcode_widget/barcode_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:punit_label/features/label_template/models/label_template_models.dart';
 
@@ -46,38 +47,62 @@ Future<void> showRuntimeLabelPreviewDialog({
                 ),
                 const SizedBox(height: 16),
                 Expanded(
-                  child: Center(
-                    child: AspectRatio(
-                      aspectRatio: _labelAspectRatio(labelSize),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: Colors.grey.shade400),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x11000000),
-                              blurRadius: 18,
-                              offset: Offset(0, 8),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final labelMm = _labelMm(labelSize);
+                      final safeWidth = math.max(
+                        120.0,
+                        constraints.maxWidth - 8,
+                      );
+                      final safeHeight = math.max(
+                        120.0,
+                        constraints.maxHeight - 8,
+                      );
+                      final widthDrivenScale = safeWidth / labelMm.$1;
+                      final heightDrivenScale = safeHeight / labelMm.$2;
+                      final scalePxPerMm = math.min(
+                        widthDrivenScale,
+                        heightDrivenScale,
+                      );
+                      final designWidth = labelMm.$1 * scalePxPerMm;
+                      final designHeight = labelMm.$2 * scalePxPerMm;
+
+                      return Align(
+                        alignment: Alignment.topCenter,
+                        child: InteractiveViewer(
+                          minScale: 0.75,
+                          maxScale: 4,
+                          constrained: true,
+                          child: Container(
+                            width: designWidth,
+                            height: designHeight,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: Colors.grey.shade400),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x11000000),
+                                  blurRadius: 18,
+                                  offset: Offset(0, 8),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              return _RuntimeLabelPreviewCanvas(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(18),
+                              child: _RuntimeLabelPreviewCanvas(
                                 labelSize: labelSize,
-                                width: constraints.maxWidth,
-                                height: constraints.maxHeight,
+                                width: designWidth,
+                                height: designHeight,
+                                scalePxPerMm: scalePxPerMm,
                                 fields: fields,
                                 attributes: attributes,
-                              );
-                            },
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -94,6 +119,7 @@ class _RuntimeLabelPreviewCanvas extends StatelessWidget {
     required this.labelSize,
     required this.width,
     required this.height,
+    required this.scalePxPerMm,
     required this.fields,
     required this.attributes,
   });
@@ -101,6 +127,7 @@ class _RuntimeLabelPreviewCanvas extends StatelessWidget {
   final String labelSize;
   final double width;
   final double height;
+  final double scalePxPerMm;
   final List<ResolvedPrintField> fields;
   final List<PrintableAttributeEntry> attributes;
 
@@ -236,18 +263,36 @@ class _RuntimeLabelPreviewCanvas extends StatelessWidget {
   }
 
   Widget _buildTextField(ResolvedPrintField field, (double, double) labelMm) {
+    final isAttributeField = field.fieldKey.trim().toLowerCase().startsWith(
+      'attr_',
+    );
+    final fieldWidth = math.max(_mmToPxX(field.w, labelMm.$1), 40).toDouble();
+    final fieldHeight = math.max(_mmToPxY(field.h, labelMm.$2), 16).toDouble();
+    final fieldLeft = _mmToPxX(field.x, labelMm.$1);
+    final previewWidth = isAttributeField
+        ? math.max(width - fieldLeft - 4, fieldWidth).toDouble()
+        : fieldWidth;
+
     return Positioned(
-      left: _mmToPxX(field.x, labelMm.$1),
+      left: fieldLeft,
       top: _mmToPxY(field.y, labelMm.$2),
-      width: math.max(_mmToPxX(field.w, labelMm.$1), 40),
-      height: math.max(_mmToPxY(field.h, labelMm.$2), 16),
-      child: Text(
-        field.value,
-        maxLines: _lineCount(field, labelMm.$2),
-        overflow: TextOverflow.clip,
-        softWrap: true,
-        style: _textStyle(field),
-      ),
+      width: previewWidth,
+      height: fieldHeight,
+      child: isAttributeField
+          ? Text(
+              field.value,
+              maxLines: 1,
+              overflow: TextOverflow.visible,
+              softWrap: false,
+              style: _textStyle(field),
+            )
+          : Text(
+              field.value,
+              maxLines: _lineCount(field, labelMm.$2),
+              overflow: TextOverflow.clip,
+              softWrap: true,
+              style: _textStyle(field),
+            ),
     );
   }
 
@@ -271,7 +316,8 @@ class _RuntimeLabelPreviewCanvas extends StatelessWidget {
   }
 
   double _fontPx(double value) {
-    return math.max(8, value * (math.min(width, height) / 120));
+    final printerLikeScale = math.min(width, height) / 240.0;
+    return math.max(6, value * printerLikeScale);
   }
 
   double _mmToPxX(double mm, double labelWidthMm) {
@@ -329,52 +375,22 @@ class _BarcodePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(painter: _BarcodePainter(value), child: Container());
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return BarcodeWidget(
+          barcode: Barcode.code128(),
+          data: value,
+          drawText: false,
+          color: Colors.black,
+          backgroundColor: Colors.transparent,
+          margin: EdgeInsets.zero,
+          padding: EdgeInsets.zero,
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+        );
+      },
+    );
   }
-}
-
-class _BarcodePainter extends CustomPainter {
-  _BarcodePainter(this.value);
-
-  final String value;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.black;
-    double x = 0;
-    final bars = value.codeUnits.fold<List<int>>([], (list, code) {
-      final widths = <int>[
-        1 + (code % 3),
-        1 + ((code >> 2) % 2),
-        2 + ((code >> 3) % 3),
-      ];
-      list.addAll(widths);
-      return list;
-    });
-
-    for (var i = 0; i < bars.length; i++) {
-      final barWidth = math.max(
-        1.0,
-        size.width / (bars.length * 1.8) * bars[i],
-      );
-      final isBar = i.isEven;
-      if (isBar) {
-        canvas.drawRect(Rect.fromLTWH(x, 0, barWidth, size.height), paint);
-      }
-      x += barWidth;
-      if (x >= size.width) break;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _BarcodePainter oldDelegate) {
-    return oldDelegate.value != value;
-  }
-}
-
-double _labelAspectRatio(String labelSize) {
-  final label = _labelMm(labelSize);
-  return label.$1 / label.$2;
 }
 
 (double, double) _labelMm(String labelSize) {

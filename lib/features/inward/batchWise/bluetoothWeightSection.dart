@@ -29,7 +29,6 @@ class BluetoothWeightSection extends StatelessWidget {
       final isBluetoothConnected =
           dashboardController.isWeightScaleConnected.value &&
           (dashboardController.connectedDevice.value != null ||
-              dashboardController.isUniversalBleScaleConnected.value ||
               dashboardController.isExperimentalScaleConnected.value);
 
       return Column(
@@ -351,7 +350,7 @@ class NetWeightDisplayCard extends StatelessWidget {
                         /// 🔵 DISPLAY MODE
                         else
                           Text(
-                            _netWeightValue.toStringAsFixed(2),
+                            _netWeightValue.toStringAsFixed(3),
                             style: TextStyle(
                               fontSize: isTablet ? 34 : 28,
                               fontWeight: FontWeight.w900,
@@ -577,7 +576,6 @@ class NetWeightDisplayCard extends StatelessWidget {
         Obx(() {
           final isBluetoothConnected = dashboardController.isWeightScaleConnected.value &&
               (dashboardController.connectedDevice.value != null ||
-                  dashboardController.isUniversalBleScaleConnected.value ||
                   dashboardController.isExperimentalScaleConnected.value);
 
           final tareState = dashboardController.tareState.value;

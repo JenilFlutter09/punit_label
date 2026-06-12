@@ -13,6 +13,7 @@ import 'package:punit_label/constants/enums.dart';
 import 'package:punit_label/constants/utility.dart';
 import 'package:punit_label/features/bluetooth_test/classic_serial_scale_test_sheet.dart';
 import 'package:punit_label/features/dashboard/dashboardModel.dart';
+import 'package:punit_label/features/label_preview/models/static_label_preview_models.dart';
 import 'package:punit_label/features/label_template/models/label_template_models.dart';
 import 'package:punit_label/features/login/loginmodel.dart';
 
@@ -36,11 +37,11 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   var isLabelPrinterMode = true.obs;
   var isTowerLight = false.obs;
   var isWeightScaleConnected = false.obs;
-  var isUniversalBleScaleConnected = false.obs;
   var isExperimentalScaleConnected = false.obs;
   ConnectHelper connectHelper = ConnectHelper();
   var isPrinterConnected = false.obs;
   final Map<String, StreamSubscription<List<int>>> _charSubs = {};
+  StreamSubscription<BluetoothConnectionState>? _scaleConnectionSub;
   var scanResults = <ScanResult>[].obs;
   Rx<TareState> tareState = TareState.on.obs;
   Rx<LabelState> labelState = LabelState.Label.obs;
@@ -90,9 +91,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
 
   RxList<LabelFormatElement> labelFormats = <LabelFormatElement>[].obs;
   bool get isAnyScaleConnected =>
-      isWeightScaleConnected.value ||
-      isUniversalBleScaleConnected.value ||
-      isExperimentalScaleConnected.value;
+      isWeightScaleConnected.value || isExperimentalScaleConnected.value;
 
   bool get isActivePrinterConnected => isLabelPrinterMode.value
       ? isPrinterConnected.value
@@ -378,6 +377,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
     _cancelAllCharSubs();
+    _cancelScaleConnectionSub();
     for (final worker in _settingsWorkers) {
       worker.dispose();
     }
@@ -693,6 +693,27 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     if (isPrinterConnected.value) {
       checkPrinterStatus();
     }
+  }
+
+  Future<void> _cancelScaleConnectionSub() async {
+    try {
+      await _scaleConnectionSub?.cancel();
+    } catch (_) {}
+    _scaleConnectionSub = null;
+  }
+
+  void _handleBleScaleDisconnected(BluetoothDevice device) {
+    final current = connectedDevice.value;
+    if (current == null || current.remoteId != device.remoteId) {
+      return;
+    }
+
+    connectedDevice.value = null;
+    isWeightScaleConnected.value = false;
+    isExperimentalScaleConnected.value = false;
+    receivedData.value = '';
+    unawaited(_cancelAllCharSubs());
+    unawaited(_cancelScaleConnectionSub());
   }
 
   Future<void> getUserDetails() async {
@@ -1018,6 +1039,10 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
 
   RuntimeLabelDimensions _runtimeTemplateDimensions(String labelSize) {
     switch (labelSize.trim()) {
+      case '50x75':
+        return const RuntimeLabelDimensions(width: 410, height: 600);
+      case '75x100':
+        return const RuntimeLabelDimensions(width: 700, height: 600);
       case '100x100':
         return const RuntimeLabelDimensions(width: 700, height: 700);
       case '75x75':
@@ -1074,6 +1099,226 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     });
 
     return attributes;
+  }
+
+  StaticLabelPreviewData buildGenericStaticLabelPreview({
+    required LabelFormat format,
+    required int width,
+    required int height,
+    required bool isGrid,
+    required String productName,
+    required String barcodeString,
+    Map<String, dynamic>? labelFields,
+    required LabelLayout layout,
+    String businessHours = '',
+  }) {
+    final companyData = companyDetails.value?.data;
+    final attributes = <StaticLabelPreviewAttribute>[];
+    labelFields?.forEach((key, value) {
+      final normalizedValue = value?.toString().trim() ?? '';
+      if (normalizedValue.isEmpty) return;
+      attributes.add(
+        StaticLabelPreviewAttribute(key: key.trim(), value: normalizedValue),
+      );
+    });
+
+    final serialNumber = printSerialNumberInLabel.value
+        ? ((labelFields?['Sr No '] ?? labelFields?['Sr No'])
+                  ?.toString()
+                  .trim() ??
+              '')
+        : '';
+
+    return StaticLabelPreviewData(
+      format: format,
+      width: width,
+      height: height,
+      isWhiteLabel: isWhiteLabel.value,
+      printTime: printTimeInLabel.value,
+      printSerialNumber: printSerialNumberInLabel.value,
+      isGrid: isGrid,
+      companyName: companyData?.name ?? '',
+      companyInfoLines: buildCompanyInfoLines(companyData),
+      address: companyData?.address?.trim() ?? '',
+      phone: companyData?.contactNo?.trim() ?? '',
+      email: companyData?.email?.trim() ?? '',
+      productName: productName,
+      barcodeData: barcodeString,
+      serialNumber: serialNumber,
+      footerText: 'Label generated from weighing ERP by punitinstrument.com',
+      businessHours: businessHours,
+      attributeLabel: '',
+      description: '',
+      grossWeight: '',
+      previewedAt: Utility.nowWithoutSeconds(),
+      layout: _toStaticPreviewLayout(layout),
+      attributes: attributes,
+    );
+  }
+
+  StaticLabelPreviewData buildSmallSevenStaticLabelPreview({
+    required String productName,
+    required String barcodeString,
+    Map<String, dynamic>? labelFields,
+  }) {
+    final companyData = companyDetails.value?.data;
+    final serialNumber = printSerialNumberInLabel.value
+        ? ((labelFields?['Sr No '] ?? labelFields?['Sr No'])
+                  ?.toString()
+                  .trim() ??
+              '')
+        : '';
+
+    return StaticLabelPreviewData(
+      format: LabelFormat.SmallSeven,
+      width: 600,
+      height: 410,
+      isWhiteLabel: isWhiteLabel.value,
+      printTime: printTimeInLabel.value,
+      printSerialNumber: printSerialNumberInLabel.value,
+      isGrid: false,
+      companyName: companyData?.name ?? '',
+      companyInfoLines: buildCompanyInfoLines(companyData),
+      address: companyData?.address?.trim() ?? '',
+      phone: companyData?.contactNo?.trim() ?? '',
+      email: companyData?.email?.trim() ?? '',
+      productName: productName,
+      barcodeData: barcodeString,
+      serialNumber: serialNumber,
+      footerText: '',
+      businessHours: '',
+      attributeLabel: '',
+      description: '',
+      grossWeight: '',
+      previewedAt: Utility.nowWithoutSeconds(),
+      layout: _toStaticPreviewLayout(smallSevenLabelLayout),
+      attributes: buildSmallSevenLabelAttributes(labelFields)
+          .map(
+            (item) => StaticLabelPreviewAttribute(
+              key: item['key']?.toString() ?? '',
+              value: item['value']?.toString() ?? '',
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  StaticLabelPreviewData buildTeaStaticLabelPreview({
+    required String productName,
+    required String barcodeString,
+    required String grossWeight,
+    Map<String, dynamic>? labelFields,
+  }) {
+    const ignoredKeys = {
+      'sr no',
+      'gross weight',
+      'tare weight',
+      'net weight',
+      'weight',
+    };
+
+    final companyData = companyDetails.value?.data;
+    String attributeLabel = '';
+    String attributeValue = '';
+
+    labelFields?.forEach((key, value) {
+      if (attributeLabel.isNotEmpty) return;
+      final normalizedKey = key.trim().toLowerCase();
+      final normalizedValue = value.toString().trim();
+      if (normalizedValue.isEmpty || ignoredKeys.contains(normalizedKey)) {
+        return;
+      }
+      attributeLabel = key.trim();
+      attributeValue = normalizedValue;
+    });
+
+    return StaticLabelPreviewData(
+      format: LabelFormat.MajedarTea,
+      width: 600,
+      height: 410,
+      isWhiteLabel: isWhiteLabel.value,
+      printTime: printTimeInLabel.value,
+      printSerialNumber: printSerialNumberInLabel.value,
+      isGrid: false,
+      companyName: companyData?.name ?? 'Majedar Tea Co.',
+      companyInfoLines: buildCompanyInfoLines(companyData),
+      address: companyData?.address?.trim() ?? '',
+      phone: companyData?.contactNo?.trim() ?? '',
+      email: companyData?.email?.trim() ?? '',
+      productName: productName,
+      barcodeData: barcodeString,
+      serialNumber: '',
+      footerText: '',
+      businessHours: '',
+      attributeLabel: attributeLabel,
+      description: attributeValue,
+      grossWeight: grossWeight,
+      previewedAt: Utility.nowWithoutSeconds(),
+      layout: null,
+      attributes: const [],
+    );
+  }
+
+  StaticLabelPreviewData buildDryFruitStaticLabelPreview({
+    required String productName,
+    required String barcodeString,
+    required String grossWeight,
+    Map<String, dynamic>? labelFields,
+  }) {
+    final companyData = companyDetails.value?.data;
+    final attrs = buildDryFruitLabelAttributes(labelFields)
+        .map(
+          (item) => StaticLabelPreviewAttribute(
+            key: item['key']?.toString() ?? '',
+            value: item['value']?.toString() ?? '',
+          ),
+        )
+        .toList();
+
+    String attributeLabel = '';
+    String attributeValue = '';
+    if (attrs.isNotEmpty) {
+      attributeLabel = attrs.first.key;
+      attributeValue = attrs.first.value;
+    }
+
+    return StaticLabelPreviewData(
+      format: LabelFormat.DryFruit,
+      width: 600,
+      height: 410,
+      isWhiteLabel: isWhiteLabel.value,
+      printTime: printTimeInLabel.value,
+      printSerialNumber: false,
+      isGrid: false,
+      companyName: companyData?.name ?? '',
+      companyInfoLines: buildCompanyInfoLines(companyData),
+      address: companyData?.address?.trim() ?? '',
+      phone: companyData?.contactNo?.trim() ?? '',
+      email: companyData?.email?.trim() ?? '',
+      productName: productName,
+      barcodeData: barcodeString,
+      serialNumber: '',
+      footerText: '',
+      businessHours: '',
+      attributeLabel: attributeLabel,
+      description: attributeValue,
+      grossWeight: grossWeight,
+      previewedAt: Utility.nowWithoutSeconds(),
+      layout: null,
+      attributes: attrs,
+    );
+  }
+
+  StaticLabelPreviewLayout _toStaticPreviewLayout(LabelLayout layout) {
+    return StaticLabelPreviewLayout(
+      maxAttributes: layout.maxAttributes,
+      lineHeight: layout.lineHeight,
+      keyFont: layout.keyFont,
+      valueFont: layout.valueFont,
+      bottomPadding: layout.bottomPadding,
+      columnGap: layout.columnGap,
+      barcodeHeight: layout.barcodeHeight,
+    );
   }
 
   Future<void> printOneSticker({
@@ -1711,7 +1956,6 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     await TokenStorage.clearAll();
 
     isWeightScaleConnected.value = false;
-    isUniversalBleScaleConnected.value = false;
     isExperimentalScaleConnected.value = false;
     isPrinterConnected.value = false;
     receivedData.value = '';
@@ -1913,7 +2157,10 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> connectToDevice(BluetoothDevice device) async {
-    if (connectedDevice.value?.remoteId == device.remoteId) return;
+    if (connectedDevice.value?.remoteId == device.remoteId &&
+        isWeightScaleConnected.value) {
+      return;
+    }
 
     connectingDeviceId.value = BluetoothDeviceDisplay.deviceIdFromDevice(
       device,
@@ -1924,13 +2171,30 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     } catch (_) {}
 
     await _cancelAllCharSubs();
+    await _cancelScaleConnectionSub();
+
+    if (connectedDevice.value != null &&
+        connectedDevice.value?.remoteId != device.remoteId) {
+      try {
+        await connectedDevice.value?.disconnect();
+      } catch (_) {}
+      connectedDevice.value = null;
+    }
 
     try {
       await device.connect(autoConnect: false);
       connectedDevice.value = device;
       isWeightScaleConnected.value = true;
-      isUniversalBleScaleConnected.value = false;
       isExperimentalScaleConnected.value = false;
+      _scaleConnectionSub = device.connectionState.listen((state) {
+        if (state == BluetoothConnectionState.disconnected) {
+          _handleBleScaleDisconnected(device);
+        } else if (state == BluetoothConnectionState.connected &&
+            connectedDevice.value?.remoteId == device.remoteId) {
+          isWeightScaleConnected.value = true;
+        }
+      });
+      device.cancelWhenDisconnected(_scaleConnectionSub!, delayed: true);
       final services = await device.discoverServices();
       for (var service in services) {
         for (var characteristic in service.characteristics) {
@@ -1949,6 +2213,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
                 final raw = String.fromCharCodes(value);
 
                 // 1. Update raw data
+                debugPrint('Scale receivedData(ble): "$raw"');
                 receivedData.value = raw;
 
                 // 2. Parse weight from raw string
@@ -1988,9 +2253,10 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
         BluetoothDeviceDisplay.deviceIdFromDevice(device),
       );
     } catch (e) {
+      await _cancelScaleConnectionSub();
+      connectedDevice.value = null;
       debugPrint("Connection failed: $e");
       isWeightScaleConnected.value = false;
-      isUniversalBleScaleConnected.value = false;
       isExperimentalScaleConnected.value = false;
       Get.snackbar("Error", "Failed to connect: $e");
     } finally {
@@ -2001,12 +2267,12 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   Future<void> disconnectDevice() async {
     // 1) cancel characteristic subscriptions
     await _cancelAllCharSubs();
+    await _cancelScaleConnectionSub();
 
     // 2) disconnect device safely
     try {
       await connectedDevice.value?.disconnect();
       isWeightScaleConnected.value = false;
-      isUniversalBleScaleConnected.value = false;
       isExperimentalScaleConnected.value = false;
     } catch (e) {
       debugPrint('Error while disconnecting: $e');
@@ -2019,10 +2285,77 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
 
   double? parseWeight(String raw) {
     if (raw.trim().isEmpty) return null;
-    final cleaned = raw.replaceAll(',', '.');
-    final match = RegExp(r'(\d+(\.\d+)?)').firstMatch(cleaned);
-    if (match == null) return null;
-    return double.tryParse(match.group(0)!);
+    final cleaned = raw
+        .replaceAll(',', '.')
+        .replaceAll('\u0000', ' ')
+        .replaceAll(RegExp(r'[\x00-\x1F]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (cleaned.isEmpty) return null;
+
+    final chunks = cleaned
+        .split(RegExp(r'[\r\n]+'))
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList()
+        .reversed;
+
+    for (final chunk in chunks) {
+      final parsed = _extractWeightFromChunk(chunk);
+      if (parsed != null) return parsed;
+    }
+
+    return _extractWeightFromChunk(cleaned);
+  }
+
+  double? _extractWeightFromChunk(String chunk) {
+    final matches = RegExp(r'[-+]?\d*\.?\d+').allMatches(chunk).toList();
+    if (matches.isEmpty) return null;
+
+    final lowerChunk = chunk.toLowerCase();
+    final hasDecimalCandidate = matches.any(
+      (match) => (match.group(0) ?? '').contains('.'),
+    );
+
+    double? bestValue;
+    int? bestScore;
+    int bestStart = -1;
+
+    for (final match in matches) {
+      final token = match.group(0);
+      if (token == null || token.trim().isEmpty) continue;
+
+      final value = double.tryParse(token);
+      if (value == null) continue;
+
+      var score = 0;
+      if (token.contains('.')) score += 40;
+      if (value.abs() < 1000) score += 5;
+      if ((token == '0' || token == '00' || token == '000') &&
+          hasDecimalCandidate) {
+        score -= 40;
+      }
+      if (!token.contains('.') && token.length <= 1 && hasDecimalCandidate) {
+        score -= 20;
+      }
+
+      final contextStart = (match.start - 6).clamp(0, lowerChunk.length);
+      final contextEnd = (match.end + 6).clamp(0, lowerChunk.length);
+      final context = lowerChunk.substring(contextStart, contextEnd);
+      if (RegExp(r'(kg|kgs|gm|gms|gram|grams|wt|weight)').hasMatch(context)) {
+        score += 80;
+      }
+
+      if (bestScore == null ||
+          score > bestScore ||
+          (score == bestScore && match.start > bestStart)) {
+        bestScore = score;
+        bestValue = value;
+        bestStart = match.start;
+      }
+    }
+
+    return bestValue;
   }
 
   /// Disconnect printer

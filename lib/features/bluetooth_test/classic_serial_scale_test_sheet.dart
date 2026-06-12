@@ -28,6 +28,7 @@ class ClassicSerialScaleTestController extends GetxController {
   StreamSubscription<BluetoothState>? _stateSub;
   StreamSubscription<BluetoothDevice>? _discoverySub;
   final Map<String, BluetoothDevice> _deviceMap = {};
+  String _incomingDataBuffer = '';
   final Lock _operationLock = Lock(reentrant: true);
   DashboardController? _dashboardController;
   bool _listenersInitialized = false;
@@ -45,9 +46,24 @@ class ClassicSerialScaleTestController extends GetxController {
 
     _connectionSub = _bluetooth.onConnectionChanged.listen((state) {
       final controller = _dashboardController;
+      final eventAddress = state.deviceAddress.trim();
+      final activeAddress = connectedAddress.value?.trim() ?? '';
+      final pendingAddress = connectingAddress.value?.trim() ?? '';
+      final hasTrackedAddress =
+          activeAddress.isNotEmpty || pendingAddress.isNotEmpty;
+      final isTrackedEvent =
+          eventAddress.isEmpty ||
+          !hasTrackedAddress ||
+          eventAddress == activeAddress ||
+          eventAddress == pendingAddress;
+
+      if (!isTrackedEvent) {
+        return;
+      }
+
       final connected = state.isConnected;
       if (connected && controller != null) {
-        _markConnected(state.deviceAddress, controller);
+        _markConnected(eventAddress, controller);
       } else {
         isConnected.value = false;
         connectedAddress.value = null;
@@ -63,6 +79,13 @@ class ClassicSerialScaleTestController extends GetxController {
     _dataSub = _bluetooth.onDataReceived.listen((data) {
       final controller = _dashboardController;
       if (controller == null) return;
+      final activeAddress = connectedAddress.value?.trim() ?? '';
+      final eventAddress = data.deviceAddress.trim();
+      if (activeAddress.isNotEmpty &&
+          eventAddress.isNotEmpty &&
+          eventAddress != activeAddress) {
+        return;
+      }
       _syncScaleData(data.asString(), controller);
     });
 
@@ -286,7 +309,6 @@ class ClassicSerialScaleTestController extends GetxController {
     if (isConnected.value && connectedAddress.value == savedAddress) {
       dashboardController.isWeightScaleConnected.value = true;
       dashboardController.isExperimentalScaleConnected.value = true;
-      dashboardController.isUniversalBleScaleConnected.value = false;
       return;
     }
 
@@ -304,6 +326,7 @@ class ClassicSerialScaleTestController extends GetxController {
 
     isConnected.value = false;
     connectedAddress.value = null;
+    _incomingDataBuffer = '';
     dashboardController.isWeightScaleConnected.value = false;
     dashboardController.isExperimentalScaleConnected.value = false;
     dashboardController.receivedData.value = '';
@@ -323,10 +346,32 @@ class ClassicSerialScaleTestController extends GetxController {
       _markConnected(address, dashboardController);
     }
 
-    dashboardController.receivedData.value = raw;
+    _incomingDataBuffer = (_incomingDataBuffer + raw).replaceAll('\u0000', '');
+    if (_incomingDataBuffer.length > 256) {
+      _incomingDataBuffer = _incomingDataBuffer.substring(
+        _incomingDataBuffer.length - 256,
+      );
+    }
 
-    final weight = dashboardController.parseWeight(raw);
+    final segments = _incomingDataBuffer
+        .split(RegExp(r'[\r\n]+'))
+        .where((item) => item.trim().isNotEmpty)
+        .toList();
+    final latestFrame = segments.isNotEmpty
+        ? segments.last
+        : _incomingDataBuffer;
+
+    debugPrint('Scale receivedData(classic): "$latestFrame"');
+    dashboardController.receivedData.value = latestFrame;
+
+    final weight =
+        dashboardController.parseWeight(latestFrame) ??
+        dashboardController.parseWeight(_incomingDataBuffer);
     if (weight == null) return;
+
+    if (segments.isNotEmpty) {
+      _incomingDataBuffer = latestFrame;
+    }
 
     final formatted = weight.toStringAsFixed(3);
     dashboardController.manualBatchWeights.manualGross.value = formatted;
@@ -341,7 +386,6 @@ class ClassicSerialScaleTestController extends GetxController {
     connectedAddress.value = address;
     dashboardController.isWeightScaleConnected.value = true;
     dashboardController.isExperimentalScaleConnected.value = true;
-    dashboardController.isUniversalBleScaleConnected.value = false;
   }
 
   void _publishDevices() {

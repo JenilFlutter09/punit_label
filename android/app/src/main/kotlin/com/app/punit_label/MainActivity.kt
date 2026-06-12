@@ -896,6 +896,23 @@ if (businessHours.isNotEmpty()) {
                     val y = runtimeMmCoord(field["y"], height, labelHeightMm)
                     val boxWidth = max(runtimeMmCoord(field["w"], width, labelWidthMm), 40)
                     val boxHeight = max(runtimeMmCoord(field["h"], height, labelHeightMm), 24)
+                    val isAttributeField = fieldKey.startsWith("attr_")
+                    if (isAttributeField) {
+                        val fontSize = runtimeFontSize(field["font_size"], width, height)
+                        lp.PrintText(
+                            x,
+                            y,
+                            "0",
+                            value,
+                            0,
+                            fontSize,
+                            fontSize,
+                            runtimeFontStyle(field)
+                        )
+                        textBottom = max(textBottom, y + max(boxHeight, fontSize))
+                        continue
+                    }
+
                     val fontSize = runtimeFontSize(field["font_size"], width, height)
                     val lineHeight =
                         runtimeLineHeight(field["line_height"], fontSize, width, height)

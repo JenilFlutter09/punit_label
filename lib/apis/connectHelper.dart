@@ -16,6 +16,11 @@ import 'apiWrapper.dart';
 class ConnectHelper {
   ConnectHelper();
   final apiWrapper = ApiWrapper();
+
+  String get baseUrl => apiWrapper.baseUrl;
+
+  bool get supportsCustomLabelTemplates =>
+      apiWrapper.supportsCustomLabelTemplates;
   Future<Map<String, String>> _authHeaders() async {
     final token = await TokenStorage.getToken();
     return {

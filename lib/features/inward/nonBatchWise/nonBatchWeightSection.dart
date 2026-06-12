@@ -91,7 +91,6 @@ class NonBatchBluetoothWeightSection extends StatelessWidget {
             isBluetoothConnected:
                 dashboardController.isWeightScaleConnected.value &&
                 (dashboardController.connectedDevice.value != null ||
-                    dashboardController.isUniversalBleScaleConnected.value ||
                     dashboardController.isExperimentalScaleConnected.value),
             manualCtrl: controller.manualCtrl,
           ),
@@ -338,7 +337,7 @@ class NetWeightDisplayCard extends StatelessWidget {
                       /// 🔵 DISPLAY MODE
                       else
                         Text(
-                          net.toStringAsFixed(2),
+                          net.toStringAsFixed(3),
                           style: TextStyle(
                             fontSize: isTablet ? 34 : 28,
                             fontWeight: FontWeight.w900,
@@ -433,13 +432,12 @@ class NonBatchInwardActionBar extends StatelessWidget {
             await controller.addToList();
           },
         ),
-        if (controller.isCustomTemplateSelected)
-          _ActionButtonConfig(
-            icon: Icons.visibility,
-            color: Colors.teal,
-            label: "Preview",
-            onTap: () => controller.previewCurrentLabel(context),
-          ),
+        _ActionButtonConfig(
+          icon: Icons.visibility,
+          color: Colors.teal,
+          label: "Preview",
+          onTap: () => controller.previewCurrentLabel(context),
+        ),
         _ActionButtonConfig(
           icon: mainIcon,
           color: mainColor,
@@ -480,13 +478,12 @@ class NonBatchInwardActionBar extends StatelessWidget {
               : "Start Auto");
 
     return [
-      if (controller.isCustomTemplateSelected)
-        _ActionButtonConfig(
-          icon: Icons.visibility,
-          color: Colors.teal,
-          label: "Preview",
-          onTap: () => controller.previewCurrentLabel(context),
-        ),
+      _ActionButtonConfig(
+        icon: Icons.visibility,
+        color: Colors.teal,
+        label: "Preview",
+        onTap: () => controller.previewCurrentLabel(context),
+      ),
       _ActionButtonConfig(
         icon: mainIcon,
         color: mainColor,

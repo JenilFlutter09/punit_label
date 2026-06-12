@@ -118,61 +118,72 @@ class NonBatchInwardScreen extends StatelessWidget {
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    "LABEL SIZE",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
                                   SearchableStringDropdown(
-                                    label: "Select Label Size",
-                                    items: const ["75x75", "100x100"],
-                                    selectedValue: controller.selectedLabelSize,
-                                    onItemSelected: controller.changeLabelSize,
+                                    label: "Select Label Format",
+                                    items: controller.primaryLabelFormatOptions,
+                                    selectedValue:
+                                        controller.selectedLabelFormat,
+                                    onItemSelected:
+                                        controller.selectPrimaryLabelFormat,
                                   ),
-                                  const SizedBox(height: 12),
-                                  const Text(
-                                    "LABEL FORMAT",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: 6),
-
-                                  if (controller.isTemplateOptionsLoading.value)
-                                    const Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        vertical: 12,
-                                      ),
-                                      child: Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
-                                    )
-                                  else if (controller
-                                      .labelTemplateOptions
-                                      .isEmpty)
-                                    const Text(
-                                      "No label formats available for this product and size.",
-                                    )
-                                  else
-                                    SearchableStringDropdown(
-                                      label: "Select Label Format",
-                                      items: controller.labelTemplateOptions
-                                          .map((e) => e.name)
-                                          .toList(),
-                                      selectedValue:
-                                          controller.selectedLabelFormat,
-                                      onItemSelected: controller
-                                          .selectLabelTemplateOptionByName,
-                                    ),
                                   if (controller.isCustomTemplateSelected) ...[
                                     const SizedBox(height: 8),
+                                    const Text(
+                                      "LABEL SIZE",
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    SearchableStringDropdown(
+                                      label: "Select Label Size",
+                                      items:
+                                          controller.customTemplateSizeOptions,
+                                      selectedValue:
+                                          controller.selectedLabelSize,
+                                      onItemSelected:
+                                          controller.changeLabelSize,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    const Text(
+                                      "OTHER LABEL OPTIONS",
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    if (controller
+                                        .isTemplateOptionsLoading
+                                        .value)
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        child: Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      )
+                                    else if (controller
+                                        .customTemplateOptionNames
+                                        .isEmpty)
+                                      const Text(
+                                        "No custom label options available for this product and size.",
+                                      )
+                                    else
+                                      SearchableStringDropdown(
+                                        label: "Select Other Label Option",
+                                        items: controller
+                                            .customTemplateOptionNames,
+                                        selectedValue: controller
+                                            .selectedCustomTemplateOptionName,
+                                        onItemSelected: controller
+                                            .selectCustomTemplateOptionByName,
+                                      ),
+                                    const SizedBox(height: 8),
                                     Text(
-                                      "Custom templates currently print fixed fields only in non-batch inward.",
+                                      "Custom templates can print selected attributes through runtime attr_* fields.",
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Colors.grey[700],
@@ -189,114 +200,105 @@ class NonBatchInwardScreen extends StatelessWidget {
                           /// ---------------------------------------
                           /// ATTRIBUTE LIST UI
                           /// ---------------------------------------
-                          if (controller.isCustomTemplateSelected)
-                            Padding(
+                          ...controller.allAttributesList.map((attr) {
+                            return Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                                 vertical: 6,
                               ),
-                              child: Text(
-                                "Attribute selection is disabled for custom templates in this version.",
-                                style: TextStyle(color: Colors.grey[700]),
-                              ),
-                            )
-                          else
-                            ...controller.allAttributesList.map((attr) {
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                child: Obx(() {
-                                  final isChecked =
-                                      controller.attributeEnabled[attr
-                                          .attributeName] ??
-                                      false.obs;
+                              child: Obx(() {
+                                final isChecked =
+                                    controller.attributeEnabled[attr
+                                        .attributeName] ??
+                                    false.obs;
 
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Checkbox(
-                                            value: isChecked.value,
-                                            onChanged: (v) {
-                                              final allowed =
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Checkbox(
+                                          value: isChecked.value,
+                                          onChanged: (v) {
+                                            final allowed = controller
+                                                .maxSelectableAttributes;
+                                            final enforceLimit =
+                                                !controller
+                                                    .isCustomTemplateSelected &&
+                                                allowed > 0;
+
+                                            if (v == true) {
+                                              if (enforceLimit &&
                                                   controller
-                                                      .selectedLabelFormatObj
-                                                      .value
-                                                      ?.elementsAllowedToPrint ??
-                                                  0;
+                                                          .selectedAttributesCount
+                                                          .value >=
+                                                      allowed) {
+                                                Get.snackbar(
+                                                  "Limit Reached",
+                                                  "Only $allowed attributes allowed for this label format.",
+                                                );
+                                                return;
+                                              }
 
-                                              if (v == true) {
-                                                if (controller
-                                                        .selectedAttributesCount
-                                                        .value >=
-                                                    allowed) {
-                                                  Get.snackbar(
-                                                    "Limit Reached",
-                                                    "Only $allowed attributes allowed for this label format.",
-                                                  );
-                                                  return;
-                                                }
-
-                                                isChecked.value = true;
-                                                controller
-                                                    .selectedAttributesCount
-                                                    .value++;
-                                              } else {
-                                                isChecked.value = false;
+                                              isChecked.value = true;
+                                              controller
+                                                  .selectedAttributesCount
+                                                  .value++;
+                                            } else {
+                                              isChecked.value = false;
+                                              if (controller
+                                                      .selectedAttributesCount
+                                                      .value >
+                                                  0) {
                                                 controller
                                                     .selectedAttributesCount
                                                     .value--;
                                               }
-                                            },
+                                            }
+                                          },
+                                        ),
+
+                                        Text(
+                                          (attr.attributeName ?? "")
+                                              .toUpperCase(),
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
                                           ),
+                                        ),
+                                      ],
+                                    ),
 
-                                          Text(
-                                            (attr.attributeName ?? "")
-                                                .toUpperCase(),
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                    const SizedBox(height: 6),
 
-                                      const SizedBox(height: 6),
+                                    /// ---------------------------------------
+                                    /// ATTRIBUTE OPTIONS DROPDOWN
+                                    /// ---------------------------------------
+                                    SearchableStringDropdown(
+                                      label: attr.attributeName!,
+                                      items:
+                                          attr.options
+                                              ?.map((e) => e.optionsName ?? "")
+                                              .toList() ??
+                                          [],
 
-                                      /// ---------------------------------------
-                                      /// ATTRIBUTE OPTIONS DROPDOWN
-                                      /// ---------------------------------------
-                                      SearchableStringDropdown(
-                                        label: attr.attributeName!,
-                                        items:
-                                            attr.options
-                                                ?.map(
-                                                  (e) => e.optionsName ?? "",
-                                                )
-                                                .toList() ??
-                                            [],
-
-                                        selectedValue:
-                                            controller.selectedAttributes[attr
-                                                .attributeName] ??
-                                            "".obs,
-                                        onItemSelected: (value) {
-                                          controller
-                                                  .selectedAttributes[attr
-                                                      .attributeName]!
-                                                  .value =
-                                              value;
-                                        },
-                                      ),
-                                    ],
-                                  );
-                                }),
-                              );
-                            }).toList(),
+                                      selectedValue:
+                                          controller.selectedAttributes[attr
+                                              .attributeName] ??
+                                          "".obs,
+                                      onItemSelected: (value) {
+                                        controller
+                                                .selectedAttributes[attr
+                                                    .attributeName]!
+                                                .value =
+                                            value;
+                                      },
+                                    ),
+                                  ],
+                                );
+                              }),
+                            );
+                          }).toList(),
                         ],
                       ),
                     ],

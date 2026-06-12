@@ -44,13 +44,12 @@ class InwardActionBar extends StatelessWidget {
           label: "Add Entry",
           onTap: () async => await controller.addToList(),
         ),
-        if (controller.isCustomTemplateSelected)
-          _ActionButtonConfig(
-            icon: Icons.visibility,
-            color: Colors.teal,
-            label: "Preview",
-            onTap: () => controller.previewCurrentLabel(context),
-          ),
+        _ActionButtonConfig(
+          icon: Icons.visibility,
+          color: Colors.teal,
+          label: "Preview",
+          onTap: () => controller.previewCurrentLabel(context),
+        ),
         _ActionButtonConfig(
           icon: mainIcon,
           color: mainColor,
@@ -93,13 +92,12 @@ class InwardActionBar extends StatelessWidget {
               : "Start Auto");
 
     return [
-      if (controller.isCustomTemplateSelected)
-        _ActionButtonConfig(
-          icon: Icons.visibility,
-          color: Colors.teal,
-          label: "Preview",
-          onTap: () => controller.previewCurrentLabel(context),
-        ),
+      _ActionButtonConfig(
+        icon: Icons.visibility,
+        color: Colors.teal,
+        label: "Preview",
+        onTap: () => controller.previewCurrentLabel(context),
+      ),
       _ActionButtonConfig(
         icon: mainIcon,
         color: mainColor,

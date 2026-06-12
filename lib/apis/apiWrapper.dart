@@ -1,8 +1,6 @@
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
-import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 
 import '/apis/responseModel.dart';
@@ -10,14 +8,26 @@ import '/apis/responseModel.dart';
 import '../constants/enums.dart';
 import '../constants/utility.dart';
 
-
-
 class ApiWrapper {
+  static const String productionApiBaseUrl =
+      "https://pinnacle.punitinstrument.com/api/";
+  static const String testingApiBaseUrl =
+      "https://testingpinnacle.punitinstrument.com/api/";
+
   /// Base Url for testing purpose
- //  final String _baseUrl = "https://labels.clotheeo.com/api/";
+  //  final String _baseUrl = "https://labels.clotheeo.com/api/";
   /// Live Url for Client purpose
-  // final String _baseUrl = "https://pinnacle.punitinstrument.com/api/";
-  final String _baseUrl = "https://testingpinnacle.punitinstrument.com/api/";
+  final String _baseUrl = productionApiBaseUrl;
+  //final String _baseUrl = "https://testingpinnacle.punitinstrument.com/api/";
+
+  String get baseUrl => _baseUrl;
+
+  bool get supportsCustomLabelTemplates =>
+      _normalizeBaseUrl(_baseUrl) == _normalizeBaseUrl(testingApiBaseUrl);
+
+  String _normalizeBaseUrl(String value) {
+    return value.trim().replaceAll(RegExp(r'/+$'), '');
+  }
 
   Future<ResponseModel> makeRequest({
     required String url,
@@ -70,7 +80,6 @@ class ApiWrapper {
 
       _logRequest(uri, headers ?? {}, response);
       return returnResponse(response);
-
     } on TimeoutException {
       return ResponseModel(
         data: '{"message":"Request timed out"}',
@@ -154,18 +163,12 @@ class ApiWrapper {
   //   }
   // }
 
-  /// Handle timeout errors consistently
-  ResponseModel _handleTimeout() {
-    return ResponseModel(
-      data: '{"message":"Request timed out"}',
-      hasError: true,
-    );
-  }
-
   /// Logs request and response for debugging
-  void _logRequest(String uri,
-      Map<String, String> headers,
-      http.Response response,) {
+  void _logRequest(
+    String uri,
+    Map<String, String> headers,
+    http.Response response,
+  ) {
     log('''
 == API CALL ==
 URL       : $uri
@@ -192,11 +195,7 @@ Response  : ${response.body}
         );
 
       case 400:
-        return ResponseModel(
-          data: body,
-          hasError: true,
-          errorCode: statusCode,
-        );
+        return ResponseModel(data: body, hasError: true, errorCode: statusCode);
 
       case 401:
         return ResponseModel(
@@ -204,7 +203,6 @@ Response  : ${response.body}
           hasError: true,
           errorCode: statusCode,
         );
-
 
       case 403:
         return ResponseModel(
