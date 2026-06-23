@@ -142,10 +142,12 @@ abstract class Utility {
       barrierDismissible: barrierDismissible,
     );
   }
-  static sharePdfFile(String pdfPath){
+
+  static sharePdfFile(String pdfPath) {
     //SharePlus.instance.share([XFile(pdfPath)]);
-     Share.shareXFiles([XFile(pdfPath)]);
+    Share.shareXFiles([XFile(pdfPath)]);
   }
+
   static String formatTimestamp(DateTime? dt) {
     if (dt == null) return '--';
     return DateFormat('dd MMM yyyy • hh:mm a').format(dt);
@@ -164,6 +166,7 @@ abstract class Utility {
 
     return null;
   }
+
   static int? toInteger(dynamic value) {
     if (value == null) return null;
 
@@ -178,10 +181,35 @@ abstract class Utility {
     return null;
   }
 
+  static bool? toBool(dynamic value) {
+    if (value == null) return null;
+
+    if (value is bool) {
+      return value;
+    }
+
+    if (value is num) {
+      return value != 0;
+    }
+
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' || normalized == '1') {
+        return true;
+      }
+      if (normalized == 'false' || normalized == '0') {
+        return false;
+      }
+    }
+
+    return null;
+  }
+
   static DateTime nowWithoutSeconds() {
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day, now.hour, now.minute);
   }
+
   static Widget styledInputField({
     required String label,
     required IconData icon,
@@ -227,6 +255,7 @@ abstract class Utility {
       ),
     );
   }
+
   static Widget styledInputSerialNumberField({
     required String label,
     required IconData icon,
@@ -284,7 +313,8 @@ abstract class Utility {
         .nextInt(36 * 36)
         .toRadixString(36)
         .padLeft(2, '0'); // 2 random chars
-    final barcode = (base36 + rand).substring(base36.length - 4) + id.toString();
+    final barcode =
+        (base36 + rand).substring(base36.length - 4) + id.toString();
     return barcode;
   }
 
@@ -346,15 +376,13 @@ abstract class Utility {
   //   );
   // }
 
-
-
   static void showApiErrorSnackbar(ResponseModel response) {
     String message = "Something went wrong";
 
     try {
       final decoded = jsonDecode(response.data);
       message = decoded['message']?.toString() ?? message;
-        } catch (e) {
+    } catch (e) {
       // If response is not JSON
       message = response.data.toString() ?? message;
     }
@@ -367,7 +395,6 @@ abstract class Utility {
       colorText: Colors.white,
     );
   }
-
 
   static void showCustomApiErrorSnackBar({
     required String title,
@@ -508,11 +535,7 @@ abstract class Utility {
         messageText: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: Colors.white,
-              size: 30,
-            ),
+            Icon(icon, color: Colors.white, size: 30),
             Dimens.boxWidth10,
             Flexible(
               child: Text(
@@ -520,7 +543,7 @@ abstract class Utility {
                 style: Styles.black16.copyWith(
                   color: Colors.white,
                   fontSize: 18,
-                  fontWeight: FontWeight.w600
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -530,10 +553,9 @@ abstract class Utility {
         snackPosition: SnackPosition.TOP,
         snackStyle: SnackStyle.FLOATING,
 
-
         backgroundColor: toastColor,
-       // (type.toLowerCase() == 'success') ? Colors.green : Colors.black,
 
+        // (type.toLowerCase() == 'success') ? Colors.green : Colors.black,
         margin: Dimens.edgeInsets50_40_0_0,
 
         borderRadius: 5,

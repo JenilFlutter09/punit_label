@@ -77,8 +77,7 @@ class NonBatchInwardController extends GetxController {
   String? _cachedRuntimeTemplateKey;
 
   void _syncSelectedProductTare() {
-    final tareValue =
-        dashboardController.tareState.value == TareState.off
+    final tareValue = dashboardController.tareState.value == TareState.off
         ? '0'
         : (selectedProduct.value?.productTareWeight.toString() ?? '0');
     manualCtrl.manualTare.value = tareValue;
@@ -172,7 +171,7 @@ class NonBatchInwardController extends GetxController {
       barcodes: apiModel.barcodes?.map((b) {
         return NonBatchBarcodes(
           barCodeString: b.barCodeString,
-          tareWeightEnable: (b.isTareWeight.toString() == 'true'),
+          tareWeightEnable: Utility.toBool(b.isTareWeight) ?? false,
           tareWeight: b.tareWeight ?? 0.0,
           grossWeight: b.grossWeight ?? 0.0,
           netWeight: b.netWeight ?? 0.0,

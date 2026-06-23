@@ -6,13 +6,13 @@ import '../../constants/sizes.dart';
 import '../../constants/styles.dart';
 import '../dashboard/dashboardController.dart';
 import '../../widgets/bluetooth_bottomsheet.dart';
-import '../bluetooth_test/classic_serial_scale_test_sheet.dart';
+import '../../scale_support/scale_support.dart';
 
 class TareScaleConnectionController extends GetxController {
   final DashboardController dashboardController =
       Get.find<DashboardController>();
-  final ClassicSerialScaleTestController classicScaleController =
-      ClassicSerialScaleTestController.ensureRegistered();
+  final AndroidScaleConnectionController scaleConnectionController =
+      AndroidScaleConnectionController.ensureRegistered();
 
   final RxDouble liveWeight = 0.0.obs;
 
@@ -27,7 +27,7 @@ class TareScaleConnectionController extends GetxController {
   }
 
   bool get isConnected =>
-      classicScaleController.isConnected.value ||
+      scaleConnectionController.isConnected ||
       dashboardController.isWeightScaleConnected.value;
 
   @override
@@ -58,11 +58,7 @@ class TareScaleConnectionController extends GetxController {
   }
 
   Future<void> disconnect() async {
-    if (classicScaleController.isConnected.value) {
-      await classicScaleController.disconnect(dashboardController);
-    } else {
-      await dashboardController.disconnectDevice();
-    }
+    await dashboardController.disconnectActiveScale();
     liveWeight.value = 0.0;
   }
 

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -13,6 +14,10 @@ import 'package:punit_label/constants/utility.dart';
 import '../features/dispatch/models/dispatchBarcodes.dart';
 
 class ExportHelper {
+  static const MethodChannel _downloadsChannel = MethodChannel(
+    'com.punitinstrument.punitlabel/downloads',
+  );
+
   static List<String> calculateTotals(List<List<String>> data) {
     int totalItems = data.length;
 
@@ -315,6 +320,494 @@ class ExportHelper {
     // ScaffoldMessenger.of(context).showSnackBar(
     //   const SnackBar(content: Text("Custom PDF saved")),
     // );
+  }
+
+  // ignore: non_constant_identifier_names
+  static Future<void> modern_flex_packing_list({
+    required String title,
+    required Map<String, String> metaData,
+    required List<Dispatchbarcodes> items,
+    String? email,
+    String companyName = 'PUNIT LABEL',
+    String companyAddress = 'Generated from weighing system',
+    String companyPhone = 'https://pinnacle.punitinstrument.com',
+    String listTitle = 'Packing List',
+    int maxRowsPerGrid = 27,
+    VoidCallback? onBeforeResultDialogShown,
+  }) async {
+    final pdf = pw.Document();
+    final generatedAt = DateTime.now();
+    final rowsPerSection = maxRowsPerGrid * 2;
+
+    final grouped = <String, List<Dispatchbarcodes>>{};
+    final groupLabels = <String, ({String productName, String structure})>{};
+
+    for (final item in items) {
+      final productName = item.productName?.trim().isNotEmpty == true
+          ? item.productName!.trim()
+          : 'Unknown Product';
+      final structure = _variationText(item);
+      final key = '$productName||$structure';
+
+      grouped.putIfAbsent(key, () => []);
+      grouped[key]!.add(item);
+      groupLabels[key] = (productName: productName, structure: structure);
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.fromLTRB(32, 28, 32, 30),
+        footer: (context) => _modernFlexFooter(
+          generatedAt: generatedAt,
+          pageNumber: context.pageNumber,
+          pagesCount: context.pagesCount,
+        ),
+        build: (context) {
+          final widgets = <pw.Widget>[
+            _modernFlexHeader(
+              companyName: companyName,
+              companyAddress: companyAddress,
+              companyPhone: companyPhone,
+              listTitle: listTitle,
+            ),
+          ];
+
+          if (items.isEmpty) {
+            widgets.add(pw.SizedBox(height: 18));
+            widgets.add(
+              pw.Center(
+                child: pw.Text(
+                  'No dispatch items available',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+            );
+            return widgets;
+          }
+
+          grouped.forEach((key, productItems) {
+            final labels = groupLabels[key]!;
+            final productTotals = _dispatchTotals(productItems);
+
+            for (
+              var start = 0;
+              start < productItems.length;
+              start += rowsPerSection
+            ) {
+              final end = start + rowsPerSection > productItems.length
+                  ? productItems.length
+                  : start + rowsPerSection;
+              final sectionItems = productItems.sublist(start, end);
+              final splitIndex = (sectionItems.length / 2).ceil();
+              final leftItems = sectionItems.sublist(0, splitIndex);
+              final rightItems = sectionItems.sublist(splitIndex);
+              final isContinuation = start > 0;
+
+              widgets.add(pw.SizedBox(height: 12));
+              widgets.add(
+                _modernFlexProductHeader(
+                  metaData: metaData,
+                  title: title,
+                  productName: labels.productName,
+                  structure: labels.structure,
+                  count: productItems.length,
+                  totals: productTotals,
+                  isContinuation: isContinuation,
+                ),
+              );
+              widgets.add(pw.SizedBox(height: 8));
+              widgets.add(
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Expanded(
+                      child: _modernFlexGrid(
+                        items: leftItems,
+                        startSerial: start + 1,
+                      ),
+                    ),
+                    pw.SizedBox(width: 10),
+                    pw.Expanded(
+                      child: _modernFlexGrid(
+                        items: rightItems,
+                        startSerial: start + splitIndex + 1,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+          });
+
+          widgets.add(pw.SizedBox(height: 14));
+          widgets.add(_modernFlexTotals(_dispatchTotals(items)));
+          return widgets;
+        },
+      ),
+    );
+
+    final pdfBytes = await pdf.save();
+    await _savePdfBytesToDownloads(fileName: '$title.pdf', bytes: pdfBytes);
+    final emailFilePath = await _writeTemporaryPdfFile(
+      fileName: '$title.pdf',
+      bytes: pdfBytes,
+    );
+
+    await sendPdfEmail(
+      filePath: emailFilePath,
+      sendingEmail: email ?? 'shahjenil9977@gmail.com',
+      onBeforeResultDialogShown: onBeforeResultDialogShown,
+    );
+  }
+
+  static Future<void> _savePdfBytesToDownloads({
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    if (Platform.isAndroid) {
+      await _downloadsChannel.invokeMethod<String>('savePdfToDownloads', {
+        'fileName': fileName,
+        'bytes': bytes,
+      });
+      return;
+    }
+
+    final dir = await getDownloadDirectory();
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsBytes(bytes);
+  }
+
+  static Future<String> _writeTemporaryPdfFile({
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsBytes(bytes);
+    return file.path;
+  }
+
+  static pw.Widget _modernFlexHeader({
+    required String companyName,
+    required String companyAddress,
+    required String companyPhone,
+    required String listTitle,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    companyName,
+                    style: pw.TextStyle(
+                      fontSize: 15,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 5),
+                  pw.Text(
+                    companyAddress,
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    companyPhone,
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+            pw.Text(
+              listTitle,
+              style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 8),
+        pw.Container(height: 1, color: PdfColors.black),
+      ],
+    );
+  }
+
+  static pw.Widget _modernFlexProductHeader({
+    required Map<String, String> metaData,
+    required String title,
+    required String productName,
+    required String structure,
+    required int count,
+    required ({double gross, double tare, double net, double converted}) totals,
+    required bool isContinuation,
+  }) {
+    final customerName = metaData['Customer Name'] ?? 'Customer';
+    final batchNo = metaData['Batch No'] ?? metaData['Dispatch No'] ?? title;
+    final structureText = structure.isEmpty ? 'N/A' : structure;
+    final displayProductName = isContinuation
+        ? '$productName (continued)'
+        : productName;
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  _modernFlexInfoLine('Customer Name', customerName),
+                  pw.SizedBox(height: 4),
+                  _modernFlexInfoLine('Product Name', displayProductName),
+                ],
+              ),
+            ),
+            pw.SizedBox(width: 20),
+            pw.Container(
+              width: 190,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  _modernFlexInfoLine('Batch No', batchNo),
+                  pw.SizedBox(height: 4),
+                  _modernFlexInfoLine('Structure', structureText),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 7),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              'Count : $count',
+              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.Text(
+              'Gross : ${totals.gross.toStringAsFixed(2)}   '
+              'Tare : ${totals.tare.toStringAsFixed(2)}   '
+              'Net : ${totals.net.toStringAsFixed(2)}   '
+              'Conv : ${totals.converted.toStringAsFixed(2)}',
+              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 7),
+        pw.Container(height: 0.8, color: PdfColors.black),
+      ],
+    );
+  }
+
+  static pw.Widget _modernFlexInfoLine(String label, String value) {
+    return pw.RichText(
+      text: pw.TextSpan(
+        children: [
+          pw.TextSpan(
+            text: '$label :  ',
+            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.TextSpan(
+            text: value,
+            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _modernFlexGrid({
+    required List<Dispatchbarcodes> items,
+    required int startSerial,
+  }) {
+    final border = pw.TableBorder(
+      top: const pw.BorderSide(width: 0.7),
+      bottom: const pw.BorderSide(width: 0.7),
+      horizontalInside: const pw.BorderSide(width: 0.45),
+    );
+
+    return pw.Table(
+      border: border,
+      columnWidths: const {
+        0: pw.FlexColumnWidth(0.78),
+        1: pw.FlexColumnWidth(1.18),
+        2: pw.FlexColumnWidth(1.05),
+        3: pw.FlexColumnWidth(1.05),
+        4: pw.FlexColumnWidth(1.16),
+      },
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+          children: [
+            _modernFlexCell('Sr\nNo', bold: true),
+            _modernFlexCell('Gross\nWt', bold: true),
+            _modernFlexCell('Tare\nWt', bold: true),
+            _modernFlexCell('Net\nWt', bold: true),
+            _modernFlexCell('Conv Wt', bold: true),
+          ],
+        ),
+        ...List.generate(items.length, (index) {
+          final item = items[index];
+          return pw.TableRow(
+            children: [
+              _modernFlexCell('${startSerial + index}'),
+              _modernFlexCell(_weightText(item.grossWeight, showUnit: false)),
+              _modernFlexCell(_weightText(item.tareWeight, showUnit: false)),
+              _modernFlexCell(_weightText(item.netWeight, showUnit: false)),
+              _modernFlexCell(_convertedWeightText(item)),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
+  static pw.Widget _modernFlexCell(String text, {bool bold = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 3),
+      child: pw.Text(
+        text,
+        textAlign: pw.TextAlign.center,
+        style: pw.TextStyle(
+          fontSize: 8.8,
+          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+        ),
+      ),
+    );
+  }
+
+  static pw.Widget _modernFlexTotals(
+    ({double gross, double tare, double net, double converted}) totals,
+  ) {
+    pw.Widget totalLine(String label, String value) {
+      return pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.end,
+        children: [
+          pw.Container(
+            width: 125,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(
+                fontSize: 10.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+          pw.Container(
+            width: 115,
+            padding: const pw.EdgeInsets.only(bottom: 2),
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(bottom: pw.BorderSide(width: 1.1)),
+            ),
+            child: pw.Text(
+              value,
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(
+                fontSize: 10.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        totalLine('Total Gross Wt :', totals.gross.toStringAsFixed(2)),
+        pw.SizedBox(height: 8),
+        totalLine('Total Tare Wt :', totals.tare.toStringAsFixed(2)),
+        pw.SizedBox(height: 8),
+        totalLine('Total Net Wt :', totals.net.toStringAsFixed(2)),
+        pw.SizedBox(height: 8),
+        totalLine('Total Converted Wt :', totals.converted.toStringAsFixed(2)),
+      ],
+    );
+  }
+
+  static pw.Widget _modernFlexFooter({
+    required DateTime generatedAt,
+    required int pageNumber,
+    required int pagesCount,
+  }) {
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        pw.Text(
+          DateFormat('dd-MMM-yyyy').format(generatedAt),
+          style: const pw.TextStyle(fontSize: 9),
+        ),
+        pw.Text(
+          DateFormat('HH:mm:ss').format(generatedAt),
+          style: const pw.TextStyle(fontSize: 9),
+        ),
+        pw.Text(
+          'Page $pageNumber of $pagesCount',
+          style: const pw.TextStyle(fontSize: 9),
+        ),
+      ],
+    );
+  }
+
+  static ({double gross, double tare, double net, double converted})
+  _dispatchTotals(List<Dispatchbarcodes> items) {
+    double gross = 0;
+    double tare = 0;
+    double net = 0;
+    double converted = 0;
+
+    for (final item in items) {
+      gross += item.grossWeight ?? 0;
+      tare += item.tareWeight ?? 0;
+      net += item.netWeight ?? 0;
+      converted += _convertedWeight(item);
+    }
+
+    return (gross: gross, tare: tare, net: net, converted: converted);
+  }
+
+  static String _weightText(double? value, {bool showUnit = true}) {
+    final text = (value ?? 0).toStringAsFixed(2);
+    return showUnit ? '$text KG' : text;
+  }
+
+  static double _convertedWeight(Dispatchbarcodes item) {
+    if (item.unitConversion != true) return 0;
+
+    final unitValue = double.tryParse((item.unit ?? '').trim());
+    if (unitValue == null || unitValue <= 0) return 0;
+
+    return (item.netWeight ?? 0) / unitValue;
+  }
+
+  static String _convertedWeightText(Dispatchbarcodes item) {
+    return _convertedWeight(item).toStringAsFixed(2);
+  }
+
+  static String _variationText(Dispatchbarcodes item) {
+    final variation = item.variation ?? [];
+    final parts = variation
+        .where((e) => e.optionName?.trim().isNotEmpty == true)
+        .map((e) {
+          final attribute = e.attributeName?.trim();
+          final option = e.optionName!.trim();
+          return attribute == null || attribute.isEmpty
+              ? option
+              : '$attribute: $option';
+        })
+        .toList();
+
+    return parts.join(', ');
   }
 
   static Future<Directory> getDownloadDirectory() async {

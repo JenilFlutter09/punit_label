@@ -316,8 +316,7 @@ class _RuntimeLabelPreviewCanvas extends StatelessWidget {
   }
 
   double _fontPx(double value) {
-    final printerLikeScale = math.min(width, height) / 240.0;
-    return math.max(6, value * printerLikeScale);
+    return math.max(1, value);
   }
 
   double _mmToPxX(double mm, double labelWidthMm) {

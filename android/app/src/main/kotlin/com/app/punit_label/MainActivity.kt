@@ -1,11 +1,16 @@
 package com.punitinstrument.punitlabel
+import android.content.ContentValues
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.util.Log
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.ByteArrayOutputStream
+import java.io.File
 //import androidx.core.app.ActivityCompat
 //import androidx.core.content.ContextCompat
 import com.snbc.sdk.LabelPrinter
@@ -25,6 +30,7 @@ class MainActivity : FlutterActivity() {
         System.loadLibrary("LabelPrinterSDK")   // main SDK
     }
     private val CHANNEL = "label_printer"
+    private val DOWNLOADS_CHANNEL = "com.punitinstrument.punitlabel/downloads"
     private var printer: LabelPrinter? = null
     //    private var sdkInitialized = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -268,6 +274,9 @@ class MainActivity : FlutterActivity() {
                         val width = (args["width"] as? Number)?.toInt() ?: 600
                         val height = (args["height"] as? Number)?.toInt() ?: 600
                         val labelSize = args["labelSize"]?.toString() ?: "75x75"
+                        val previewScalePxPerMm =
+                            (args["previewScalePxPerMm"] as? Number)?.toDouble()
+                                ?: args["previewScalePxPerMm"]?.toString()?.toDoubleOrNull()
                         val whiteLabel = args["whiteLabel"] as? Boolean ?: false
                         val footerLocked = args["footerLocked"] as? Boolean ?: false
                         val footerMessage = args["footerMessage"]?.toString() ?: ""
@@ -283,6 +292,7 @@ class MainActivity : FlutterActivity() {
                             width = width,
                             height = height,
                             labelSize = labelSize,
+                            previewScalePxPerMm = previewScalePxPerMm,
                             whiteLabel = whiteLabel,
                             fields = rawFields,
                             attributePairs = rawAttributePairs.map {
@@ -326,6 +336,61 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DOWNLOADS_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "savePdfToDownloads" -> savePdfToDownloads(call, result)
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun savePdfToDownloads(call: MethodCall, result: MethodChannel.Result) {
+        val fileName = call.argument<String>("fileName") ?: "document.pdf"
+        val bytes = call.argument<ByteArray>("bytes")
+
+        if (bytes == null) {
+            result.error("INVALID_BYTES", "PDF bytes were not provided", null)
+            return
+        }
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val resolver = applicationContext.contentResolver
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: throw IllegalStateException("Could not create Downloads entry")
+
+                resolver.openOutputStream(uri)?.use { output ->
+                    output.write(bytes)
+                } ?: throw IllegalStateException("Could not open Downloads output stream")
+
+                values.clear()
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+                result.success(uri.toString())
+            } else {
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS
+                )
+                if (!downloadsDir.exists()) {
+                    downloadsDir.mkdirs()
+                }
+
+                val file = File(downloadsDir, fileName)
+                file.writeBytes(bytes)
+                result.success(file.absolutePath)
+            }
+        } catch (e: Exception) {
+            result.error("DOWNLOAD_SAVE_FAILED", e.message, null)
+        }
     }
 
     private fun connectPrinter(call: MethodCall, result: MethodChannel.Result) {
@@ -835,6 +900,7 @@ if (businessHours.isNotEmpty()) {
         width: Int = 600,
         height: Int = 600,
         labelSize: String = "75x75",
+        previewScalePxPerMm: Double? = null,
         whiteLabel: Boolean = false,
         fields: List<Map<String, Any?>> = emptyList(),
         attributePairs: List<Map<String, String>> = emptyList(),
@@ -898,7 +964,14 @@ if (businessHours.isNotEmpty()) {
                     val boxHeight = max(runtimeMmCoord(field["h"], height, labelHeightMm), 24)
                     val isAttributeField = fieldKey.startsWith("attr_")
                     if (isAttributeField) {
-                        val fontSize = runtimeFontSize(field["font_size"], width, height)
+                        val fontSize = runtimeFontSize(
+                            field["font_size"],
+                            width,
+                            height,
+                            labelWidthMm,
+                            labelHeightMm,
+                            previewScalePxPerMm
+                        )
                         lp.PrintText(
                             x,
                             y,
@@ -913,9 +986,24 @@ if (businessHours.isNotEmpty()) {
                         continue
                     }
 
-                    val fontSize = runtimeFontSize(field["font_size"], width, height)
+                    val fontSize = runtimeFontSize(
+                        field["font_size"],
+                        width,
+                        height,
+                        labelWidthMm,
+                        labelHeightMm,
+                        previewScalePxPerMm
+                    )
                     val lineHeight =
-                        runtimeLineHeight(field["line_height"], fontSize, width, height)
+                        runtimeLineHeight(
+                            field["line_height"],
+                            fontSize,
+                            width,
+                            height,
+                            labelWidthMm,
+                            labelHeightMm,
+                            previewScalePxPerMm
+                        )
                     val maxLines = max(1, boxHeight / max(lineHeight, 1))
                     val wrappedLines = wrapRuntimeText(value, boxWidth, fontSize).take(maxLines)
                     var currentY = y
@@ -943,8 +1031,23 @@ if (businessHours.isNotEmpty()) {
                 val attributeStartX = textFields.minOfOrNull {
                     runtimeMmCoord(it["x"], width, labelWidthMm)
                 } ?: runtimeMmCoord(2, width, labelWidthMm)
-                val attributeFont = runtimeFontSize(10, width, height)
-                val attributeLineHeight = runtimeLineHeight(12, attributeFont, width, height)
+                val attributeFont = runtimeFontSize(
+                    10,
+                    width,
+                    height,
+                    labelWidthMm,
+                    labelHeightMm,
+                    previewScalePxPerMm
+                )
+                val attributeLineHeight = runtimeLineHeight(
+                    12,
+                    attributeFont,
+                    width,
+                    height,
+                    labelWidthMm,
+                    labelHeightMm,
+                    previewScalePxPerMm
+                )
                 var attributeY = max(
                     textBottom + 8,
                     runtimeMmCoord(48, height, labelHeightMm),
@@ -996,8 +1099,7 @@ if (businessHours.isNotEmpty()) {
                         val barcodeHeight =
                             max(runtimeMmCoord(field["h"], height, labelHeightMm), 50)
                         val moduleWidth = barcodeModuleWidth(value, boxWidth)
-                        val estimatedWidth = estimateBarcodeWidth(value.length, moduleWidth)
-                        val barcodeX = x + max((boxWidth - estimatedWidth) / 2, 0)
+                        val barcodeX = x
 
                         val barcodeStatus = lp.PrintBarcode1D(
                             barcodeX,
@@ -1006,7 +1108,7 @@ if (businessHours.isNotEmpty()) {
                             0,
                             value,
                             barcodeHeight,
-                            1,
+                            0,
                             moduleWidth,
                             moduleWidth
                         )
@@ -1030,7 +1132,14 @@ if (businessHours.isNotEmpty()) {
                         val x = runtimeMmCoord(field["x"], width, labelWidthMm)
                         val y = runtimeMmCoord(field["y"], height, labelHeightMm)
                         val boxWidth = max(runtimeMmCoord(field["w"], width, labelWidthMm), 80)
-                        val fontSize = runtimeFontSize(field["font_size"], width, height)
+                        val fontSize = runtimeFontSize(
+                            field["font_size"],
+                            width,
+                            height,
+                            labelWidthMm,
+                            labelHeightMm,
+                            previewScalePxPerMm
+                        )
                         val textX = centerTextInBox(value, fontSize, x, boxWidth)
                         lp.PrintText(
                             textX,
@@ -1052,30 +1161,24 @@ if (businessHours.isNotEmpty()) {
                     if (shouldPrintFooter && value.isNotBlank()) {
                         val x = runtimeMmCoord(field["x"], width, labelWidthMm)
                         val y = runtimeMmCoord(field["y"], height, labelHeightMm)
-                        val boxWidth =
-                            max(runtimeMmCoord(field["w"], width, labelWidthMm), width - 20)
-                        val fontSize = runtimeFontSize(field["font_size"], width, height)
-                        val lines = wrapRuntimeText(value, boxWidth, fontSize)
-                        var footerY = y
-                        for (line in lines) {
-                            val footerX = centerTextInBox(line, fontSize, x, boxWidth)
-                            lp.PrintText(
-                                footerX,
-                                footerY,
-                                "0",
-                                line,
-                                0,
-                                fontSize,
-                                fontSize,
-                                0
-                            )
-                            footerY += runtimeLineHeight(
-                                field["line_height"],
-                                fontSize,
-                                width,
-                                height
-                            )
-                        }
+                        val fontSize = runtimeFontSize(
+                            field["font_size"],
+                            width,
+                            height,
+                            labelWidthMm,
+                            labelHeightMm,
+                            previewScalePxPerMm
+                        )
+                        lp.PrintText(
+                            x,
+                            y,
+                            "0",
+                            value,
+                            0,
+                            fontSize,
+                            fontSize,
+                            0
+                        )
                     }
                 }
 
@@ -1151,21 +1254,70 @@ if (businessHours.isNotEmpty()) {
         return minOf(width, height) / 240.0
     }
 
-    private fun runtimeFontSize(value: Any?, width: Int, height: Int): Int {
+    private fun runtimeFontSize(
+        value: Any?,
+        width: Int,
+        height: Int,
+        labelWidthMm: Double,
+        labelHeightMm: Double,
+        previewScalePxPerMm: Double?
+    ): Int {
         val source = when (value) {
             is Number -> value.toDouble()
             else -> value?.toString()?.toDoubleOrNull() ?: 10.0
         }
-        return (source * runtimeScale(width, height)).roundToInt().coerceIn(18, 72)
+        val converted = runtimePreviewUnitsToDots(
+            source = source,
+            width = width,
+            height = height,
+            labelWidthMm = labelWidthMm,
+            labelHeightMm = labelHeightMm,
+            previewScalePxPerMm = previewScalePxPerMm
+        )
+        return converted.roundToInt().coerceAtLeast(1)
     }
 
-    private fun runtimeLineHeight(value: Any?, fontSize: Int, width: Int, height: Int): Int {
+    private fun runtimeLineHeight(
+        value: Any?,
+        fontSize: Int,
+        width: Int,
+        height: Int,
+        labelWidthMm: Double,
+        labelHeightMm: Double,
+        previewScalePxPerMm: Double?
+    ): Int {
         val source = when (value) {
             is Number -> value.toDouble()
             else -> value?.toString()?.toDoubleOrNull() ?: fontSize.toDouble()
         }
-        val scaled = (source * runtimeScale(width, height)).roundToInt()
-        return max(scaled, fontSize + 4)
+        val converted = runtimePreviewUnitsToDots(
+            source = source,
+            width = width,
+            height = height,
+            labelWidthMm = labelWidthMm,
+            labelHeightMm = labelHeightMm,
+            previewScalePxPerMm = previewScalePxPerMm
+        ).roundToInt()
+        return max(converted, fontSize)
+    }
+
+    private fun runtimePreviewUnitsToDots(
+        source: Double,
+        width: Int,
+        height: Int,
+        labelWidthMm: Double,
+        labelHeightMm: Double,
+        previewScalePxPerMm: Double?
+    ): Double {
+        if (source <= 0) return 0.0
+
+        val safePreviewScale = previewScalePxPerMm?.takeIf { it > 0 }
+        if (safePreviewScale != null && labelWidthMm > 0 && labelHeightMm > 0) {
+            val dotsPerMm = minOf(width / labelWidthMm, height / labelHeightMm)
+            return (source / safePreviewScale) * dotsPerMm
+        }
+
+        return source
     }
 
     private fun runtimeFontStyle(field: Map<String, Any?>): Int {

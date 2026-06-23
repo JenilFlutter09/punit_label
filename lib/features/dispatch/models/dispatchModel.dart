@@ -8,10 +8,32 @@ class DispatchModel {
     message = json['message'];
 
     if (json['data'] != null && json['data'] is List) {
-      data = (json['data'] as List)
-          .map((e) => Data.fromJson(e))
-          .toList();
+      data = (json['data'] as List).map((e) => Data.fromJson(e)).toList();
     }
+  }
+}
+
+class DispatchSubmitResponse {
+  bool? status;
+  String? message;
+  DispatchSubmitData? data;
+
+  DispatchSubmitResponse.fromJson(Map<String, dynamic> json) {
+    status = json['status'];
+    message = json['message'];
+    data = json['data'] is Map<String, dynamic>
+        ? DispatchSubmitData.fromJson(json['data'])
+        : null;
+  }
+}
+
+class DispatchSubmitData {
+  String? dispatchId;
+  String? dispatchedAt;
+
+  DispatchSubmitData.fromJson(Map<String, dynamic> json) {
+    dispatchId = json['dispatch_id'];
+    dispatchedAt = json['dispatched_at'];
   }
 }
 
@@ -24,14 +46,15 @@ class Data {
   List<Variation>? variation;
   List<Barcodes>? barcodes;
 
-  Data(
-      {this.stockId,
-        this.productId,
-        this.productName,
-        this.unitConversion,
-        this.unit,
-        this.variation,
-        this.barcodes});
+  Data({
+    this.stockId,
+    this.productId,
+    this.productName,
+    this.unitConversion,
+    this.unit,
+    this.variation,
+    this.barcodes,
+  });
 
   Data.fromJson(Map<String, dynamic> json) {
     stockId = json['stock_id'];
@@ -71,8 +94,12 @@ class Variation {
   int? optionId;
   String? optionName;
 
-  Variation(
-      {this.attributeId, this.attributeName, this.optionId, this.optionName});
+  Variation({
+    this.attributeId,
+    this.attributeName,
+    this.optionId,
+    this.optionName,
+  });
 
   Variation.fromJson(Map<String, dynamic> json) {
     attributeId = json['attribute_id'];
@@ -106,16 +133,17 @@ class Barcodes {
   String? serialNo;
   String? time;
 
-  Barcodes(
-      {this.id,
-        this.barCodeString,
-        this.isTareWeight,
-        this.tareWeight,
-        this.grossWeight,
-        this.netWeight,
-        this.stockId,
-        this.serialNo,
-        this.time});
+  Barcodes({
+    this.id,
+    this.barCodeString,
+    this.isTareWeight,
+    this.tareWeight,
+    this.grossWeight,
+    this.netWeight,
+    this.stockId,
+    this.serialNo,
+    this.time,
+  });
 
   Barcodes.fromJson(Map<String, dynamic> json) {
     id = json['id'];

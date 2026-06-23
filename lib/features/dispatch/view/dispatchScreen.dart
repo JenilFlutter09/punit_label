@@ -35,7 +35,7 @@ class DispatchScreen extends StatelessWidget {
           showScale: false,
           showPrinter: false,
           showUser: false,
-          showDrawer: true,
+          showDrawer: !isBusy,
         ),
         drawer: isBusy ? null : CustomDrawer(),
         body: Obx(() {
@@ -357,6 +357,7 @@ class InwardListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool hasTare = product.isTareWeight == true;
+    final convertedWeight = _convertedWeight(product);
 
     return SizedBox(
       width: Get.width,
@@ -432,6 +433,14 @@ class InwardListItem extends StatelessWidget {
                       color: const Color(0xFF4CAF50),
                       icon: Icons.balance,
                     ),
+
+                    if (convertedWeight != null)
+                      _buildWeightChip(
+                        label: "Conv Wt",
+                        value: convertedWeight.toStringAsFixed(2),
+                        color: const Color(0xFF7E57C2),
+                        icon: Icons.swap_horiz,
+                      ),
                   ],
                 ),
               ],
@@ -440,6 +449,15 @@ class InwardListItem extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  double? _convertedWeight(Dispatchbarcodes product) {
+    if (product.unitConversion != true) return null;
+
+    final unitValue = double.tryParse((product.unit ?? '').trim());
+    if (unitValue == null || unitValue <= 0) return null;
+
+    return (product.netWeight ?? 0) / unitValue;
   }
 
   /// 🔹 Variation chip

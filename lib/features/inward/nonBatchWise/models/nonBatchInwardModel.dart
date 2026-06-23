@@ -137,10 +137,10 @@ class NonBatchBarcodes {
 
   NonBatchBarcodes.fromJson(Map<String, dynamic> json) {
     barCodeString = json['bar_code_string'];
-    tareWeightEnable = json['tare_weight_enable'];
-    tareWeight =  Utility.toDouble(json['tare_weight']);
-    grossWeight =  Utility.toDouble(json['gross_weight']);
-    netWeight =  Utility.toDouble(json['net_weight']);
+    tareWeightEnable = Utility.toBool(json['tare_weight_enable']);
+    tareWeight = Utility.toDouble(json['tare_weight']);
+    grossWeight = Utility.toDouble(json['gross_weight']);
+    netWeight = Utility.toDouble(json['net_weight']);
     time = json['time'];
     serialNo = Utility.toInteger(json['serial_no']);
   }

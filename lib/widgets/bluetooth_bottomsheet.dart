@@ -6,8 +6,9 @@ import '../constants/colors.dart';
 import '../constants/sizes.dart';
 import '../constants/strings.dart';
 import '../constants/styles.dart';
-import '../features/bluetooth_test/classic_serial_scale_test_sheet.dart';
 import '../features/dashboard/dashboardController.dart';
+import '../features/scale_support_test/android_scale_support_test_sheet.dart';
+import '../scale_support/scale_support.dart';
 
 enum BluetoothDeviceSheetType { scale, printer }
 
@@ -15,12 +16,12 @@ Future<void> showScaleConnectionSheet(
   BuildContext context,
   DashboardController controller,
 ) async {
-  final classicController = ClassicSerialScaleTestController.ensureRegistered();
+  final scaleController = controller.androidScaleController;
 
   try {
-    await classicController.refreshDevices(controller);
+    await scaleController.refreshDevices();
   } catch (e) {
-    classicController.isScanning.value = false;
+    scaleController.isScanning.value = false;
     Get.snackbar(
       'Scan Failed',
       _userFacingReason(e, fallback: 'Unable to scan for scales.'),
@@ -31,52 +32,66 @@ Future<void> showScaleConnectionSheet(
     context: context,
     title: 'Scale Connection',
     subtitle: 'Connect a paired scale to stream live weight into the app.',
-    rescan: () => classicController.refreshDevices(controller),
+    extraHeaderAction: TextButton.icon(
+      onPressed: () async {
+        Get.back();
+        await showAndroidScaleSupportTestSheet(context);
+      },
+      icon: const Icon(Icons.science_outlined, size: 18),
+      label: const Text('Open New Android Scale Tester'),
+    ),
+    rescan: () => scaleController.refreshDevices(),
     statusBanner: Obx(
-      () => classicController.devices.isEmpty
+      () => scaleController.devices.isEmpty
           ? _emptyInfoBanner(
-              'No paired scale found.\nMake sure the device is paired and nearby.',
+              'No scale found.\nMake sure the device is nearby, paired if Classic, and Bluetooth is on.',
             )
           : const SizedBox.shrink(),
     ),
     child: Obx(
       () => _ConnectionListShell(
-        isScanning: classicController.isScanning.value,
-        hasItems: classicController.devices.isNotEmpty,
+        isScanning: scaleController.isScanning.value,
+        hasItems: scaleController.devices.isNotEmpty,
         emptyActionLabel: 'Scan Again',
-        emptyAction: () => classicController.refreshDevices(controller),
+        emptyAction: () => scaleController.refreshDevices(),
         emptyMessage:
-            'No paired scale found.\nMake sure the device is paired and nearby.',
+            'No scale found.\nMake sure the device is nearby, paired if Classic, and Bluetooth is on.',
         child: ListView.separated(
           shrinkWrap: true,
-          itemCount: classicController.devices.length,
+          itemCount: scaleController.devices.length,
           separatorBuilder: (_, __) => const Divider(height: 1),
           itemBuilder: (context, index) {
-            final device = classicController.devices[index];
-            final address = device.address;
+            final device = scaleController.devices[index];
+            final connectedId = scaleController.connection.value.device?.id;
             final isConnectingNow =
-                classicController.connectingAddress.value == address;
+                scaleController.connection.value.status ==
+                    ScaleConnectionStatus.connecting &&
+                connectedId == device.id;
             final isConnectedNow =
-                classicController.connectedAddress.value == address &&
-                classicController.isConnected.value;
+                scaleController.connection.value.status ==
+                    ScaleConnectionStatus.connected &&
+                connectedId == device.id;
 
             return _ConnectionTile(
-              title: classicController.displayName(device),
-              subtitle: device.paired ? '$address • Paired' : address,
-              icon: Icons.scale_rounded,
+              title: device.displayName,
+              subtitle:
+                  '${device.id} • ${device.transportType.name.toUpperCase()}${device.isBonded ? ' • Bonded' : ''}',
+              icon: device.transportType == ScaleTransportType.classic
+                  ? Icons.bluetooth
+                  : Icons.settings_input_antenna,
               connected: isConnectedNow,
               loading: isConnectingNow,
               actionLabel: isConnectedNow ? 'Disconnect' : 'Connect',
               actionColor: isConnectedNow ? Colors.red : Colors.green,
               onPressed: () async {
                 if (isConnectedNow) {
-                  await classicController.disconnect(controller);
+                  await scaleController.disconnect();
                   return;
                 }
 
-                await classicController.connect(device, controller);
-                if (classicController.connectedAddress.value == address &&
-                    classicController.isConnected.value) {
+                await scaleController.connect(device);
+                if (scaleController.connection.value.status ==
+                    ScaleConnectionStatus.connected) {
                   Get.back();
                 }
               },
@@ -218,6 +233,7 @@ Future<void> _showDeviceConnectionSheet({
   required Future<void> Function() rescan,
   required Widget child,
   Widget? statusBanner,
+  Widget? extraHeaderAction,
 }) async {
   await Get.bottomSheet(
     Container(
@@ -267,6 +283,13 @@ Future<void> _showDeviceConnectionSheet({
                       Text(title, style: Styles.blackBold18),
                       const SizedBox(height: 4),
                       Text(subtitle, style: Styles.black12),
+                      if (extraHeaderAction != null) ...[
+                        const SizedBox(height: 2),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: extraHeaderAction,
+                        ),
+                      ],
                     ],
                   ),
                 ),

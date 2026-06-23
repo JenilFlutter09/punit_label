@@ -3,8 +3,6 @@ import 'package:get/get.dart';
 import 'package:punit_label/constants/enums.dart';
 import 'package:punit_label/constants/sizes.dart';
 import 'package:punit_label/features/dashboard/dashboardController.dart';
-import 'package:punit_label/features/dispatch/view/dispatchScreen.dart';
-import 'package:punit_label/features/inward/view/inwardScreen.dart';
 
 import '../constants/colors.dart';
 import '../constants/styles.dart';
@@ -14,7 +12,7 @@ import 'bluetooth_bottomsheet.dart';
 class CustomDrawer extends StatelessWidget {
   CustomDrawer({super.key});
 
-  final DashboardController dashController = Get.find();
+  final DashboardController dashController = Get.find<DashboardController>();
 
   @override
   Widget build(BuildContext context) {
@@ -49,37 +47,17 @@ class CustomDrawer extends StatelessWidget {
                     horizontal: 12,
                     vertical: 12,
                   ),
-                  child: Obx(
-                    () => Row(
-                      children: [
-                        DrawerQuickAction(
-                          icon: Icons.archive,
-                          label: "Inward",
-                          enabled: dashController.enableInward.value,
-                          onTap: () {
-                            Get.back();
-                            Get.to(() => InwardScreen());
-                          },
-                        ),
-                        DrawerQuickAction(
-                          icon: Icons.local_shipping,
-                          label: "Dispatch",
-                          enabled: dashController.enableDispatch.value,
-                          onTap: () {
-                            Get.back();
-                            Get.to(() => DispatchScreen());
-                          },
-                        ),
-                        DrawerQuickAction(
-                          icon: Icons.line_weight,
-                          label: "Tare",
-                          onTap: () {
-                            Get.back();
-                            Get.to(() => AddTareProductsView());
-                          },
-                        ),
-                      ],
-                    ),
+                  child: Row(
+                    children: [
+                      DrawerQuickAction(
+                        icon: Icons.line_weight,
+                        label: "Tare Weight Screen",
+                        onTap: () {
+                          Get.back();
+                          Get.to(() => AddTareProductsView());
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 Dimens.boxHeight10,
@@ -181,7 +159,7 @@ class CustomDrawer extends StatelessWidget {
                   child: Column(
                     children: [
                       Obx(
-                            () => _connectionTile(
+                        () => _connectionTile(
                           icon: Icons.scale_rounded,
                           title: "Scale",
                           subtitle: dashController.isAnyScaleConnected
@@ -203,7 +181,7 @@ class CustomDrawer extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Obx(
-                            () => _connectionTile(
+                        () => _connectionTile(
                           icon: dashController.isLabelPrinterMode.value
                               ? Icons.print_rounded
                               : Icons.receipt_long_rounded,
@@ -241,7 +219,7 @@ class CustomDrawer extends StatelessWidget {
             ),
           ),
 
-         /* SafeArea(
+          /* SafeArea(
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -310,7 +288,7 @@ class CustomDrawer extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
-           const SizedBox(height: 6),
+          const SizedBox(height: 6),
           // Text(
           //   dashboardController.userDetails.value?.companyCode ??
           //       'Operator Console',
@@ -474,50 +452,80 @@ class CustomDrawer extends StatelessWidget {
   }
 
   Widget _labelFormatDropdownTile() {
-    return Obx(
-      () => ListTile(
-        leading: Icon(Icons.label, color: ColorsValue.primaryColor),
-        //title: const Text("Default Label"),
-       // subtitle: const Text("Used when opening non-batch inward"),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-        trailing: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 170, maxWidth: 210),
-          child: DropdownButtonFormField<int>(
-            initialValue: dashController.defaultNonBatchLabelFormatObj.value?.id,
-            isExpanded: true,
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            items: dashController.labelFormats
-                .map(
-                  (format) => DropdownMenuItem<int>(
-                    value: format.id,
-                    child: Text(
-                      format.nameOfLabel,
-                      overflow: TextOverflow.ellipsis,
+    return Obx(() {
+      final formats = dashController.labelFormats;
+      final selectedId = dashController.defaultNonBatchLabelFormatObj.value?.id;
+      final hasSelectedFormat = formats.any(
+        (format) => format.id == selectedId,
+      );
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text('Selected Label Format', style: Styles.blackBold14),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Icon(Icons.label, color: ColorsValue.primaryColor),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 170, maxWidth: 210),
+                child: DropdownButtonFormField<int>(
+                  initialValue: hasSelectedFormat ? selectedId : null,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                )
-                .toList(),
-            onChanged: (selectedId) {
-              if (selectedId == null) return;
-              final selected = dashController.labelFormats.firstWhere(
-                (format) => format.id == selectedId,
-                orElse: () => dashController.labelFormats.first,
-              );
-              dashController.updateDefaultNonBatchLabelFormat(selected);
-            },
+                  disabledHint: const Text(
+                    "No labels",
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  items: formats
+                      .map(
+                        (format) => DropdownMenuItem<int>(
+                          value: format.id,
+                          child: Text(
+                            format.nameOfLabel,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: formats.isEmpty
+                      ? null
+                      : (selectedId) {
+                          if (selectedId == null) return;
+                          final selected = formats.firstWhere(
+                            (format) => format.id == selectedId,
+                          );
+                          dashController.updateDefaultNonBatchLabelFormat(
+                            selected,
+                          );
+                        },
+                ),
+              ),
+            ],
           ),
-        ),
-      ),
-    );
+        ],
+      );
+      // return ListTile(
+      //   leading: Icon(Icons.label, color: ColorsValue.primaryColor),
+      //   title: const Text("Default Label"),
+      //   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      //
+      //   trailing:
+      // );
+    });
   }
 }
 
@@ -767,8 +775,9 @@ class DrawerQuickAction extends StatelessWidget {
     return Expanded(
       child: GestureDetector(
         onTap: enabled ? onTap : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
+         // mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             CircleAvatar(
               radius: 24,
@@ -784,7 +793,7 @@ class DrawerQuickAction extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: enabled ? Colors.black87 : Colors.grey,
               ),

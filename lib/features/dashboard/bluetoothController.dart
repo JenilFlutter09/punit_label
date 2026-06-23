@@ -275,7 +275,7 @@ class BluetoothController extends GetxController {
     bytes += [27, 97, 1];
     bytes += [29, 104, 100];
     bytes += [29, 119, paperSize == 80 ? 3 : 2];
-    bytes += [29, 72, 2];
+    bytes += [29, 72, 0];
 
     bytes += [29, 107, 73, barcodeData.length];
     bytes += utf8.encode(barcodeData);

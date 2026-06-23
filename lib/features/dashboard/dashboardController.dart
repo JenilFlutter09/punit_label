@@ -11,11 +11,11 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:punit_label/constants/enums.dart';
 import 'package:punit_label/constants/utility.dart';
-import 'package:punit_label/features/bluetooth_test/classic_serial_scale_test_sheet.dart';
 import 'package:punit_label/features/dashboard/dashboardModel.dart';
 import 'package:punit_label/features/label_preview/models/static_label_preview_models.dart';
 import 'package:punit_label/features/label_template/models/label_template_models.dart';
 import 'package:punit_label/features/login/loginmodel.dart';
+import 'package:punit_label/scale_support/scale_support.dart';
 
 import '../../apis/connectHelper.dart';
 import '../../apis/bluetooth_device_store.dart';
@@ -80,6 +80,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   bool _isRestoringDrawerSettings = false;
   RxBool isLoading = false.obs;
   final List<Worker> _settingsWorkers = [];
+  final List<Worker> _scaleWorkers = [];
 
   RxInt totalProducts = 0.obs;
   RxInt totalVariants = 0.obs;
@@ -90,6 +91,8 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   RxList<LowStockProducts> lowStockProducts = <LowStockProducts>[].obs;
 
   RxList<LabelFormatElement> labelFormats = <LabelFormatElement>[].obs;
+  final androidScaleController =
+      AndroidScaleConnectionController.ensureRegistered();
   bool get isAnyScaleConnected =>
       isWeightScaleConnected.value || isExperimentalScaleConnected.value;
 
@@ -359,6 +362,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     await handlePermissions();
     await loadDrawerSettings();
     _registerDrawerSettingPersistence();
+    _registerAndroidScaleBindings();
     if (!_autoReconnectStarted) {
       _autoReconnectStarted = true;
       unawaited(autoReconnectDevicesOnStartup());
@@ -381,6 +385,9 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     for (final worker in _settingsWorkers) {
       worker.dispose();
     }
+    for (final worker in _scaleWorkers) {
+      worker.dispose();
+    }
     printerTimer?.cancel();
     super.onClose();
   }
@@ -398,12 +405,53 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     _isResumeRecoveryRunning = true;
 
     try {
-      final classicScaleController =
-          ClassicSerialScaleTestController.ensureRegistered();
-      await classicScaleController.handleAppResumed(this);
+      await androidScaleController.handleAppResumed();
     } finally {
       _isResumeRecoveryRunning = false;
     }
+  }
+
+  void _registerAndroidScaleBindings() {
+    if (_scaleWorkers.isNotEmpty) return;
+
+    _scaleWorkers.add(
+      ever<ScaleConnectionSnapshot>(androidScaleController.connection, (
+        snapshot,
+      ) {
+        final connected =
+            snapshot.status == ScaleConnectionStatus.connected &&
+            snapshot.device != null;
+        isWeightScaleConnected.value = connected;
+        isExperimentalScaleConnected.value = connected;
+
+        if (!connected) {
+          receivedData.value = '';
+        }
+      }),
+    );
+
+    _scaleWorkers.add(
+      ever<ScalePacket?>(androidScaleController.latestPacket, (packet) {
+        if (packet == null) return;
+        debugPrint(
+          'Scale receivedData(${packet.transportType.name}): "${packet.asString}"',
+        );
+        receivedData.value = packet.asString;
+      }),
+    );
+
+    _scaleWorkers.add(
+      ever<ScaleReading?>(androidScaleController.latestReading, (reading) {
+        if (reading == null) return;
+        final formatted = reading.weight.toStringAsFixed(3);
+        receivedWeight.value = formatted;
+        manualBatchWeights.manualGross.value = formatted;
+        manualBatchWeights.calculateManualNet();
+        manualNonBatchWeights.manualGross.value = formatted;
+        manualNonBatchWeights.calculateManualNet();
+        manualTareWeights.manualGross.value = formatted;
+      }),
+    );
   }
 
   Future<ResponseModel> callApi({
@@ -916,10 +964,13 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     );
 
     final dimensions = _runtimeTemplateDimensions(labelSize);
+    final previewScalePxPerMm =
+        template.canvasConfigJson?['preview_scale_px_per_mm'];
     final payload = {
       'labelSize': labelSize,
       'width': dimensions.width,
       'height': dimensions.height,
+      'previewScalePxPerMm': previewScalePxPerMm,
       'whiteLabel': template.whiteLabel,
       'lockedFields': runtimeData.lockedFields,
       'footerLocked': runtimeData.footerLocked,
@@ -1024,8 +1075,9 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
       case 'net_weight':
         return formatRuntimeWeight(netWeight);
       case 'barcode':
-      case 'barcode_text':
         return barcodeString;
+      case 'barcode_text':
+        return '';
       case 'sr_no':
         return serialNumber;
       case 'datetime':
@@ -1042,7 +1094,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
       case '50x75':
         return const RuntimeLabelDimensions(width: 410, height: 600);
       case '75x100':
-        return const RuntimeLabelDimensions(width: 700, height: 600);
+        return const RuntimeLabelDimensions(width: 600, height: 700);
       case '100x100':
         return const RuntimeLabelDimensions(width: 700, height: 700);
       case '75x75':
@@ -1914,15 +1966,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
 
   Future<void> logout() async {
     try {
-      if (Get.isRegistered<ClassicSerialScaleTestController>()) {
-        final classicScaleController =
-            Get.find<ClassicSerialScaleTestController>();
-        await classicScaleController.disconnect(
-          this,
-          clearSavedDevice: true,
-          showSnackbar: false,
-        );
-      }
+      await androidScaleController.disconnect(clearSavedDevice: true);
     } catch (_) {}
 
     try {
@@ -1961,10 +2005,6 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     receivedData.value = '';
     statusMessage.value = '';
 
-    if (Get.isRegistered<ClassicSerialScaleTestController>()) {
-      Get.delete<ClassicSerialScaleTestController>(force: true);
-    }
-
     RouteManagement.offToLogin();
   }
 
@@ -1976,18 +2016,11 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> disconnectActiveScale() async {
-    final classicScaleController =
-        Get.isRegistered<ClassicSerialScaleTestController>()
-        ? Get.find<ClassicSerialScaleTestController>()
-        : null;
-
-    if (classicScaleController?.isConnected.value == true) {
-      await classicScaleController!.disconnect(this);
-      return;
-    }
-
-    if (connectedDevice.value != null || isAnyScaleConnected) {
-      await disconnectDevice();
+    if (androidScaleController.isConnected || isAnyScaleConnected) {
+      await androidScaleController.disconnect();
+      isWeightScaleConnected.value = false;
+      isExperimentalScaleConnected.value = false;
+      receivedData.value = '';
     }
   }
 
@@ -2012,9 +2045,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
 
   Future<void> _tryAutoReconnectScale() async {
     if (isWeightScaleConnected.value) return;
-    final classicScaleController =
-        ClassicSerialScaleTestController.ensureRegistered();
-    await classicScaleController.tryAutoReconnectFromSaved(this);
+    await androidScaleController.tryAutoReconnectFromSaved();
   }
 
   Future<void> _tryAutoReconnectLabelPrinter() async {
