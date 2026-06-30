@@ -56,8 +56,7 @@ class BatchInwardController extends GetxController {
   String? _cachedRuntimeTemplateKey;
 
   void _syncSelectedProductTare() {
-    final tareValue =
-        dashboardController.tareState.value == TareState.off
+    final tareValue = dashboardController.tareState.value == TareState.off
         ? '0'
         : (selectedModelProduct.value?.tareWeight.toString() ?? '0');
     manualCtrl.manualTare.value = tareValue;
@@ -68,6 +67,10 @@ class BatchInwardController extends GetxController {
   String _formatConvertedUnits(double value) {
     final formatted = value.toStringAsFixed(2);
     return formatted.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  double _autoWeightSecondsOrDefault(double? seconds) {
+    return seconds != null && seconds > 0 ? seconds : 5;
   }
 
   @override
@@ -121,7 +124,7 @@ class BatchInwardController extends GetxController {
             autoWeight: p.autoWeight ?? false,
             minWeight: p.minAutoWeight ?? 0,
             maxWeight: p.maxAutoWeight ?? 0,
-            seconds: p.autoWeightSeconds ?? 5,
+            seconds: _autoWeightSecondsOrDefault(p.autoWeightSeconds),
             //productTareWeight: double.parse(p.tareWeight ?? '0'),
             productTareWeight: p.tareWeight ?? 0,
             unitConversion: p.unitConversion ?? false,
@@ -171,7 +174,7 @@ class BatchInwardController extends GetxController {
       autoWeight: product.autoWeight ?? false,
       minWeight: product.minAutoWeight ?? 0,
       maxWeight: product.maxAutoWeight ?? 0,
-      seconds: product.autoWeightSeconds ?? 0,
+      seconds: _autoWeightSecondsOrDefault(product.autoWeightSeconds),
       //productTareWeight: double.parse(product.tareWeight ?? '0'),
       productTareWeight: product.tareWeight ?? 0,
       unitConversion: product.unitConversion ?? false,
@@ -307,9 +310,13 @@ class BatchInwardController extends GetxController {
     }
 
     try {
-      final response = await connectHelper.getRuntimeLabelTemplate(
-        batchProductId: selectedProduct.batchProductId,
-        labelSize: selectedLabelSize.value,
+      final response = await dashboardController.callTypedApi(
+        apiCall: () => connectHelper.getRuntimeLabelTemplate(
+          batchProductId: selectedProduct.batchProductId,
+          labelSize: selectedLabelSize.value,
+        ),
+        isLoading: initLoading,
+        blockWhileRunning: false,
       );
       _cachedRuntimeTemplate = response.data;
       _cachedRuntimeTemplateKey = cacheKey;
@@ -630,15 +637,15 @@ class BatchInwardController extends GetxController {
       );
       print('tower controller => ' + isInRange.toString());
 
-      // 6️⃣ Existing batch logic (unchanged)
       if (!isInRange) {
-        continuousOutOfRangeSeconds++;
+        continuousOutOfRangeSeconds = 0;
+        return;
+      }
 
-        if (continuousOutOfRangeSeconds >= product.seconds) {
-          await addToList();
-          continuousOutOfRangeSeconds = 0;
-        }
-      } else {
+      continuousOutOfRangeSeconds++;
+
+      if (continuousOutOfRangeSeconds >= product.seconds) {
+        await addToList();
         continuousOutOfRangeSeconds = 0;
       }
     });

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -5,9 +7,7 @@ import '../constants/bluetooth_device_display.dart';
 import '../constants/colors.dart';
 import '../constants/sizes.dart';
 import '../constants/strings.dart';
-import '../constants/styles.dart';
 import '../features/dashboard/dashboardController.dart';
-import '../features/scale_support_test/android_scale_support_test_sheet.dart';
 import '../scale_support/scale_support.dart';
 
 enum BluetoothDeviceSheetType { scale, printer }
@@ -32,14 +32,6 @@ Future<void> showScaleConnectionSheet(
     context: context,
     title: 'Scale Connection',
     subtitle: 'Connect a paired scale to stream live weight into the app.',
-    extraHeaderAction: TextButton.icon(
-      onPressed: () async {
-        Get.back();
-        await showAndroidScaleSupportTestSheet(context);
-      },
-      icon: const Icon(Icons.science_outlined, size: 18),
-      label: const Text('Open New Android Scale Tester'),
-    ),
     rescan: () => scaleController.refreshDevices(),
     statusBanner: Obx(
       () => scaleController.devices.isEmpty
@@ -236,82 +228,306 @@ Future<void> _showDeviceConnectionSheet({
   Widget? extraHeaderAction,
 }) async {
   await Get.bottomSheet(
-    Container(
-      constraints: BoxConstraints(
-        maxHeight: Get.height * 0.72,
-        minHeight: Get.height * 0.42,
-      ),
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 52,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: ColorsValue.primaryColor.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    Icons.bluetooth_searching_rounded,
-                    color: ColorsValue.primaryColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: Styles.blackBold18),
-                      const SizedBox(height: 4),
-                      Text(subtitle, style: Styles.black12),
-                      if (extraHeaderAction != null) ...[
-                        const SizedBox(height: 2),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: extraHeaderAction,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Scan Again',
-                  onPressed: rescan,
-                  icon: Icon(
-                    Icons.refresh_rounded,
-                    color: ColorsValue.primaryColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (statusBanner != null) statusBanner,
-            Flexible(child: child),
-          ],
-        ),
-      ),
+    _DeviceConnectionSheet(
+      title: title,
+      subtitle: subtitle,
+      rescan: rescan,
+      statusBanner: statusBanner,
+      extraHeaderAction: extraHeaderAction,
+      child: child,
     ),
     isScrollControlled: true,
   );
+}
+
+class _DeviceConnectionSheet extends StatelessWidget {
+  const _DeviceConnectionSheet({
+    required this.title,
+    required this.subtitle,
+    required this.rescan,
+    required this.child,
+    this.statusBanner,
+    this.extraHeaderAction,
+  });
+
+  final String title;
+  final String subtitle;
+  final Future<void> Function() rescan;
+  final Widget child;
+  final Widget? statusBanner;
+  final Widget? extraHeaderAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final size = media.size;
+    final isTablet = size.shortestSide >= 600;
+    final isHorizontalTablet =
+        isTablet && media.orientation == Orientation.landscape;
+
+    final maxWidth = isHorizontalTablet
+        ? size.width
+        : isTablet
+        ? math.min(size.width * 0.86, 760.0)
+        : size.width;
+    final maxHeight = isHorizontalTablet
+        ? size.height * 0.82
+        : size.height * 0.72;
+    final minHeight = isHorizontalTablet
+        ? size.height * 0.58
+        : size.height * 0.42;
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        width: maxWidth,
+        constraints: BoxConstraints(maxHeight: maxHeight, minHeight: minHeight),
+        padding: EdgeInsets.fromLTRB(
+          isHorizontalTablet ? 28 : 18,
+          12,
+          isHorizontalTablet ? 28 : 18,
+          isHorizontalTablet ? 24 : 18,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: isHorizontalTablet
+              ? _buildHorizontalTabletLayout()
+              : _buildVerticalLayout(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVerticalLayout() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _SheetGrabHandle(),
+        const SizedBox(height: 16),
+        _SheetHeader(
+          title: title,
+          subtitle: subtitle,
+          rescan: rescan,
+          extraHeaderAction: extraHeaderAction,
+          compact: true,
+        ),
+        const SizedBox(height: 16),
+        if (statusBanner != null) statusBanner!,
+        Flexible(child: child),
+      ],
+    );
+  }
+
+  Widget _buildHorizontalTabletLayout() {
+    return Column(
+      children: [
+        const _SheetGrabHandle(),
+        const SizedBox(height: 18),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final sideWidth = (constraints.maxWidth * 0.32).clamp(
+                230.0,
+                320.0,
+              );
+              final gutter = constraints.maxWidth < 720 ? 16.0 : 24.0;
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: sideWidth,
+                    child: _SheetHeader(
+                      title: title,
+                      subtitle: subtitle,
+                      rescan: rescan,
+                      extraHeaderAction: extraHeaderAction,
+                      compact: false,
+                    ),
+                  ),
+                  SizedBox(width: gutter),
+                  VerticalDivider(width: 1, color: ColorsValue.shadowColor),
+                  SizedBox(width: gutter),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        if (statusBanner != null) statusBanner!,
+                        Expanded(child: child),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SheetTextStyles {
+  static const compactTitle = TextStyle(
+    color: Colors.black,
+    fontSize: 20,
+    fontWeight: FontWeight.w700,
+    height: 1.15,
+  );
+
+  static const tabletTitle = TextStyle(
+    color: Colors.black,
+    fontSize: 24,
+    fontWeight: FontWeight.w700,
+    height: 1.15,
+  );
+
+  static const body = TextStyle(
+    color: Colors.black87,
+    fontSize: 13,
+    height: 1.35,
+  );
+
+  static const bodySmall = TextStyle(
+    color: Colors.black54,
+    fontSize: 12,
+    height: 1.3,
+  );
+
+  static const tileTitle = TextStyle(
+    color: Colors.black,
+    fontSize: 14,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
+  );
+
+  static const button = TextStyle(fontSize: 13, fontWeight: FontWeight.w700);
+}
+
+class _SheetGrabHandle extends StatelessWidget {
+  const _SheetGrabHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 52,
+      height: 5,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade300,
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+}
+
+class _SheetHeader extends StatelessWidget {
+  const _SheetHeader({
+    required this.title,
+    required this.subtitle,
+    required this.rescan,
+    required this.compact,
+    this.extraHeaderAction,
+  });
+
+  final String title;
+  final String subtitle;
+  final Future<void> Function() rescan;
+  final Widget? extraHeaderAction;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = Container(
+      width: compact ? 44 : 56,
+      height: compact ? 44 : 56,
+      decoration: BoxDecoration(
+        color: ColorsValue.primaryColor.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(compact ? 14 : 16),
+      ),
+      child: Icon(
+        Icons.bluetooth_searching_rounded,
+        size: compact ? 24 : 30,
+        color: ColorsValue.primaryColor,
+      ),
+    );
+
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: compact
+              ? _SheetTextStyles.compactTitle
+              : _SheetTextStyles.tabletTitle,
+        ),
+        const SizedBox(height: 4),
+        Text(subtitle, style: _SheetTextStyles.body),
+      ],
+    );
+
+    if (compact) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          icon,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                titleBlock,
+                if (extraHeaderAction != null) ...[
+                  const SizedBox(height: 2),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: extraHeaderAction,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Scan Again',
+            onPressed: rescan,
+            icon: Icon(Icons.refresh_rounded, color: ColorsValue.primaryColor),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        icon,
+        const SizedBox(height: 18),
+        titleBlock,
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: rescan,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ColorsValue.primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+            label: const Text('Scan Again', style: _SheetTextStyles.button),
+          ),
+        ),
+        if (extraHeaderAction != null) ...[
+          const SizedBox(height: 10),
+          Align(alignment: Alignment.centerLeft, child: extraHeaderAction),
+        ],
+      ],
+    );
+  }
 }
 
 Widget _emptyInfoBanner(String message) {
@@ -334,7 +550,7 @@ Widget _emptyInfoBanner(String message) {
             color: ColorsValue.primaryColor,
           ),
           const SizedBox(width: 10),
-          Expanded(child: Text(message, style: Styles.black12)),
+          Expanded(child: Text(message, style: _SheetTextStyles.body)),
         ],
       ),
     ),
@@ -370,7 +586,7 @@ class _ConnectionListShell extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 emptyMessage,
-                style: Styles.black12,
+                style: _SheetTextStyles.body,
                 textAlign: TextAlign.center,
               ),
               Dimens.boxHeight20,
@@ -382,7 +598,7 @@ class _ConnectionListShell extends StatelessWidget {
                 icon: const Icon(Icons.refresh, color: Colors.white),
                 label: Text(
                   emptyActionLabel,
-                  style: Styles.whiteBold12.copyWith(color: Colors.white),
+                  style: _SheetTextStyles.button.copyWith(color: Colors.white),
                 ),
               ),
             ],
@@ -479,9 +695,9 @@ class _ConnectionTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: Styles.blackBold14),
+                Text(title, style: _SheetTextStyles.tileTitle),
                 const SizedBox(height: 4),
-                Text(subtitle, style: Styles.black11),
+                Text(subtitle, style: _SheetTextStyles.bodySmall),
               ],
             ),
           ),
@@ -506,7 +722,7 @@ class _ConnectionTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: Text(actionLabel),
+              child: Text(actionLabel, style: _SheetTextStyles.button),
             ),
         ],
       ),

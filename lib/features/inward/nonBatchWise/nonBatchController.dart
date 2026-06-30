@@ -90,6 +90,10 @@ class NonBatchInwardController extends GetxController {
     return formatted.replaceFirst(RegExp(r'\.?0+$'), '');
   }
 
+  double _autoWeightSecondsOrDefault(double? seconds) {
+    return seconds != null && seconds > 0 ? seconds : 5;
+  }
+
   @override
   Future<void> onInit() async {
     // TODO: implement onInit
@@ -226,7 +230,7 @@ class NonBatchInwardController extends GetxController {
             autoWeight: p.autoWeight ?? false,
             minWeight: p.minAutoWeight ?? 0,
             maxWeight: p.maxAutoWeight ?? 0,
-            seconds: p.autoWeightSeconds ?? 0,
+            seconds: _autoWeightSecondsOrDefault(p.autoWeightSeconds),
             //productTareWeight: double.parse(p.tareWeight ?? '0'),
             productTareWeight: p.tareWeight ?? 0,
             unitConversion: p.unitConversion ?? false,
@@ -303,7 +307,7 @@ class NonBatchInwardController extends GetxController {
       autoWeight: product.autoWeight ?? false,
       minWeight: product.minAutoWeight ?? 0,
       maxWeight: product.maxAutoWeight ?? 0,
-      seconds: product.autoWeightSeconds ?? 5,
+      seconds: _autoWeightSecondsOrDefault(product.autoWeightSeconds),
       productTareWeight: product.tareWeight ?? 0,
       /*double.tryParse(product.tareWeight ?? '0') ?? 0*/
       unitConversion: product.unitConversion ?? false,
@@ -395,9 +399,10 @@ class NonBatchInwardController extends GetxController {
     }
 
     try {
-      isTemplateOptionsLoading.value = true;
-      final response = await connectHelper.getLabelTemplateOptions(
-        productId: productId,
+      final response = await dashboardController.callTypedApi(
+        apiCall: () =>
+            connectHelper.getLabelTemplateOptions(productId: productId),
+        isLoading: isTemplateOptionsLoading,
       );
       labelTemplateOptions.assignAll(response.data?.options ?? const []);
 
@@ -714,9 +719,13 @@ class NonBatchInwardController extends GetxController {
     }
 
     try {
-      final response = await connectHelper.getRuntimeLabelTemplate(
-        productId: productId,
-        labelSize: selectedLabelSize.value,
+      final response = await dashboardController.callTypedApi(
+        apiCall: () => connectHelper.getRuntimeLabelTemplate(
+          productId: productId,
+          labelSize: selectedLabelSize.value,
+        ),
+        isLoading: initLoading,
+        blockWhileRunning: false,
       );
       _cachedRuntimeTemplate = response.data;
       _cachedRuntimeTemplateKey = cacheKey;
