@@ -148,10 +148,10 @@ class Barcodes {
   Barcodes.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     barCodeString = json['bar_code_string'];
-    isTareWeight = json['is_tare_weight'] == 1;
-    tareWeight = (json['tare_weight'] as num?)?.toDouble();
-    grossWeight = (json['gross_weight'] as num?)?.toDouble();
-    netWeight = (json['net_weight'] as num?)?.toDouble();
+    isTareWeight = _toBool(json['is_tare_weight']);
+    tareWeight = _toDouble(json['tare_weight']);
+    grossWeight = _toDouble(json['gross_weight']);
+    netWeight = _toDouble(json['net_weight']);
     stockId = json['stock_id'];
     serialNo = json['serial_no'];
     time = json['time'];
@@ -170,4 +170,21 @@ class Barcodes {
     data['time'] = this.time;
     return data;
   }
+}
+
+double? _toDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value.trim());
+  return null;
+}
+
+bool _toBool(dynamic value) {
+  if (value is bool) return value;
+  if (value is num) return value == 1;
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    return normalized == '1' || normalized == 'true';
+  }
+  return false;
 }

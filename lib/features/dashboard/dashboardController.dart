@@ -30,6 +30,7 @@ import 'bluetoothController.dart';
 import 'companyModel.dart';
 
 typedef ApiCall = Future<ResponseModel> Function();
+typedef TypedApiCall<T> = Future<T> Function();
 
 class DashboardController extends GetxController with WidgetsBindingObserver {
   static const platform = MethodChannel('label_printer');
@@ -78,6 +79,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   bool _autoReconnectStarted = false;
   bool _isResumeRecoveryRunning = false;
   bool _isRestoringDrawerSettings = false;
+  bool _isHandlingAuthFailure = false;
   RxBool isLoading = false.obs;
   final List<Worker> _settingsWorkers = [];
   final List<Worker> _scaleWorkers = [];
@@ -486,8 +488,13 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
 
           /// 🔁 Retry original request ONCE
           response = await apiCall().timeout(timeout);
+
+          if (response.hasError && response.errorCode == 401) {
+            await _handleAuthFailure();
+            return response;
+          }
         } else {
-          logout();
+          await _handleAuthFailure();
           return refresh;
         }
       }
@@ -544,6 +551,75 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  Future<T> callTypedApi<T>({
+    required TypedApiCall<T> apiCall,
+    required RxBool isLoading,
+    bool retryOn401 = true,
+    bool blockWhileRunning = true,
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    if (blockWhileRunning && isLoading.value) {
+      throw ResponseModel(
+        hasError: true,
+        errorCode: 429,
+        data: jsonEncode({"message": "Request already running", "code": 429}),
+      );
+    }
+
+    try {
+      isLoading.value = true;
+
+      try {
+        return await apiCall().timeout(timeout);
+      } catch (error) {
+        if (retryOn401 && error is ResponseModel && error.errorCode == 401) {
+          final refresh = await connectHelper.refreshToken().timeout(timeout);
+
+          if (refresh.hasError) {
+            await _handleAuthFailure();
+            throw refresh;
+          }
+
+          final decoded = refreshModel.fromJson(jsonDecode(refresh.data));
+          await TokenStorage.saveToken(decoded.accessToken ?? "");
+
+          try {
+            return await apiCall().timeout(timeout);
+          } catch (retryError) {
+            if (retryError is ResponseModel && retryError.errorCode == 401) {
+              await _handleAuthFailure();
+            }
+            throw retryError;
+          }
+        }
+
+        throw error;
+      }
+    } on TimeoutException {
+      final error = ResponseModel(
+        hasError: true,
+        errorCode: 408,
+        data: jsonEncode({"message": "Request timed out", "code": 408}),
+      );
+      throw error;
+    } on SocketException {
+      final error = ResponseModel(
+        hasError: true,
+        errorCode: 408,
+        data: jsonEncode({"message": "No Internet Connection", "code": 408}),
+      );
+      throw error;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> _handleAuthFailure() async {
+    if (_isHandlingAuthFailure) return;
+    _isHandlingAuthFailure = true;
+    await logout();
   }
 
   /*  Future<ResponseModel> callApi({
@@ -779,6 +855,8 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
         isLoading: isLoading,
       );
 
+      if (response.hasError) return;
+
       companyDetails.value = CompanyDetailsModel.fromJson(
         jsonDecode(response.data),
       );
@@ -809,6 +887,8 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
         apiCall: () => connectHelper.getDashboardDetails(),
         isLoading: isLoading,
       );
+
+      if (response.hasError) return;
 
       /// 📦 Parse dashboard data
       dashboardDetails.value = dashboardModel.fromJson(
@@ -1077,7 +1157,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
       case 'barcode':
         return barcodeString;
       case 'barcode_text':
-        return '';
+        return barcodeString;
       case 'sr_no':
         return serialNumber;
       case 'datetime':

@@ -205,6 +205,12 @@ class _RuntimeLabelPreviewCanvas extends StatelessWidget {
               .reduce(math.min);
     final attributeStartY = math.max(textBottom + 8, _mmToPxY(48, labelMm.$2));
     final attributeMaxY = math.max(barcodeTop - 20, attributeStartY);
+    final showExplicitBarcodeText =
+        barcodeTextField.isVisible && barcodeTextField.value.trim().isNotEmpty;
+    final showFallbackBarcodeText =
+        barcodeField.isVisible &&
+        barcodeField.value.trim().isNotEmpty &&
+        !showExplicitBarcodeText;
 
     return Container(
       color: const Color(0xFFFDFDFB),
@@ -232,8 +238,21 @@ class _RuntimeLabelPreviewCanvas extends StatelessWidget {
               height: math.max(_mmToPxY(barcodeField.h, labelMm.$2), 40),
               child: _BarcodePreview(value: barcodeField.value),
             ),
-          if (barcodeTextField.isVisible &&
-              barcodeTextField.value.trim().isNotEmpty)
+          if (showFallbackBarcodeText)
+            Positioned(
+              left: _mmToPxX(barcodeField.x, labelMm.$1),
+              top:
+                  _mmToPxY(barcodeField.y, labelMm.$2) +
+                  math.max(_mmToPxY(barcodeField.h, labelMm.$2), 40) +
+                  2,
+              width: math.max(_mmToPxX(barcodeField.w, labelMm.$1), 80),
+              child: Text(
+                barcodeField.value,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, color: Colors.black87),
+              ),
+            ),
+          if (showExplicitBarcodeText)
             Positioned(
               left: _mmToPxX(barcodeTextField.x, labelMm.$1),
               top: _mmToPxY(barcodeTextField.y, labelMm.$2),

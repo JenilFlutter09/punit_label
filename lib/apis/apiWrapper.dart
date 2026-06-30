@@ -17,7 +17,7 @@ class ApiWrapper {
   /// Base Url for testing purpose
   //  final String _baseUrl = "https://labels.clotheeo.com/api/";
   /// Live Url for Client purpose
-  final String _baseUrl = testingApiBaseUrl;
+  final String _baseUrl = productionApiBaseUrl;
   //final String _baseUrl = "https://testingpinnacle.punitinstrument.com/api/";
 
   String get baseUrl => _baseUrl;

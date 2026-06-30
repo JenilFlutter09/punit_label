@@ -328,9 +328,12 @@ class ExportHelper {
     required Map<String, String> metaData,
     required List<Dispatchbarcodes> items,
     String? email,
-    String companyName = 'PUNIT LABEL',
+    String companyName = 'MODERN FLEX PACKING LIST',
     String companyAddress = 'Generated from weighing system',
     String companyPhone = 'https://pinnacle.punitinstrument.com',
+    String companyEmail = '',
+    String companyGst = '',
+    String companyWebsite = '',
     String listTitle = 'Packing List',
     int maxRowsPerGrid = 27,
     VoidCallback? onBeforeResultDialogShown,
@@ -369,6 +372,9 @@ class ExportHelper {
               companyName: companyName,
               companyAddress: companyAddress,
               companyPhone: companyPhone,
+              companyEmail: companyEmail,
+              companyGst: companyGst,
+              companyWebsite: companyWebsite,
               listTitle: listTitle,
             ),
           ];
@@ -389,6 +395,8 @@ class ExportHelper {
             return widgets;
           }
 
+          var globalSerial = 1;
+
           grouped.forEach((key, productItems) {
             final labels = groupLabels[key]!;
             final productTotals = _dispatchTotals(productItems);
@@ -406,6 +414,8 @@ class ExportHelper {
               final leftItems = sectionItems.sublist(0, splitIndex);
               final rightItems = sectionItems.sublist(splitIndex);
               final isContinuation = start > 0;
+              final leftStartSerial = globalSerial;
+              final rightStartSerial = globalSerial + leftItems.length;
 
               widgets.add(pw.SizedBox(height: 12));
               widgets.add(
@@ -427,24 +437,28 @@ class ExportHelper {
                     pw.Expanded(
                       child: _modernFlexGrid(
                         items: leftItems,
-                        startSerial: start + 1,
+                        startSerial: leftStartSerial,
                       ),
                     ),
                     pw.SizedBox(width: 10),
                     pw.Expanded(
                       child: _modernFlexGrid(
                         items: rightItems,
-                        startSerial: start + splitIndex + 1,
+                        startSerial: rightStartSerial,
                       ),
                     ),
                   ],
                 ),
               );
+
+              globalSerial += sectionItems.length;
             }
           });
 
           widgets.add(pw.SizedBox(height: 14));
-          widgets.add(_modernFlexTotals(_dispatchTotals(items)));
+          widgets.add(
+            _modernFlexTotals(_dispatchTotals(items), totalCount: items.length),
+          );
           return widgets;
         },
       ),
@@ -457,9 +471,18 @@ class ExportHelper {
       bytes: pdfBytes,
     );
 
+    final recipientEmail = email?.trim();
+    if (recipientEmail == null || recipientEmail.isEmpty) {
+      onBeforeResultDialogShown?.call();
+      await Utility.showDialog(
+        'Pdf saved, but no recipient email is configured.',
+      );
+      return;
+    }
+
     await sendPdfEmail(
       filePath: emailFilePath,
-      sendingEmail: email ?? 'shahjenil9977@gmail.com',
+      sendingEmail: recipientEmail,
       onBeforeResultDialogShown: onBeforeResultDialogShown,
     );
   }
@@ -495,8 +518,19 @@ class ExportHelper {
     required String companyName,
     required String companyAddress,
     required String companyPhone,
+    required String companyEmail,
+    required String companyGst,
+    required String companyWebsite,
     required String listTitle,
   }) {
+    final detailLines = [
+      companyAddress,
+      if (companyPhone.trim().isNotEmpty) 'Contact: $companyPhone',
+      if (companyEmail.trim().isNotEmpty) 'Email: $companyEmail',
+      if (companyGst.trim().isNotEmpty) 'GST: $companyGst',
+      if (companyWebsite.trim().isNotEmpty) 'Website: $companyWebsite',
+    ].where((line) => line.trim().isNotEmpty).toList();
+
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
@@ -515,14 +549,14 @@ class ExportHelper {
                     ),
                   ),
                   pw.SizedBox(height: 5),
-                  pw.Text(
-                    companyAddress,
-                    style: const pw.TextStyle(fontSize: 10),
-                  ),
-                  pw.SizedBox(height: 2),
-                  pw.Text(
-                    companyPhone,
-                    style: const pw.TextStyle(fontSize: 10),
+                  ...detailLines.map(
+                    (line) => pw.Padding(
+                      padding: const pw.EdgeInsets.only(bottom: 2),
+                      child: pw.Text(
+                        line,
+                        style: const pw.TextStyle(fontSize: 10),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -549,8 +583,8 @@ class ExportHelper {
     required bool isContinuation,
   }) {
     final customerName = metaData['Customer Name'] ?? 'Customer';
-    final batchNo = metaData['Batch No'] ?? metaData['Dispatch No'] ?? title;
-    final structureText = structure.isEmpty ? 'N/A' : structure;
+    final batchId = metaData['Batch ID'] ?? metaData['Dispatch No'] ?? title;
+    final structureText = structure.trim();
     final displayProductName = isContinuation
         ? '$productName (continued)'
         : productName;
@@ -577,9 +611,17 @@ class ExportHelper {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  _modernFlexInfoLine('Batch No', batchNo),
-                  pw.SizedBox(height: 4),
-                  _modernFlexInfoLine('Structure', structureText),
+                  _modernFlexInfoLine('Batch ID', batchId),
+                  if (structureText.isNotEmpty) ...[
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      structureText,
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -686,8 +728,9 @@ class ExportHelper {
   }
 
   static pw.Widget _modernFlexTotals(
-    ({double gross, double tare, double net, double converted}) totals,
-  ) {
+    ({double gross, double tare, double net, double converted}) totals, {
+    required int totalCount,
+  }) {
     pw.Widget totalLine(String label, String value) {
       return pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.end,
@@ -724,6 +767,8 @@ class ExportHelper {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
+        totalLine('Total Records :', totalCount.toString()),
+        pw.SizedBox(height: 8),
         totalLine('Total Gross Wt :', totals.gross.toStringAsFixed(2)),
         pw.SizedBox(height: 8),
         totalLine('Total Tare Wt :', totals.tare.toStringAsFixed(2)),
@@ -1214,14 +1259,15 @@ class ExportHelper {
       ..attachments = [FileAttachment(File(filePath))];
 
     try {
+      print('📧 Sending packing slip email to: $sendingEmail');
       final sendReport = await send(message, smtpServer);
       print('✅ Email sent successfully: $sendReport');
       onBeforeResultDialogShown?.call();
-      await Utility.showDialog('Pdf send by email');
+      await Utility.showDialog('Pdf sent by email to $sendingEmail');
     } catch (e) {
       onBeforeResultDialogShown?.call();
       await Utility.showDialog(
-        'Pdf saved, but email failed. Please check internet or SMTP credentials.',
+        'Pdf saved, but email failed for $sendingEmail. Please check internet or SMTP credentials.',
       );
       print('❌ Email sending failed: $e');
     }

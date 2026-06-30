@@ -1090,6 +1090,13 @@ if (businessHours.isNotEmpty()) {
                     }
                 }
 
+                var fallbackBarcodeTextValue = ""
+                var fallbackBarcodeTextX = 0
+                var fallbackBarcodeTextY = 0
+                var fallbackBarcodeTextWidth = 0
+                var fallbackBarcodeTextFont = 0
+                var barcodeTextPrinted = false
+
                 barcodeField?.let { field ->
                     val value = runtimeFieldValue(field)
                     if (value.isNotBlank()) {
@@ -1123,12 +1130,28 @@ if (businessHours.isNotEmpty()) {
                             }
                             return@Thread
                         }
+
+                        fallbackBarcodeTextValue = value
+                        fallbackBarcodeTextX = x
+                        fallbackBarcodeTextY = y + barcodeHeight + 4
+                        fallbackBarcodeTextWidth = boxWidth
+                        fallbackBarcodeTextFont = max(
+                            runtimeFontSize(
+                                10,
+                                width,
+                                height,
+                                labelWidthMm,
+                                labelHeightMm,
+                                previewScalePxPerMm
+                            ),
+                            18
+                        )
                     }
                 }
 
                 barcodeTextField?.let { field ->
                     val value = runtimeFieldValue(field)
-                    if (value.isNotBlank()) {
+                    if (runtimeFieldVisible(field) && value.isNotBlank()) {
                         val x = runtimeMmCoord(field["x"], width, labelWidthMm)
                         val y = runtimeMmCoord(field["y"], height, labelHeightMm)
                         val boxWidth = max(runtimeMmCoord(field["w"], width, labelWidthMm), 80)
@@ -1151,7 +1174,30 @@ if (businessHours.isNotEmpty()) {
                             fontSize,
                             0
                         )
+                        barcodeTextPrinted = true
                     }
+                }
+
+                if (!barcodeTextPrinted &&
+                    fallbackBarcodeTextValue.isNotBlank() &&
+                    fallbackBarcodeTextY + fallbackBarcodeTextFont <= height
+                ) {
+                    val textX = centerTextInBox(
+                        fallbackBarcodeTextValue,
+                        fallbackBarcodeTextFont,
+                        fallbackBarcodeTextX,
+                        fallbackBarcodeTextWidth
+                    )
+                    lp.PrintText(
+                        textX,
+                        fallbackBarcodeTextY,
+                        "0",
+                        fallbackBarcodeTextValue,
+                        0,
+                        fallbackBarcodeTextFont,
+                        fallbackBarcodeTextFont,
+                        0
+                    )
                 }
 
                 footerField?.let { field ->
