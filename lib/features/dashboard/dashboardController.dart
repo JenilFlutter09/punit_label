@@ -46,6 +46,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   var scanResults = <ScanResult>[].obs;
   Rx<TareState> tareState = TareState.on.obs;
   Rx<LabelState> labelState = LabelState.Label.obs;
+
   // Rx<DeviceState> towerLight = DeviceState.on.obs;
   var isWhiteLabel = false.obs;
   var printSerialNumberInLabel = false.obs;
@@ -95,6 +96,7 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   RxList<LabelFormatElement> labelFormats = <LabelFormatElement>[].obs;
   final androidScaleController =
       AndroidScaleConnectionController.ensureRegistered();
+
   bool get isAnyScaleConnected =>
       isWeightScaleConnected.value || isExperimentalScaleConnected.value;
 
@@ -108,6 +110,16 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     valueFont: 26,
     bottomPadding: 80,
     columnGap: 140,
+    barcodeHeight: 45,
+  );
+  final large100by150LabelLayout = LabelLayout(
+    maxAttributes: 6,
+    lineHeight: 100,
+    keyFont: 40,
+    valueFont:40,
+    bottomPadding: 80,
+    topPadding: 200,
+    columnGap: 300,
     barcodeHeight: 45,
   );
 
@@ -124,8 +136,10 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
   final wholesalePackLayout = LabelLayout(
     maxAttributes: 10,
     lineHeight: 60,
-    keyFont: 40, // 5mm
-    valueFont: 40, // 5mm
+    keyFont: 40,
+    // 5mm
+    valueFont: 40,
+    // 5mm
     bottomPadding: 180,
     columnGap: 400,
     barcodeHeight: 90,
@@ -772,6 +786,12 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
         LabelFormatElement(5, "Wholesale Pack", 10, LabelFormat.WholesalePack),
         LabelFormatElement(6, "Small Seven (5)", 5, LabelFormat.SmallSeven),
         LabelFormatElement(7, "DryFruit Label Format", 3, LabelFormat.DryFruit),
+        LabelFormatElement(
+          8,
+          "100by150 Label Format",
+          8,
+          LabelFormat.large100by150,
+        ),
       ];
     } else {
       labelFormats.value = [
@@ -809,6 +829,12 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
         LabelFormatElement(5, "Wholesale Pack", 10, LabelFormat.WholesalePack),
         LabelFormatElement(6, "Small Seven (5)", 5, LabelFormat.SmallSeven),
         LabelFormatElement(7, "DryFruit Label Format", 3, LabelFormat.DryFruit),
+        LabelFormatElement(
+          8,
+          "100by150 Label Format",
+          8,
+          LabelFormat.large100by150,
+        ),
       ];
     }
   }
@@ -1243,12 +1269,21 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     Map<String, dynamic>? labelFields,
     required LabelLayout layout,
     String businessHours = '',
-  }) {
+  })
+  {
     final companyData = companyDetails.value?.data;
     final attributes = <StaticLabelPreviewAttribute>[];
+
     labelFields?.forEach((key, value) {
       final normalizedValue = value?.toString().trim() ?? '';
       if (normalizedValue.isEmpty) return;
+
+      // Remove Net Weight only for 100x150 label
+      if (format == LabelFormat.large100by150 &&
+          key.trim().toLowerCase() == "net weight") {
+        return;
+      }
+
       attributes.add(
         StaticLabelPreviewAttribute(key: key.trim(), value: normalizedValue),
       );
@@ -1268,16 +1303,41 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
       isWhiteLabel: isWhiteLabel.value,
       printTime: printTimeInLabel.value,
       printSerialNumber: printSerialNumberInLabel.value,
-      isGrid: isGrid,
+     // isGrid: isGrid,
       companyName: companyData?.name ?? '',
       companyInfoLines: buildCompanyInfoLines(companyData),
       address: companyData?.address?.trim() ?? '',
-      phone: companyData?.contactNo?.trim() ?? '',
-      email: companyData?.email?.trim() ?? '',
+     // phone: companyData?.contactNo?.trim() ?? '',
+     // email: companyData?.email?.trim() ?? '',
       productName: productName,
-      barcodeData: barcodeString,
+
+
+
+      // FORCE VERTICAL: Set to false if format is 100x150
+      isGrid: format == LabelFormat.large100by150 ? false : true,
+      // Hide email only for 100x150 preview
+      email: format == LabelFormat.large100by150
+          ? ''
+          : companyData?.email?.trim() ?? '',
+
+      // Hide phonenumaber  only for 100x150 preview
+
+      phone: format == LabelFormat.large100by150
+          ? ''
+          : companyData?.contactNo?.trim() ?? '',
+
+      // Hide barcode only for 100x150 preview
+
+barcodeData: format == LabelFormat.large100by150
+          ? ''
+          : barcodeString,
+
+      footerText: format == LabelFormat.large100by150
+          ? ''
+          : 'Label generated from weighing ERP by punitinstrument.com',
+
       serialNumber: serialNumber,
-      footerText: 'Label generated from weighing ERP by punitinstrument.com',
+    //  footerText: 'Label generated from weighing ERP by punitinstrument.com',
       businessHours: businessHours,
       attributeLabel: '',
       description: '',
@@ -1625,7 +1685,8 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
     required String barcodeString,
     required String productName,
     Map<String, dynamic>? labelFields,
-  }) async {
+  })
+  async {
     try {
       final companyData = companyDetails.value?.data;
       final companyName = companyData?.name ?? "";
@@ -1858,6 +1919,45 @@ class DashboardController extends GetxController with WidgetsBindingObserver {
         labelFields: labelFields,
         format: LabelFormat.Small,
         label_layout: smallLabelLayout,
+      );
+    }
+  }
+
+  /// Print 100 X 150 Sticker
+
+  Future<void> print100by150Sticker({
+    required String barcodeString,
+    required String productName,
+    required int noAttribute,
+    Map<String, dynamic>? labelFields,
+  })
+  async {
+    labelFields?.remove("Net Weight"); //remove weight from sticker
+    if (noAttribute > 1) {
+      await printOneSticker(
+        stickerHeight: 700,
+        stickerWidth: 800,
+        margin: 0,
+        thickness: 0,
+        productName: productName,
+        barcode: "", //  remove barcode
+        isGrid: true,
+        labelFields: labelFields,
+        format: LabelFormat.large100by150,
+        label_layout: large100by150LabelLayout,
+      );
+    } else {
+      await printOneSticker(
+        stickerHeight: 700,
+        stickerWidth: 1100,
+        margin: 0,
+        thickness: 0,
+        productName: productName,
+        barcode: "", // remove barcode
+        isGrid: true,
+        labelFields: labelFields,
+        format: LabelFormat.large100by150,
+        label_layout: large100by150LabelLayout,
       );
     }
   }
@@ -2492,6 +2592,7 @@ class module {
   double productTareWeight;
   bool unitConversion;
   double unitValue;
+
   module({
     required this.id,
     required this.name,
@@ -2512,6 +2613,7 @@ class ManualWeightController extends GetxController {
   var manualGross = Rxn<String>();
   var manualTare = Rxn<String>();
   var manualNet = Rxn<String>();
+
   //var manualUnit = Rxn<String>();
 
   void calculateManualNet() {
@@ -2529,6 +2631,8 @@ class LabelLayout {
   final int bottomPadding;
   final int columnGap;
   final int barcodeHeight;
+  final int? topPadding;
+
 
   const LabelLayout({
     required this.maxAttributes,
@@ -2538,6 +2642,7 @@ class LabelLayout {
     required this.bottomPadding,
     required this.columnGap,
     required this.barcodeHeight,
+    this.topPadding,
   });
 
   Map<String, dynamic> toMap() => {

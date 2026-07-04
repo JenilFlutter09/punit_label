@@ -65,29 +65,32 @@ Future<void> showStaticLabelPreviewDialog({
                       final previewWidth = data.width * scale;
                       final previewHeight = data.height * scale;
 
-                      return Align(
-                        alignment: Alignment.topCenter,
-                        child: InteractiveViewer(
-                          minScale: 0.75,
-                          maxScale: 4,
-                          child: Container(
-                            width: previewWidth,
-                            height: previewHeight,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: Colors.grey.shade400),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x11000000),
-                                  blurRadius: 18,
-                                  offset: Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(18),
-                              child: _buildPreview(data, scale),
+                      return Padding(
+                        padding: const EdgeInsets.all(15),
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: InteractiveViewer(
+                            minScale: 0.75,
+                            maxScale: 4,
+                            child: Container(
+                              width: previewWidth,
+                              height: previewHeight,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: Colors.grey.shade400),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x11000000),
+                                    blurRadius: 18,
+                                    offset: Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(18),
+                                child: _buildPreview(data, scale),
+                              ),
                             ),
                           ),
                         ),
@@ -117,6 +120,8 @@ Widget _buildPreview(StaticLabelPreviewData data, double scale) {
     case LabelFormat.Large:
     case LabelFormat.ExtraLarge:
     case LabelFormat.WholesalePack:
+    case LabelFormat.large100by150:
       return GenericStaticLabelPreview(data: data, scale: scale);
+
   }
 }

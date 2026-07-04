@@ -62,6 +62,7 @@ class NonBatchInwardController extends GetxController {
   RxList<NonBatchBarcodes> barcode_list = <NonBatchBarcodes>[].obs;
 
   TextEditingController transactionName = TextEditingController();
+
   //TextEditingController serialNumber = TextEditingController();
   //RxInt serialNo = 0.obs;
   final dashboardController = Get.find<DashboardController>();
@@ -1133,6 +1134,13 @@ class NonBatchInwardController extends GetxController {
           labelFields: labelFields,
         );
         break;
+      case LabelFormat.large100by150:
+        await dashboardController.print100by150Sticker(
+          barcodeString: barcodeString,
+          productName: productName,
+          noAttribute: noAttr,
+          labelFields: labelFields,
+        );
     }
   }
 
@@ -1305,6 +1313,17 @@ class NonBatchInwardController extends GetxController {
           productName: productName,
           barcodeString: barcodeString,
           labelFields: smallSevenFields,
+        );
+      case LabelFormat.large100by150:
+        return dashboardController.buildGenericStaticLabelPreview(
+          format: selected,
+          width: 700,
+          height: 1100,
+          isGrid: noAttr > 1,
+          productName: productName,
+          barcodeString: barcodeString,
+          labelFields: labelFields,
+          layout: dashboardController.large100by150LabelLayout,
         );
     }
   }

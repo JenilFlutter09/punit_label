@@ -4,6 +4,7 @@ import 'package:barcode_widget/barcode_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../constants/enums.dart';
 import '../models/static_label_preview_models.dart';
 
 class GenericStaticLabelPreview extends StatelessWidget {
@@ -25,24 +26,58 @@ class GenericStaticLabelPreview extends StatelessWidget {
     final bottom = data.height.toDouble();
     var yPos = top + 20;
     var companyY = 0.0;
-
     final children = <Widget>[];
 
     if (!data.isWhiteLabel) {
-      final companyX = left + 20;
-      companyY = yPos;
-      children.add(_text(companyX, companyY, data.companyName, 40));
 
-      var contactY = companyY + 70;
-      for (final line in data.companyInfoLines) {
-        if (line.trim().isEmpty) continue;
-        children.add(_text(left + 20, contactY, line, 26));
-        contactY += 30;
+
+      companyY = yPos;
+
+      if (data.format == LabelFormat.large100by150) {
+        companyY = yPos;
+
+        children.add(
+          Positioned(
+            left: 20 * scale,
+            right: 20 * scale,
+            top: 50 * scale,
+            child: Text(
+              data.companyName.toUpperCase(),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              softWrap: true,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 47 * scale,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        );
+
+        // Space before product name
+        yPos = companyY + 50;
+      } else {
+        children.add(_text(left + 20, companyY, data.companyName, 45));
       }
-      if (data.businessHours.isNotEmpty) {
-        children.add(_text(left + 20, contactY, data.businessHours, 26));
-        contactY += 30;
+
+
+      var contactY = companyY + 160;
+
+      if (data.format != LabelFormat.large100by150) {
+        for (final line in data.companyInfoLines) {
+          if (line.trim().isEmpty) continue;
+          children.add(_text(left + 20, contactY, line, 26));
+          contactY += 30;
+        }
+
+        if (data.businessHours.isNotEmpty) {
+          children.add(_text(left + 20, contactY, data.businessHours, 26));
+          contactY += 30;
+        }
       }
+
       yPos = contactY + 10;
     }
 
@@ -61,7 +96,7 @@ class GenericStaticLabelPreview extends StatelessWidget {
       yPos += 70;
     }
 
-    final displayName =
+    /* final displayName =
         data.businessHours.isNotEmpty && data.productName.contains(':- ')
         ? data.productName.split(':- ').last
         : data.productName;
@@ -78,6 +113,57 @@ class GenericStaticLabelPreview extends StatelessWidget {
         : left + 20;
     children.add(_text(productX, yPos, displayName, productFont));
     yPos += data.businessHours.isNotEmpty ? 80 : 40;
+*/
+
+    final displayName =
+        data.businessHours.isNotEmpty && data.productName.contains(':- ')
+        ? data.productName.split(':- ').last
+        : data.productName;
+
+    if (data.format == LabelFormat.large100by150) {
+      final productFont = 47.0;
+      //final productX = _centerX(displayName, productFont);
+
+      children.add(
+        Positioned(
+          left: 0,
+          right: 0,
+          top: yPos * scale,
+
+          child: Center(
+            child: Text(
+              displayName.toUpperCase(),
+              style: TextStyle(
+                fontSize: productFont * scale,
+                fontWeight: FontWeight.bold,
+                decoration: TextDecoration.underline,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      yPos += 100;
+    } else {
+      final productFont = data.businessHours.isNotEmpty
+          ? _fitFont(
+              text: displayName,
+              maxWidth: data.width - 40,
+              preferred: 56,
+              min: 24,
+            )
+          : 34.0;
+
+      final productX = data.businessHours.isNotEmpty
+          ? _centerX(displayName, productFont)
+          : left + 20;
+
+      children.add(_text(productX, yPos, displayName, productFont));
+
+      yPos += data.businessHours.isNotEmpty ? 80 : 40;
+    }
+
 
     if (data.attributes.isNotEmpty) {
       if (!data.isGrid) {
@@ -96,70 +182,126 @@ class GenericStaticLabelPreview extends StatelessWidget {
         for (int i = 0; i < items.length; i += 2) {
           if (yPos > bottom - layout.bottomPadding) break;
           final first = items[i];
-          children.add(_text(col1X, yPos, '${first.key}:', layout.keyFont));
+          //  children.add(_text(col1X, yPos, '${first.key}:', layout.keyFont));
+          final key = first.key.toUpperCase().padRight(15);
+          const SizedBox(height: 18); // Space after underline
+
           children.add(
             _text(
-              col1X + layout.columnGap,
+              col1X,
               yPos,
-              first.value,
-              layout.valueFont,
+              "$key : ${first.value}",
+              36,
+              fontWeight: FontWeight.bold,
             ),
           );
+
+
+
+
+          children.add(_text(col1X + 250, yPos, first.value, layout.valueFont));
+
           final second = i + 1 < items.length ? items[i + 1] : null;
           if (second != null) {
-            children.add(_text(col2X, yPos, '${second.key}:', layout.keyFont));
+
+
+            final key = first.key.toUpperCase().padRight(15);
+
             children.add(
               _text(
-                col2X + layout.columnGap,
+                col1X,
                 yPos,
-                second.value,
-                layout.valueFont,
+                "$key :",
+                36,
+                fontWeight: FontWeight.bold,
               ),
             );
-          }
+
+            children.add(
+              _text(
+                col1X + 320,
+                yPos,
+                first.value,
+                36,
+              ),
+            );          }
           yPos += layout.lineHeight;
         }
       }
     }
 
     final footerFont = 20.0;
-    final footerText = data.footerText;
+    final footerText = data.address;
     final footerY = bottom - (footerFont + 10);
     final barcodeY = footerY - (layout.barcodeHeight + 28) - 12;
     final barcodeX = left + 20;
     final barcodeWidth = math.max((right - left) - 20, 180).toDouble();
 
-    children.add(
-      Positioned(
-        left: barcodeX * scale,
-        top: barcodeY * scale,
-        width: barcodeWidth * scale,
-        height: layout.barcodeHeight * scale,
-        child: BarcodeWidget(
-          barcode: Barcode.code128(),
-          data: data.barcodeData,
-          drawText: false,
+    // remove barcode completely from 100by150 sticker only
+
+    if (data.format != LabelFormat.large100by150 &&
+        data.barcodeData.isNotEmpty) {
+      children.add(
+        Positioned(
+          left: barcodeX * scale,
+          top: barcodeY * scale,
+          width: barcodeWidth * scale,
+          height: layout.barcodeHeight * scale,
+          child: BarcodeWidget(
+            barcode: Barcode.code128(),
+            data: data.barcodeData,
+            drawText: false,
+          ),
         ),
-      ),
-    );
+      );
+    }
 
     if (!data.isWhiteLabel && footerText.isNotEmpty) {
       children.add(
         Positioned(
-          left: (left + 20) * scale,
-          top: footerY * scale,
-          width: ((right - left) - 40) * scale,
-          child: Text(
-            footerText,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: footerFont * scale * 0.9,
-              color: Colors.black87,
+
+          left: 20 * scale,
+          right: 20 * scale,
+          bottom: 25 * scale,
+         // width: ((right - left) - 40) * scale,
+          child: Container(
+            child: Text(
+              footerText,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 40 * scale,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+                height: 1.3,
+              ),
             ),
           ),
         ),
       );
     }
+
+    //border
+/*
+    if (data.format == LabelFormat.large100by150) {
+      children.insert(
+        0,
+        Positioned(
+          left: 15 * scale,
+          top: 15 * scale,
+          right: 15 * scale,
+          bottom: 15 * scale,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Colors.black,
+                width: 1,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      );
+    }*/
 
     return Container(
       color: const Color(0xFFFDFDFB),
@@ -167,7 +309,14 @@ class GenericStaticLabelPreview extends StatelessWidget {
     );
   }
 
-  Widget _text(double x, double y, String text, num fontSize) {
+
+  Widget _text(
+    double x,
+    double y,
+    String text,
+    num fontSize, {
+    FontWeight fontWeight = FontWeight.w500,
+  }) {
     return Positioned(
       left: x * scale,
       top: y * scale,
@@ -175,7 +324,7 @@ class GenericStaticLabelPreview extends StatelessWidget {
         text,
         style: TextStyle(
           fontSize: fontSize.toDouble() * scale * 0.9,
-          fontWeight: FontWeight.w500,
+          fontWeight: fontWeight,
           color: Colors.black87,
         ),
       ),

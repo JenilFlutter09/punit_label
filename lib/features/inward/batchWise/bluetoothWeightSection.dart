@@ -263,10 +263,9 @@ class NetWeightDisplayCard extends StatelessWidget {
   final Rxn<String> netWeight;
   final bool isUnitConversion;
   final double unitValue;
-
-  final bool isEditable; // 👈 NEW
-  final bool isBluetoothConnected; // 👈 NEW
-  final ManualWeightController manualCtrl; // 👈 NEW
+  final bool isEditable;
+  final bool isBluetoothConnected;
+  final ManualWeightController manualCtrl;
 
   const NetWeightDisplayCard({
     Key? key,
@@ -280,15 +279,19 @@ class NetWeightDisplayCard extends StatelessWidget {
   }) : super(key: key);
 
   double get _netWeightValue => double.tryParse(netWeight.value ?? '0') ?? 0;
-
   double get _convertedValue => _netWeightValue * unitValue;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      //color: Colors.red,
       width: Get.width,
       child: Obx(() {
+        // 🛠️ THE FIX: Explicitly read these observables at the root of the Obx.
+        // This guarantees GetX has something to listen to, preventing the crash
+        // even if the UI logic below branches into the TextField.
+        netWeight.value;
+        manualCtrl.manualGross.value;
+
         /// 🔵 Bluetooth → sync live value
         if (isEditable && isBluetoothConnected) {
           final liveValue = manualCtrl.manualGross.value ?? '0';
@@ -340,7 +343,6 @@ class NetWeightDisplayCard extends StatelessWidget {
                             decoration: const InputDecoration(
                               border: InputBorder.none,
                               hintText: "0",
-                              // helperText: "0"
                             ),
                             onChanged: (v) {
                               manualCtrl.manualGross.value = v;
@@ -382,7 +384,6 @@ class NetWeightDisplayCard extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-
                           Text(
                             _convertedValue.toStringAsFixed(2),
                             style: TextStyle(
@@ -403,220 +404,3 @@ class NetWeightDisplayCard extends StatelessWidget {
     );
   }
 }
-/*class NetWeightDisplayCard extends StatelessWidget {
-  final bool isTablet;
-  final Rxn<String> netWeight;
-  final bool isUnitConversion;
-  final double unitValue;
-
-  const NetWeightDisplayCard({
-    Key? key,
-    required this.isTablet,
-    required this.netWeight,
-    required this.isUnitConversion,
-    required this.unitValue,
-  }) : super(key: key);
-
-  double get _netWeightValue =>
-      double.tryParse(netWeight.value ?? '0') ?? 0;
-
-  double get _convertedValue => _netWeightValue * unitValue;
-
-  Widget _buildCard({
-    required String title,
-    required String value,
-    required Color valueColor,
-  }) {
-    return Expanded(
-      child: Card(
-        margin: Dimens.edgeInsets10_0_10_0,
-        color: Colors.white,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: Dimens.edgeInsets10,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: isTablet ? 22 : 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: isTablet ? 34 : 28,
-                  fontWeight: FontWeight.w900,
-                  color: valueColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: Get.width,
-      child: Obx(() {
-        return Row(
-          children: [
-            /// 🟦 Net Weight Card
-            _buildCard(
-              title: "Net Weight (Kg)",
-              value: _netWeightValue.toStringAsFixed(2),
-              valueColor: ColorsValue.primaryColor,
-            ),
-
-            /// 🟩 Unit Conversion Card (Only if enabled)
-            if (isUnitConversion)
-              _buildCard(
-                title: "Converted Unit",
-                value: _convertedValue.toStringAsFixed(2),
-                valueColor: Colors.green,
-              ),
-          ],
-        );
-      }),
-    );
-  }
-}*/
-
-/*
-
-class NetWeightDisplayCard extends StatelessWidget {
-  final bool isTablet;
-  final Rxn<String> netWeight;
-
-  const NetWeightDisplayCard({
-    Key? key,
-    required this.isTablet,
-    required this.netWeight,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: Get.width,
-      child: Obx(
-            () => Card(
-          margin: Dimens.edgeInsets10_0_10_0,
-          color: Colors.white,
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: Dimens.edgeInsets10,
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Text(
-                    "Net Weight",
-                    style: TextStyle(
-                      fontSize: isTablet ? 25 : 20,
-                      color: Colors.black,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-
-                  Text(
-                    "${netWeight.value}",
-                    style: TextStyle(
-                      fontSize: isTablet ? 36 : 30,
-                      fontWeight: FontWeight.w900,
-                      color: ColorsValue.primaryColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-*/
-/*@override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header Labels - Only show Tare label if not off
-        Obx(() {
-          final showTare = dashboardController.tareState.value != TareState.off;
-          return Row(
-            children: [
-              Expanded(
-                child: Text("Gross Weight", style: Styles.blackBold12),
-              ),
-              if (showTare) ...[
-                Dimens.boxWidth10,
-                Expanded(
-                  child: Text("Tare Weight", style: Styles.blackBold12),
-                ),
-              ],
-            ],
-          );
-        }),
-
-        Dimens.boxHeight8,
-
-        // Main Weight Input Area
-        Obx(() {
-          final isBluetoothConnected = dashboardController.isWeightScaleConnected.value &&
-              (dashboardController.connectedDevice.value != null ||
-                  dashboardController.isExperimentalScaleConnected.value);
-
-          final tareState = dashboardController.tareState.value;
-
-          return Column(
-            children: [
-              // Gross + Tare Row (Conditional)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Gross Weight Field (Always visible)
-                  Expanded(
-                    child: isBluetoothConnected
-                        ? _LiveGrossField(manualCtrl: controller.manualCtrl, isTablet: isTablet)
-                        : _ManualGrossField(manualCtrl: controller.manualCtrl, isTablet: isTablet),
-                  ),
-
-                  // Conditional Tare Field
-                  if (tareState != TareState.off) ...[
-                    Dimens.boxWidth5,
-                    Expanded(
-                      child: tareState == TareState.on
-                          ? _ManualTareField(manualCtrl: controller.manualCtrl, isTablet: isTablet)
-                          : _BarcodeTareField(manualCtrl: controller.manualCtrl, isTablet: isTablet, controller: controller,),
-                    ),
-                  ],
-                ],
-              ),
-
-              Dimens.boxHeight10,
-
-              // Net Weight Card (Always shown)
-              NetWeightDisplayCard(
-                isTablet: isTablet,
-                netWeight: controller.manualCtrl.manualNet,
-                isUnitConversion: controller.selectedModuleProduct.value?.unitConversion ?? false,
-                unitValue: controller.selectedModuleProduct.value?.unitValue ?? 1,
-              ),
-            ],
-          );
-        }),
-      ],
-    );
-  }*/

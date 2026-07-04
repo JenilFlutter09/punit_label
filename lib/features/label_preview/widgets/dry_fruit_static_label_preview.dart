@@ -1,10 +1,11 @@
 import 'package:barcode_widget/barcode_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
+import 'package:punit_label/constants/enums.dart';
 import '../models/static_label_preview_models.dart';
 
 class DryFruitStaticLabelPreview extends StatelessWidget {
+
   const DryFruitStaticLabelPreview({
     super.key,
     required this.data,
@@ -59,19 +60,26 @@ class DryFruitStaticLabelPreview extends StatelessWidget {
       }
     }
 
-    children.add(
-      Positioned(
-        left: (left + 50) * scale,
-        top: (data.height - 130).toDouble() * scale,
-        width: (data.width - 100) * scale,
-        height: 80 * scale,
-        child: BarcodeWidget(
-          barcode: Barcode.code128(),
-          data: data.barcodeData,
-          drawText: false,
+    // remove barcode completely from 100by150 sticker only
+
+    if(data.format != LabelFormat.large100by150 && data.barcodeData.isNotEmpty){
+
+      children.add(
+        Positioned(
+          left: (left + 50) * scale,
+          top: (data.height - 130).toDouble() * scale,
+          width: (data.width - 100) * scale,
+          height: 80 * scale,
+
+          child: BarcodeWidget(
+            barcode: Barcode.code128(),
+            data: data.barcodeData,
+            drawText: false,
+          ),
         ),
-      ),
-    );
+      );
+
+    }
 
     return Container(
       color: const Color(0xFFFDFDFB),
@@ -115,4 +123,5 @@ class DryFruitStaticLabelPreview extends StatelessWidget {
     }
     return result;
   }
+
 }

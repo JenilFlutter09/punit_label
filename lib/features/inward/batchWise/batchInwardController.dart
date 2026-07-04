@@ -934,6 +934,13 @@ class BatchInwardController extends GetxController {
           labelFields: labelFields,
         );
         break;
+      case LabelFormat.large100by150:
+        await dashboardController.print100by150Sticker(
+          barcodeString: barcodeString,
+          productName: productName,
+          noAttribute: noAttr,
+          labelFields: labelFields,
+        );
     }
   }
 
@@ -1179,6 +1186,17 @@ class BatchInwardController extends GetxController {
           productName: product.name,
           barcodeString: barcodeString,
           labelFields: smallSevenFields,
+        );
+      case LabelFormat.large100by150:
+        return dashboardController.buildGenericStaticLabelPreview(
+          format: selectedFormat,
+          width: 700,
+          height: 1100,
+          isGrid: noAttr < 1,
+          productName: product.name,
+          barcodeString: barcodeString,
+          labelFields: labelFields,
+          layout: dashboardController.large100by150LabelLayout,
         );
     }
   }
